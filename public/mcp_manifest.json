@@ -1,0 +1,60 @@
+{
+  "$schema": "https://modelcontextprotocol.io/schemas/server-manifest.json",
+  "name": "ethersflow-agent-trust-gate",
+  "displayName": "EthersFlow — Multi-Model Adversarial Agent Verification",
+  "description": "Verification middleware for AI agents. Forces independent LLMs into adversarial debate to cross-examine agent decisions before execution. Prevents hallucinations and unauthorized side-effects.",
+  "vendor": "EthersFlow Inc.",
+  "homepage": "https://ethersflow.ai",
+  "repository": "https://github.com/ethersflow/ethersflow-mcp-server",
+  "version": "1.5.0",
+  "license": "Apache-2.0",
+  "transport": {
+    "type": "http-sse",
+    "url": "https://api.ethersflow.ai/api/mcp"
+  },
+  "capabilities": {
+    "tools": [
+      {
+        "name": "verify_agent_action",
+        "description": "Cross-examine and gate autonomous AI agent action decisions (e.g. trades, claims, emails) via federated multi-model consensus prior to execution.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "agent_action": {
+              "type": "string",
+              "description": "The proposed action the agent intends to take."
+            },
+            "reasoning_chain": {
+              "type": "string",
+              "description": "The reasoning or context leading to this action."
+            },
+            "agent_count": {
+              "type": "number",
+              "description": "Number of adversarial audit nodes (2 to 7, default 3)."
+            },
+            "persona_preset": {
+              "type": "string",
+              "enum": [
+                "clinical_safety",
+                "financial_compliance",
+                "legal_citation",
+                "cybersecurity_auditor",
+                "general_adversarial"
+              ]
+            }
+          },
+          "required": ["agent_action"]
+        }
+      }
+    ]
+  },
+  "tags": [
+    "ai-safety",
+    "agent-trust",
+    "verification",
+    "consensus",
+    "hallucination-prevention",
+    "guardrails",
+    "compliance"
+  ]
+}

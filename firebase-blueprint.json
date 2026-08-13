@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "Analysis": {
+      "title": "Saved Analysis",
+      "description": "A saved consensus session record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID" },
+        "query": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "analystResponses": { "type": "array" },
+        "synthesis": { "type": "object" },
+        "messages": { "type": "array" },
+        "agents": { "type": "array", "description": "The exact configuration of active analysts used in this turn" }
+      },
+      "required": ["userId", "query", "timestamp"]
+    },
+    "CustomAgent": {
+      "title": "Custom Agent",
+      "description": "A user-defined custom analyst persona saved to their personal agent library",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "model": { "type": "string" },
+        "systemPrompt": { "type": "string" },
+        "category": { "type": "string", "enum": ["strategic", "analytical", "adversarial", "custom"] },
+        "createdAt": { "type": "number" },
+        "isShared": { "type": "boolean" }
+      },
+      "required": ["userId", "name", "description", "model", "systemPrompt"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "User subscription and usage data",
+      "type": "object",
+      "properties": {
+        "plan": { "type": "string", "enum": ["free", "pro", "max", "enterprise"] },
+        "analysisCount": { "type": "number" },
+        "stripeCustomerId": { "type": "string" },
+        "email": { "type": "string" },
+        "updatedAt": { "type": "object", "description": "Server timestamp" },
+        "lastUsedAt": { "type": "object", "description": "Server timestamp" }
+      }
+    },
+    "SharedDebate": {
+      "title": "Shared Debate",
+      "description": "A public snapshot of a debate session",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "debate": { "type": "object" },
+        "userId": { "type": "string" },
+        "createdAt": { "type": "object" },
+        "viewCount": { "type": "number" }
+      }
+    },
+    "GtmLead": {
+      "title": "Gtm Lead",
+      "description": "Outbound sales prospect with AI outreach hook",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "title": { "type": "string" },
+        "company": { "type": "string" },
+        "linkedinUrl": { "type": "string" },
+        "githubUrl": { "type": "string" },
+        "intentTrigger": { "type": "string" },
+        "intentScore": { "type": "number" },
+        "customHook": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["name", "title", "company", "linkedinUrl", "intentTrigger", "intentScore", "customHook", "status", "createdAt"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "User-defined research workspace or project",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "updatedAt": { "type": "number" },
+        "instructions": { "type": "string" },
+        "resources": { "type": "array" },
+        "team": { "type": "array" },
+        "agents": { "type": "array" }
+      },
+      "required": ["name", "description", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/analyses/{analysisId}": {
+      "schema": "Analysis",
+      "description": "User's saved analytical debate sessions"
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User privacy and billing profiles"
+    },
+    "/users/{userId}/projects/{projectId}": {
+      "schema": "Project",
+      "description": "User-defined research projects"
+    },
+    "/shared_debates/{shareId}": {
+      "schema": "SharedDebate",
+      "description": "Publicly shared research snapshots"
+    },
+    "/custom_agents/{agentId}": {
+      "schema": "CustomAgent",
+      "description": "User-defined custom analyst personas saved to their personal agent library"
+    },
+    "/gtm_leads/{leadId}": {
+      "schema": "GtmLead",
+      "description": "Go-to-market lead database for outbound outreach"
+    }
+  }
+}

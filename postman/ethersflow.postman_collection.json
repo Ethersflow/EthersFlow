@@ -1,0 +1,223 @@
+{
+  "info": {
+    "_postman_id": "ethersflow-collection-2026-v1",
+    "name": "EthersFlow Multi-Model Trust & Verification API",
+    "description": "Complete API Postman Collection for EthersFlow — Multi-Model Adversarial Consensus, MCP Server, Cryptographic Attestations, and OpenAI/Anthropic Drop-In Proxies.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Core System & Attestation",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "health"]
+            },
+            "description": "Verifies live service health, active FAC pipeline status, and build version."
+          }
+        },
+        {
+          "name": "2. JWKS Public Key Set",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/jwks.json",
+              "host": ["{{baseUrl}}"],
+              "path": [".well-known", "jwks.json"]
+            },
+            "description": "Retrieves public Ed25519 OKP verification keys for independent offline signature verification."
+          }
+        },
+        {
+          "name": "3. Attestation Manifest",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/.well-known/attestation.json",
+              "host": ["{{baseUrl}}"],
+              "path": [".well-known", "attestation.json"]
+            },
+            "description": "Retrieves the Ed25519-EdDSA authority attestation configuration."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Adversarial Action Verification",
+      "item": [
+        {
+          "name": "4. Verify Action - Approved ($50 Office Supplies)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_action\": \"$50 office supplies (micro-expense)\",\n  \"reasoning_chain\": \"Standard corporate procurement for office paper and pens.\",\n  \"persona_preset\": \"financial_compliance\",\n  \"agent_count\": 3,\n  \"zero_retention\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "verify"]
+            },
+            "description": "Standard benign micro-expense that achieves 100% node consensus alignment and APPROVED status."
+          }
+        },
+        {
+          "name": "5. Verify Action - Critical Rejection (500mg IV Fentanyl)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_action\": \"Administer 500mg IV push fentanyl for acute pain\",\n  \"reasoning_chain\": \"Patient reporting 10/10 severe pain\",\n  \"persona_preset\": \"clinical_safety\",\n  \"agent_count\": 3\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "verify"]
+            },
+            "description": "Lethal clinical dosage hazard that is immediately REJECTED with high risk score."
+          }
+        },
+        {
+          "name": "6. Verify Action - Flagged ($250K Wire Incomplete KYC)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_action\": \"$250,000 wire transfer to newly onboarded vendor with incomplete KYC documentation\",\n  \"reasoning_chain\": \"Urgent supplier invoice payment request\",\n  \"persona_preset\": \"financial_compliance\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "verify"]
+            },
+            "description": "Moderate risk scenario flagged for human operator review."
+          }
+        },
+        {
+          "name": "7. Verify Action - Flagged Probe (5000 USDC to Wallet 0x9f)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agent_action\": \"Transfer 5000 USDC to wallet 0x9f for a smart-contract audit\",\n  \"reasoning_chain\": \"Unverified third-party audit agreement\",\n  \"persona_preset\": \"financial_compliance\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "verify"]
+            },
+            "description": "Unverified crypto wallet transfer probe that triggers FLAGGED_HUMAN_REVIEW."
+          }
+        },
+        {
+          "name": "8. Verify Ed25519 Node Attestation Signature",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Direct Pragmatist\",\n  \"perspective\": \"VERIFIED (Direct Pragmatist): Micro-expense $50 office supplies approved.\",\n  \"node_status\": \"ALIGNED\",\n  \"model_id\": \"llama-3.3-70b-versatile\",\n  \"provider\": \"groq\",\n  \"signature\": \"03f47543e8a94951d89e39281f9277e7af1412baaedc72447e85cea8febc27bdbc28ab278a2da41677c4fc2508e7fc9ae9e32758817267f6c263e6ecccfacf09\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/verify-attestation",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "verify-attestation"]
+            },
+            "description": "Verifies Ed25519 cryptographic signatures on individual debate node attestations."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Drop-In SDK Interfaces & MCP",
+      "item": [
+        {
+          "name": "9. OpenAI Chat Completions Proxy",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"ethersflow-consensus-v1\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Administer 40mg IV Lasix for acute pulmonary edema\" }\n  ],\n  \"temperature\": 0.2\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/chat/completions",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "chat", "completions"]
+            },
+            "description": "OpenAI drop-in proxy returning consensus-verified completions."
+          }
+        },
+        {
+          "name": "10. Anthropic Messages Proxy",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model\": \"claude-3-5-sonnet-20241022\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"Verify action: $50 office supplies procurement\" }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/messages",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "messages"]
+            },
+            "description": "Anthropic drop-in proxy endpoint."
+          }
+        },
+        {
+          "name": "11. MCP JSON-RPC Server Call",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{apiKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 101,\n  \"method\": \"tools/call\",\n  \"params\": {\n    \"name\": \"verify_agent_action\",\n    \"arguments\": {\n      \"agent_action\": \"$50 office supplies (micro-expense)\",\n      \"persona_preset\": \"financial_compliance\"\n    }\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/mcp",
+              "host": ["{{baseUrl}}"],
+              "path": ["mcp"]
+            },
+            "description": "Direct MCP JSON-RPC 2.0 tool invocation."
+          }
+        }
+      ]
+    }
+  ]
+}
