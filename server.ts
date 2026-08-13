@@ -1339,7 +1339,7 @@ async function startServer() {
                   { role: "system", content: `You are ${analystName}, a specialized expert audit node in EthersFlow's multi-agent consensus network. Provide your independent analysis in 2-3 concise paragraphs.` },
                   { role: "user", content: prompt }
                 ],
-                temperature: 0.3,
+                temperature: 0.0,
                 max_tokens: 600
               })
             });
@@ -1360,7 +1360,7 @@ async function startServer() {
               contents: [{ role: "user", parts: [{ text: `Role: ${analystName}\nDirective: ${prompt}` }] }],
               config: {
                 systemInstruction: `You are ${analystName}, a specialized expert analyst operating inside EthersFlow's multi-agent consensus layer. Provide your rigorous, independent perspective.`,
-                temperature: 0.3,
+                temperature: 0.0,
                 maxOutputTokens: 800
               }
             });
@@ -1389,7 +1389,7 @@ async function startServer() {
           contents: [{ role: "user", parts: [{ text: synthPrompt }] }],
           config: {
             systemInstruction: "You are EthersFlow's Multi-Agent Consensus Synthesizer. Output a clear, verified, authoritative consensus response.",
-            temperature: 0.2,
+            temperature: 0.0,
             maxOutputTokens: 2000
           }
         });
