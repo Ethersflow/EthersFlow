@@ -1,3 +1,4 @@
+# Dependencies & Build Outputs
 node_modules/
 build/
 dist/
@@ -6,3 +7,23 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Production Full-Stack Server & Frontend Application (Private)
+server.ts
+src/
+firebase-applet-config.json
+firebase-blueprint.json
+firestore.rules
+Dockerfile
+.dockerignore
+scripts/
+shims/
+bun.lock
+package-lock.json
+vite.config.ts
+tsconfig.json
+tsconfig.node.json
+eslint.config.js
+index.html
+metadata.json
+

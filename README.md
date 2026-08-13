@@ -9,7 +9,7 @@
 
 ---
 
-## Overview
+## 🚀 Overview
 
 **EthersFlow** is a zero-trust verification engine for autonomous AI agents. Before an agent executes side effects—such as wire transfers, API calls, medical orders, or code changes—EthersFlow forces independent LLMs (Claude, Gemini, Llama, Mistral) into **Federated Adversarial Debate**.
 
@@ -45,7 +45,7 @@ If an audit node uncovers hallucinations, unverified counterparties, or complian
 
 ---
 
-##  What's Included
+## 📦 What's Included
 
 This repository contains the official client surfaces and developer tools for the EthersFlow ecosystem:
 
@@ -61,7 +61,7 @@ This repository contains the official client surfaces and developer tools for th
 
 ---
 
-##  5-Minute Quickstart
+## ⚡ 5-Minute Quickstart
 
 ### 1. Model Context Protocol (MCP) Server
 
@@ -109,7 +109,7 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ---
 
-##  Status & Known Limitations
+## 📊 Status & Known Limitations
 
 - **Ed25519-Signed Audit Trail** ✅: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
 - **Probabilistic, Not Deterministic** ⚠️: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` ↔ `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
@@ -118,7 +118,7 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ---
 
-##  Key Features
+## 🔑 Key Features
 
 - **Multi-Model Consensus**: Eliminates single-model bias by forcing heterogeneous models into adversarial debate.
 - **Ed25519 Attestation**: Every debate node output is signed with an Ed25519 cryptographic key. Public key set available at `/.well-known/jwks.json`.
@@ -133,7 +133,7 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ---
 
-##  Framework Integrations
+## 🛠️ Framework Integrations
 
 ### LangChain (Python)
 
@@ -170,7 +170,7 @@ export default {
 
 ---
 
-##  Security & Ed25519 Attestation
+## 🛡️ Security & Ed25519 Attestation
 
 EthersFlow publishes its public key set in JSON Web Key Set (JWKS) format:
 
@@ -182,12 +182,12 @@ You can verify signatures locally or through the API to prove that every audit n
 
 ---
 
-##  Postman Collection
+## 📬 Postman Collection
 
 Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json) and [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json) into Postman to test all 11 core endpoints instantly.
 
 ---
 
-##  License
+## 📄 License
 
 Code & SDK wrappers licensed under [MIT License](LICENSE). Hosted EthersFlow API services subject to Terms of Service.

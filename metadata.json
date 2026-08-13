@@ -1,6 +1,0 @@
-{
-  "name": "EthersFlow",
-  "description": "Multi-model AI consensus platform for verifiable reasoning and confidence-metric synthesis.",
-  "requestFramePermissions": ["camera", "microphone"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
