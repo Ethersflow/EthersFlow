@@ -28,7 +28,7 @@ export class EthersFlow {
   private apiKey: string;
   private baseUrl: string;
 
-  constructor(apiKey: string, baseUrl: string = 'https://api.ethersflow.ai') {
+  constructor(apiKey: string, baseUrl: string = 'https://ethersflow-225907257236.us-east1.run.app') {
     this.apiKey = apiKey;
     this.baseUrl = baseUrl.replace(/\/$/, '');
   }

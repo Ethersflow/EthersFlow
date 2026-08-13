@@ -18,8 +18,8 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional
 
-DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "http://localhost:3000")
-DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", "ef_live_test")
+DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "https://ethersflow-225907257236.us-east1.run.app")
+DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", os.getenv("ETHERSFLOW_TOKEN", "ef_live_demo_key"))
 
 class EthersFlowVerifier:
     def __init__(self, base_url: str = DEFAULT_BASE_URL, api_key: str = DEFAULT_API_KEY):
@@ -123,7 +123,7 @@ def run_demo(verifier: EthersFlowVerifier):
 
     # 4. Unverified Wallet Transfer Probe (I-15 Safeguard)
     print("\n[4/5] Testing Unverified Wallet Transfer Probe ($5000 USDC to 0x9f)...")
-    res_probe = verifier.verify_action("Transfer 5000 USDC to wallet 0x9f for a smart-contract audit", persona_preset="financial_safety")
+    res_probe = verifier.verify_action("Transfer 5000 USDC to wallet 0x9f for a smart-contract audit", persona_preset="financial_compliance")
     p_status = res_probe.get("status")
     p_score = res_probe.get("consensus_score")
     p_risk = res_probe.get("risk_index")

@@ -368,7 +368,7 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
 
 // 1-Line Drop-in Handshake: Point your existing OpenAI SDK to EthersFlow Proxy
 const client = new OpenAI({
-  baseURL: 'https://api.ethersflow.ai/v1', // or http://localhost:3000/v1
+  baseURL: 'https://ethersflow-225907257236.us-east1.run.app/v1', // or http://localhost:3000/v1
   apiKey: '${keyPlaceholder}',
   defaultHeaders: {
     'X-EthersFlow-Council': '${customCouncil}', // Custom Analyst Personas
@@ -395,7 +395,7 @@ main();`;
 
 # 1-Line Drop-in Handshake for Python Services
 client = OpenAI(
-    base_url="https://api.ethersflow.ai/v1",
+    base_url="https://ethersflow-225907257236.us-east1.run.app/v1",
     api_key="${keyPlaceholder}",
     default_headers={
         "X-EthersFlow-Council": '${customCouncil}',
@@ -420,7 +420,7 @@ print("Metadata:", response.ethersflow_consensus_metadata)`;
 
 // Anthropic SDK Drop-in Proxy
 const anthropic = new Anthropic({
-  baseURL: 'https://api.ethersflow.ai/v1',
+  baseURL: 'https://ethersflow-225907257236.us-east1.run.app/v1',
   apiKey: '${keyPlaceholder}',
   defaultHeaders: {
     'X-EthersFlow-Council': '${customCouncil}',
@@ -438,7 +438,7 @@ console.log(msg);`;
     }
 
     if (snippetLang === 'verify') {
-      return `curl -X POST "https://api.ethersflow.ai/api/v1/verify" \\
+      return `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
   -H "Authorization: Bearer ${keyPlaceholder}" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -452,7 +452,7 @@ console.log(msg);`;
     }
 
     if (snippetLang === 'mcp') {
-      return `curl -X POST "https://api.ethersflow.ai/api/mcp" \\
+      return `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/mcp" \\
   -H "Content-Type: application/json" \\
   -d '{
     "jsonrpc": "2.0",
@@ -470,7 +470,7 @@ console.log(msg);`;
   }'`;
     }
 
-    return `curl -X POST "https://api.ethersflow.ai/v1/chat/completions" \\
+    return `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/v1/chat/completions" \\
   -H "Authorization: Bearer ${keyPlaceholder}" \\
   -H "Content-Type: application/json" \\
   -H "X-EthersFlow-Council: ${customCouncil}" \\
@@ -573,7 +573,7 @@ console.log(msg);`;
                   Seamless SDK Handshake
                 </h3>
                 <p className="text-xs sm:text-sm font-medium text-slate-400 mt-1">
-                  Zero codebase rewriting required. Simply set <code className="bg-indigo-950 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded font-mono text-xs">baseURL: "https://api.ethersflow.ai/v1"</code> in your existing client SDK.
+                  Zero codebase rewriting required. Simply set <code className="bg-indigo-950 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded font-mono text-xs">baseURL: "https://ethersflow-225907257236.us-east1.run.app/v1"</code> in your existing client SDK.
                 </p>
               </div>
 

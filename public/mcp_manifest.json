@@ -4,13 +4,13 @@
   "displayName": "EthersFlow — Multi-Model Adversarial Agent Verification",
   "description": "Verification middleware for AI agents. Forces independent LLMs into adversarial debate to cross-examine agent decisions before execution. Prevents hallucinations and unauthorized side-effects.",
   "vendor": "EthersFlow Inc.",
-  "homepage": "https://ethersflow.ai",
-  "repository": "https://github.com/ethersflow/ethersflow-mcp-server",
+  "homepage": "https://www.ethersflow.com",
+  "repository": "https://github.com/ethersflow/ethersflow",
   "version": "1.5.0",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "transport": {
     "type": "http-sse",
-    "url": "https://api.ethersflow.ai/api/mcp"
+    "url": "https://ethersflow-225907257236.us-east1.run.app/api/mcp"
   },
   "capabilities": {
     "tools": [

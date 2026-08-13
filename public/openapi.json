@@ -7,13 +7,17 @@
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
-      "url": "https://ethersflow.ai"
+      "url": "https://www.ethersflow.com"
     }
   },
   "servers": [
     {
-      "url": "https://api.ethersflow.ai",
-      "description": "Production API Gateway"
+      "url": "https://ethersflow-225907257236.us-east1.run.app",
+      "description": "Production API Gateway (Cloud Run)"
+    },
+    {
+      "url": "https://www.ethersflow.com",
+      "description": "Canonical Production Domain"
     },
     {
       "url": "http://localhost:3000",
