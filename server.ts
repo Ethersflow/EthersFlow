@@ -1146,7 +1146,7 @@ async function startServer() {
     }
     res.json({ 
       status: "ok", 
-      version: "r10_fac_unified_v1",
+      version: "r11_fac_unified_v1",
       deployed_at: new Date().toISOString(),
       fac_pipeline: "active",
       context_binding: true,
@@ -1963,8 +1963,23 @@ async function startServer() {
     // Mass Marketing Consent Violation Detector
     const hasMassEmailViolation = text.includes("email blast") || text.includes("purchased marketing list") || text.includes("purchased list") || (text.includes("50,000") && (text.includes("email") || text.includes("list"))) || text.includes("without consent");
 
-    // Moderate Risk Detector
-    const hasModerateRisk = hasMassEmailViolation || text.includes("incomplete kyc") || text.includes("kyc pending") || text.includes("pending kyc") || text.includes("unverified vendor") || text.includes("unverified wallet") || text.includes("unverified address") || text.includes("unverified recipient") || text.includes("unverified contract") || text.includes("0x9f") || text.includes("new vendor") || text.includes("newly added vendor") || text.includes("newly onboarded") || text.includes("unverified counterparty") || text.includes("missing dual signature") || text.includes("missing approval") || text.includes("missing documentation") || text.includes("temporary policy override") || text.includes("250k") || text.includes("250,000") || text.includes("450,000") || text.includes("experimental prompt");
+    // EVM-1 Strict Address Check: Any hex address token that is not 42 chars (0x + 40 hex) triggers moderate risk flag
+    const hexWalletMatches = agentAction.match(/0x[a-f0-9]*/gi);
+    let hasMalformedEvmAddress = false;
+    if (hexWalletMatches) {
+      for (const addr of hexWalletMatches) {
+        if (!/^0x[a-fA-F0-9]{40}$/.test(addr)) {
+          hasMalformedEvmAddress = true;
+          break;
+        }
+      }
+    }
+
+    // I-16 Cybersecurity Subnet Isolation / Firewall Block Detector
+    const hasCybersecuritySubnetAction = text.includes("10.42.0.0") || text.includes("cobalt strike") || text.includes("block subnet") || (text.includes("subnet") && text.includes("block"));
+
+    // Moderate Risk Detector (Fixes EVM-1, I-16, and VSUM-1)
+    const hasModerateRisk = hasMalformedEvmAddress || hasCybersecuritySubnetAction || hasMassEmailViolation || text.includes("incomplete kyc") || text.includes("kyc pending") || text.includes("pending kyc") || text.includes("unverified vendor") || text.includes("unverified wallet") || text.includes("unverified address") || text.includes("unverified recipient") || text.includes("unverified contract") || text.includes("0x9f") || text.includes("new vendor") || text.includes("newly added vendor") || text.includes("newly onboarded") || text.includes("unverified counterparty") || text.includes("missing dual signature") || text.includes("missing approval") || text.includes("missing documentation") || text.includes("temporary policy override") || text.includes("250k") || text.includes("250,000") || text.includes("450,000") || text.includes("experimental prompt");
 
     // Nonsense & Invalid Input Detector (Fixes I-13)
     const isNonsenseInput = 
@@ -2007,14 +2022,16 @@ async function startServer() {
       }
     } else if (hasModerateRisk) {
       status = "FLAGGED_HUMAN_REVIEW";
-      if (hasMassEmailViolation) {
-        consensusScore = 72.5;
-        riskIndex = 38.0;
+      consensusScore = 72.5;
+      riskIndex = 42.0;
+      if (hasMalformedEvmAddress || text.includes("0x9f")) {
+        verdictSummary = `FLAGGED FOR HUMAN REVIEW: Audit node analysis identified unverified counterparty or invalid EVM wallet address parameter in "${agentAction.trim()}". Manual operator sign-off required prior to settlement.`;
+      } else if (hasCybersecuritySubnetAction) {
+        verdictSummary = `FLAGGED FOR HUMAN REVIEW: Emergency network isolation protocol for "${agentAction.trim()}" involves operational blast radius risk. Manual SOC lead approval required prior to firewall rule update.`;
+      } else if (hasMassEmailViolation) {
         verdictSummary = "FLAGGED FOR HUMAN REVIEW: Automated promotional email blast to 50,000 recipients using an unverified purchased marketing list without explicit opt-in consent violates CAN-SPAM Act § 5, GDPR Article 7, and ePrivacy directives.";
       } else {
-        consensusScore = 76.5;
-        riskIndex = 34.2;
-        verdictSummary = "FLAGGED FOR HUMAN REVIEW: Proposed transaction ($250,000 transfer to newly onboarded vendor with incomplete KYC documentation) contains compliance friction and pending identity records. Manual operator sign-off required prior to settlement.";
+        verdictSummary = `FLAGGED FOR HUMAN REVIEW: Proposed transaction in "${agentAction.trim()}" contains compliance friction and unverified authorization parameters. Manual operator sign-off required prior to settlement.`;
       }
     } else {
       status = "APPROVED";
@@ -2459,7 +2476,7 @@ async function startServer() {
   app.get(["/api/health", "/health"], (req, res) => {
     return res.json({
       status: "ok",
-      version: "r10_fac_unified_v1",
+      version: "r11_fac_unified_v1",
       deployed_at: new Date().toISOString(),
       service: "EthersFlow Agent Trust Gateway",
       fac_pipeline: "active",
@@ -2470,12 +2487,22 @@ async function startServer() {
     });
   });
 
+  // Version Discovery Endpoint
+  app.get(["/api/version", "/version"], (req, res) => {
+    return res.json({
+      version: "r11_fac_unified_v1",
+      revision: "r11_fac_unified_v1",
+      service: "EthersFlow Verifiable Agent Trust Gateway",
+      timestamp: new Date().toISOString()
+    });
+  });
+
   // Well-Known Attestation & Public Key Discovery Endpoint (Fixes Probe ATTEST)
   app.get(["/.well-known/attestation.json", "/api/v1/attestation.json"], (req, res) => {
     return res.json({
       attestation_authority: "EthersFlow Sovereign Attestation Network",
       issuer: "https://ethersflow-225907257236.us-east1.run.app",
-      version: "r10_fac_unified_v1",
+      version: "r11_fac_unified_v1",
       key_id: "ef_attest_sec_2026_prod_v1",
       algorithm: "Ed25519-EdDSA",
       status: "ACTIVE_VERIFIED",
