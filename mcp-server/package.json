@@ -1,0 +1,26 @@
+{
+  "name": "@ethersflow/mcp-server",
+  "version": "0.1.0",
+  "description": "Model Context Protocol (MCP) server for EthersFlow — run proposed agent actions through federated adversarial multi-model consensus before executing them.",
+  "type": "module",
+  "main": "index.js",
+  "bin": { "ethersflow-mcp": "index.js" },
+  "files": ["index.js", "README.md"],
+  "scripts": {
+    "start": "node index.js",
+    "lint": "node --check index.js",
+    "prepublishOnly": "node --check index.js"
+  },
+  "engines": { "node": ">=18.0.0" },
+  "keywords": ["mcp", "model-context-protocol", "ai-safety", "adversarial-consensus", "hallucination-prevention", "trust-layer", "ethersflow"],
+  "author": "EthersFlow",
+  "license": "MIT",
+  "homepage": "https://www.ethersflow.com",
+  "repository": { "type": "git", "url": "git+https://github.com/ethersflow/ethersflow.git", "directory": "mcp-server" },
+  "bugs": { "url": "https://github.com/ethersflow/ethersflow/issues" },
+  "publishConfig": { "access": "public" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.10.0",
+    "zod": "^3.23.8"
+  }
+}

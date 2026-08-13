@@ -1,0 +1,27 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /analyses/{analysisId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /users/{userId}/projects/{projectId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    match /shared_debates/{shareId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /custom_agents/{agentId} {
+      allow read: if resource == null || resource.data.isShared == true || (request.auth != null && request.auth.uid == resource.data.userId);
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    match /gtm_leads/{leadId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

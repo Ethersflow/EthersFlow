@@ -1,0 +1,23 @@
+{
+  "name": "ethersflow-trust-layer",
+  "version": "0.1.0",
+  "description": "Multi-model adversarial consensus engine for verifying AI outputs across regulated industries.",
+  "author": "EthersFlow",
+  "homepage": "https://www.ethersflow.com",
+  "repository": { "type": "git", "url": "https://github.com/ethersflow/ethersflow.git" },
+  "license": "MIT",
+  "bin": { "ethersflow-mcp": "index.js" },
+  "servers": {
+    "consensus": {
+      "protocol": "mcp",
+      "transport": "stdio",
+      "command": "npx",
+      "args": ["-y", "@ethersflow/mcp-server"],
+      "env": {
+        "ETHERSFLOW_TOKEN": "${ETHERSFLOW_TOKEN}",
+        "ETHERSFLOW_BASE_URL": "${ETHERSFLOW_BASE_URL}"
+      }
+    }
+  },
+  "keywords": ["ai-safety", "mcp", "adversarial-consensus", "trust-layer", "hallucination-prevention"]
+}
