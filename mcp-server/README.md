@@ -15,6 +15,8 @@ You can run `@ethersflow/mcp-server` instantly without local installation using 
 npx @ethersflow/mcp-server
 ```
 
+No environment variables required—defaults to live API with demo token.
+
 ---
 
 ## ⚙️ Configuration Guides
