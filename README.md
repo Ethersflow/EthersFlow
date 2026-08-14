@@ -50,7 +50,7 @@ If an audit node detects unverified counterparties, compliance risks, or logical
 
 ---
 
-## ⚡ 5-Minute Quickstart
+##  5-Minute Quickstart
 
 ### 1. MCP Server (Claude Desktop / Cursor)
 
