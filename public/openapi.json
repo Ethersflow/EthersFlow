@@ -14,17 +14,33 @@
     {
       "url": "https://ethersflow-225907257236.us-east1.run.app",
       "description": "Production API Gateway (Cloud Run)"
-    },
-    {
-      "url": "https://www.ethersflow.com",
-      "description": "Canonical Production Domain"
-    },
-    {
-      "url": "http://localhost:3000",
-      "description": "Local Development Server"
     }
   ],
   "paths": {
+    "/api/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Check API health and version info",
+        "operationId": "healthCheck",
+        "responses": {
+          "200": {
+            "description": "Health status"
+          }
+        }
+      }
+    },
+    "/api/version": {
+      "get": {
+        "summary": "Get API Version",
+        "description": "Get current API version",
+        "operationId": "getVersion",
+        "responses": {
+          "200": {
+            "description": "Version info"
+          }
+        }
+      }
+    },
     "/api/v1/verify": {
       "post": {
         "summary": "Verify Autonomous Agent Proposed Action",
@@ -146,6 +162,80 @@
         "responses": {
           "200": {
             "description": "MCP Protocol Standard JSON-RPC Response"
+          }
+        }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "summary": "JSON Web Key Set",
+        "description": "Public keys for verifying Ed25519 attestation signatures",
+        "operationId": "getJWKS",
+        "responses": {
+          "200": {
+            "description": "JWKS"
+          }
+        }
+      }
+    },
+    "/.well-known/attestation.json": {
+      "get": {
+        "summary": "Attestation Manifest",
+        "description": "Attestation configuration and metadata",
+        "operationId": "getAttestation",
+        "responses": {
+          "200": {
+            "description": "Attestation manifest"
+          }
+        }
+      }
+    },
+    "/api/v1/verify-attestation": {
+      "post": {
+        "summary": "Verify Ed25519 Attestation Signature",
+        "description": "Verify cryptographic signatures of audit node perspectives",
+        "operationId": "verifyAttestation",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Signature verification result"
+          }
+        }
+      }
+    },
+    "/v1/chat/completions": {
+      "post": {
+        "summary": "OpenAI-Compatible Chat Completion Proxy",
+        "description": "Drop-in replacement for OpenAI /v1/chat/completions — returns consensus-verified responses",
+        "operationId": "chatCompletions",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["model", "messages"],
+                "properties": {
+                  "model": { "type": "string", "example": "ethersflow-consensus-v1" },
+                  "messages": { "type": "array" },
+                  "temperature": { "type": "number", "default": 0.7 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Consensus chat completion response"
           }
         }
       }
