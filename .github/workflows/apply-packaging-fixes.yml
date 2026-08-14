@@ -80,4 +80,8 @@ jobs:
               if (!res.ok) {
                 const text = await res.text().catch(() => "");
                 throw new Error(`EthersFlow verify request failed: ${res.status} ${text}`);
-
+              }
+
+              return (await res.json()) as VerificationResult;
+          }}
+
