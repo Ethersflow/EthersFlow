@@ -1,0 +1,24 @@
+{
+  "name": "@ethersflow/sdk",
+  "version": "0.1.0",
+  "description": "EthersFlow TypeScript SDK & Cloudflare Worker helpers",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p ./tsconfig.json",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ethersflow/EthersFlow.git"
+  },
+  "keywords": ["ethersflow", "mcp", "sdk", "cloudflare", "verifier"],
+  "author": "EthersFlow",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
