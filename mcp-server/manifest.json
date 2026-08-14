@@ -4,7 +4,7 @@
   "description": "Multi-model adversarial consensus engine for verifying AI outputs across regulated industries.",
   "author": "EthersFlow",
   "homepage": "https://www.ethersflow.com",
-  "repository": { "type": "git", "url": "https://github.com/ethersflow/ethersflow.git" },
+  "repository": { "type": "git", "url": "https://github.com/Ethersflow/EthersFlow.git" },
   "license": "MIT",
   "bin": { "ethersflow-mcp": "index.js" },
   "servers": {

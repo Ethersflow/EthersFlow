@@ -2,6 +2,7 @@
 
 > Model Context Protocol (MCP) server for **EthersFlow** — the multi-model trust layer that verifies AI outputs and agent action directives through adversarial consensus before execution.
 
+[![GitHub Repository](https://img.shields.io/badge/GitHub-Ethersflow%2FEthersFlow-blue.svg)](https://github.com/Ethersflow/EthersFlow)
 [![npm version](https://img.shields.io/npm/v/@ethersflow/mcp-server.svg)](https://www.npmjs.com/package/@ethersflow/mcp-server)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -9,13 +10,23 @@
 
 ## ⚡ Quick Start
 
-You can run `@ethersflow/mcp-server` instantly without local installation using `npx`:
-
+### Option A: Via NPX (Public Registry)
 ```bash
-npx @ethersflow/mcp-server
+npx @ethersflow/mcp-server --api-key=ef_live_demo_key
 ```
 
-No environment variables required—defaults to live API with demo token.
+### Option B: Direct From GitHub (Zero npm publication dependency / Cold-start)
+```bash
+git clone https://github.com/Ethersflow/EthersFlow.git
+cd EthersFlow/mcp-server
+npm install
+npm start
+```
+
+### Option C: Remote HTTP / SSE Gateway (Zero Local Node / NPX Dependencies)
+Connect your MCP client directly to EthersFlow's production endpoint:
+- **Endpoint**: `https://ethersflow-225907257236.us-east1.run.app/api/mcp`
+- **Headers**: `Authorization: Bearer ef_live_demo_key`
 
 ---
 
@@ -28,12 +39,29 @@ Add EthersFlow to your `claude_desktop_config.json`:
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
+#### Stdio Mode (via npx / local):
 ```json
 {
   "mcpServers": {
     "ethersflow": {
       "command": "npx",
       "args": ["-y", "@ethersflow/mcp-server"],
+      "env": {
+        "ETHERSFLOW_TOKEN": "ef_live_demo_key",
+        "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
+      }
+    }
+  }
+}
+```
+
+#### Local Clone Fallback (if running from repo source):
+```json
+{
+  "mcpServers": {
+    "ethersflow": {
+      "command": "node",
+      "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "env": {
         "ETHERSFLOW_TOKEN": "ef_live_demo_key",
         "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
@@ -51,10 +79,27 @@ In Cursor Settings → **MCP Servers** → **Add New MCP Server**:
 
 - **Name**: `ethersflow`
 - **Type**: `command`
-- **Command**: `npx -y @ethersflow/mcp-server`
+- **Command**: `npx -y @ethersflow/mcp-server` (or `node /path/to/EthersFlow/mcp-server/index.js`)
 - **Environment Variables**:
   - `ETHERSFLOW_TOKEN`: `ef_live_demo_key`
   - `ETHERSFLOW_BASE_URL`: `https://ethersflow-225907257236.us-east1.run.app`
+
+---
+
+## 🚀 Maintainer Guide: Publishing to npm
+
+To publish this package to npm under `@ethersflow/mcp-server`:
+
+```bash
+# 1. Navigate to mcp-server package directory
+cd mcp-server
+
+# 2. Authenticate with your npm account / organization
+npm login
+
+# 3. Publish public scoped package
+npm publish --access public
+```
 
 ---
 

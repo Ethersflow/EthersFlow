@@ -148,7 +148,7 @@ console.log('EthersFlow Verification Stamp:', response.ethersflow_stamp);`,
 import (
 	"fmt"
 	"log"
-	"github.com/ethersflow/ethersflow-go"
+	"github.com/Ethersflow/ethersflow-go"
 )
 
 func main() {
@@ -629,7 +629,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                     {activeLang === 'python' && 'pip install ethersflow'}
                     {activeLang === 'anthropic' && 'npm install @ethersflow/sdk @ethersflow/anthropic-adapter'}
                     {activeLang === 'curl' && '# REST API requires no package installation'}
-                    {activeLang === 'go' && 'go get github.com/ethersflow/ethersflow-go'}
+                    {activeLang === 'go' && 'go get github.com/Ethersflow/ethersflow-go'}
                     {activeLang === 'rust' && 'cargo add ethersflow_rs'}
                   </span>
                 </div>
@@ -791,16 +791,49 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                   </pre>
                 </div>
 
-                <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl">
-                  <h4 className="text-sm font-bold text-white mb-3">Instant Command Line Launch</h4>
-                  <div className="p-4 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-xs text-emerald-400 flex items-center justify-between">
-                    <span>npx -y @ethersflow/mcp-server --api-key={mcpApiKey}</span>
-                    <button
-                      onClick={() => handleCopy(`npx -y @ethersflow/mcp-server --api-key=${mcpApiKey}`, 'cli')}
-                      className="text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </button>
+                <div className="p-6 bg-slate-900/60 border border-slate-800 rounded-2xl space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-bold text-white">Instant Command Line Launch</h4>
+                    <span className="text-[11px] text-emerald-400 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">Zero-Config</span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-slate-400 font-medium">1. NPX (Public Registry):</div>
+                    <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-xs text-emerald-400 flex items-center justify-between">
+                      <span className="truncate">npx -y @ethersflow/mcp-server --api-key={mcpApiKey}</span>
+                      <button
+                        onClick={() => handleCopy(`npx -y @ethersflow/mcp-server --api-key=${mcpApiKey}`, 'cli')}
+                        className="text-slate-400 hover:text-white cursor-pointer ml-2 shrink-0"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-slate-400 font-medium">2. Direct From GitHub / Local Clone (Zero npm dependency):</div>
+                    <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-[11px] text-sky-400 flex items-center justify-between">
+                      <span className="truncate">git clone https://github.com/Ethersflow/EthersFlow.git && cd EthersFlow/mcp-server && npm i && npm start</span>
+                      <button
+                        onClick={() => handleCopy(`git clone https://github.com/Ethersflow/EthersFlow.git && cd EthersFlow/mcp-server && npm install && npm start`, 'git-clone')}
+                        className="text-slate-400 hover:text-white cursor-pointer ml-2 shrink-0"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-[11px] text-slate-400 font-medium">3. Remote HTTP / SSE Gateway Endpoint:</div>
+                    <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-[11px] text-amber-300 flex items-center justify-between">
+                      <span className="truncate">https://ethersflow-225907257236.us-east1.run.app/api/mcp</span>
+                      <button
+                        onClick={() => handleCopy(`https://ethersflow-225907257236.us-east1.run.app/api/mcp`, 'mcp-url')}
+                        className="text-slate-400 hover:text-white cursor-pointer ml-2 shrink-0"
+                      >
+                        <Copy className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

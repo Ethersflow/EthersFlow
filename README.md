@@ -1,64 +1,71 @@
-# EthersFlow — The Layer of Trust for Critical Decisions
+# EthersFlow — Developer Toolkit & Trust Layer
 
-> **Developer toolkit for EthersFlow — a multi-model adversarial consensus trust layer that verifies AI outputs and agent decisions before execution. Includes MCP server, SDKs, and API reference.**
+> **Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI outputs through adversarial consensus. MCP server, SDKs, and API docs.**
 
-[![API Status](https://img.shields.io/badge/API-Live-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-Live_r12__fac__unified__v1-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-npx_%40ethersflow%2Fmcp--server-blue.svg)](mcp-server/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Crypto: Ed25519](https://img.shields.io/badge/Attestation-Ed25519__EdDSA-purple.svg)](/.well-known/jwks.json)
 
 ---
 
-##  Overview
+## 🚀 Overview
 
-**EthersFlow** is a zero-trust verification engine for autonomous AI agents. Before an agent executes high-stakes actions—wire transfers, API calls, medical orders, code deployments, or claims approvals—EthersFlow routes the decision through a federated consensus of independent LLMs running adversarial debate.
+**EthersFlow** is a zero-trust verification engine for autonomous AI agents. Before an agent executes side effects—such as wire transfers, API calls, medical orders, or code changes—EthersFlow forces independent LLMs (Claude, Gemini, Llama, Mistral) into **Federated Adversarial Debate**.
 
-If an audit node detects unverified counterparties, compliance risks, or logical inconsistencies, the action is **FLAGGED** (requiring manual operator sign-off) or **REJECTED**. All verdicts are signed with Ed25519 cryptographic attestations.
-
-### Architecture
+If an audit node uncovers hallucinations, unverified counterparties, or compliance risks, the proposed action is flagged or rejected with an **Ed25519 cryptographically signed attestation trail**.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│    Autonomous AI Agent                                                   │
-│  (LangChain, CrewAI, or Custom)                                          │
-└─────────────────────────────────────┬─────────────────────────────────  ─┘
-                                      │ Proposed Action
-                                      ▼
-┌───────────────────────────────────────────────────────────────────────────────────────────────┐
-│           EthersFlow Verification Gateway                                                     │
-│                                                                                               │
-│  ┌──────────────────────────────────┐  ┌──────────────────────────┐  ┌──────────────┐         │
-│  │ Llama 3.3 70B                    │  │ Llama 3.1 8B             │  │  (Custom)    │         │
-│  │ (Pragmatist)                     │  │ (Skeptic)                │  │ (Synthesizer)│         │
-│  └──────────────┬─────────────     ─┘  └──────────────┬───────────┘  └───────────┬──┘         │
-│                 └─────────────────────────────────────┬──────────────────────────┘            │
-│                                                       │ Adversarial Cross-Examination         │
-│                                                       ▼                                       │
-│                  ┌─────────────────────────────────────────────┐                              │
-│                  │ Federated Consensus                         │
-│                  │ + Ed25519 Signature                         │
-│                  └──────────────────────────┬──────────────────┘                             │
-└─────────────────────────────────────────────┬────────────────────────────────────────────────┘
-                                              │
+                           ┌─────────────────────────────────────┐
+                           │      Autonomous AI Agent            │
+                           └──────────────────┬──────────────────┘
+                                              │ Proposed Action
                                               ▼
-                           ┌──────────────────────────────────────────────┐
-                           │  Decision Gate                               │
-                           │  APPROVED / FLAGGED /                        │
-                           │  REJECTED                                    │
-                           └──────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                        EthersFlow Verification Gateway                                │
+│                                                                                        │
+│  ┌──────────────────────┐   ┌──────────────────────┐   ┌────────────────────────────┐  │
+│  │ Direct Pragmatist    │   │ Constructive Skeptic │   │ Lateral Synthesizer        │  │
+│  │ (Claude / Llama)     │   │ (Gemini / Mistral)   │   │ (DeepSeek / Qwen)          │  │
+│  └──────────┬───────────┘   └──────────┬───────────┘   └─────────────┬──────────────┘  │
+│             └──────────────────────────┼─────────────────────────────┘                 │
+│                                        │ Adversarial Cross-Examination                 │
+│                                        ▼                                               │
+│                         ┌─────────────────────────────┐                                │
+│                         │ Federated Consensus Engine  │                                │
+│                         └──────────────┬──────────────┘                                │
+│                                        │ Ed25519 Signature                             │
+└────────────────────────────────────────┼───────────────────────────────────────────────┘
+                                         │ Signed Verdict
+                                         ▼
+                 ┌──────────────────────────────────────────────┐
+                 │  APPROVED / FLAGGED / REJECTED Decision Gate │
+                 └──────────────────────────────────────────────┘
 ```
 
 ---
 
-##  5-Minute Quickstart
+## 📦 What's Included
 
-### 1. MCP Server (Claude Desktop / Cursor)
+This repository contains the official client surfaces and developer tools for the EthersFlow ecosystem:
 
-```bash
-npx @ethersflow/mcp-server
-```
+| Surface | Path | Description |
+|---|---|---|
+| **MCP Server** | [`/mcp-server`](mcp-server/README.md) | `npx @ethersflow/mcp-server` for Claude Desktop, Cursor, and MCP clients |
+| **Python Demo & Verifier** | [`efverify.py`](efverify.py) | Zero-dependency pure-Python client and Ed25519 signature validator |
+| **Python SDK** | [`/sdk/python`](sdk/python) | Native Python package & LangChain tool wrapper |
+| **TypeScript SDK** | [`/sdk/typescript`](sdk/typescript) | TypeScript SDK + Cloudflare Worker middleware helper |
+| **Postman Collection** | [`/postman`](postman) | 11-request Postman collection + environment variables |
 
-Add to `claude_desktop_config.json` or Cursor MCP settings:
+> *Note: The core Federated Adversarial Consensus engine runs on Cloud Run with Zero Data Retention (ZDR). This public repository hosts client-side tools, SDKs, and integration specs.*
+
+---
+
+## ⚡ 5-Minute Quickstart
+
+### 1. Model Context Protocol (MCP) Server
+
+Connect EthersFlow directly to **Claude Desktop** or **Cursor** in seconds:
 
 ```json
 {
@@ -77,23 +84,18 @@ Add to `claude_desktop_config.json` or Cursor MCP settings:
 
 ### 2. Python (Zero-Dependency Demo)
 
+Run the included reference verifier script:
+
 ```bash
 python efverify.py demo
 ```
 
-Verify a custom action:
-
+To verify a custom proposed action:
 ```bash
 python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract audit"
 ```
 
-### 3. cURL (Health Check)
-
-```bash
-curl https://ethersflow-225907257236.us-east1.run.app/api/health
-```
-
-### 4. cURL (Verify Action)
+### 3. cURL API Call
 
 ```bash
 curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
@@ -108,79 +110,31 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ---
 
-##  What's Included
+## 📊 Status & Known Limitations
 
-This repository contains **client-side developer tools only**. The core Federated Adversarial Consensus engine runs on Cloud Run with Zero Data Retention (ZDR).
-
-| Surface | Path | Description |
-|---|---|---|
-| **MCP Server** | [`/mcp-server`](mcp-server/README.md) | `npx @ethersflow/mcp-server` for Claude Desktop, Cursor, and any MCP client |
-| **Python Demo & Verifier** | [`efverify.py`](efverify.py) | Zero-dependency pure-Python client and Ed25519 signature verifier |
-| **Python SDK** | [`/sdk/python`](sdk/python) | Native Python package with LangChain tool wrapper |
-| **TypeScript SDK** | [`/sdk/typescript`](sdk/typescript) | TypeScript SDK + Cloudflare Worker middleware helper |
-| **Postman Collection** | [`/postman`](postman) | Pre-configured API requests + environment |
-| **OpenAPI Spec** | [`/public/openapi.json`](public/openapi.json) | Full REST API documentation |
-| **MCP Manifest** | [`/public/mcp_manifest.json`](public/mcp_manifest.json) | MCP server configuration |
+- **Ed25519-Signed Audit Trail** ✅: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
+- **Probabilistic, Not Deterministic** ⚠️: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` ↔ `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
+- **Live Model Engine**: Powered by live inference nodes (Llama 3.3 70B + Llama 3.1 8B via Groq) with active pipeline routing. Additional providers (Claude 3.5, GPT-4o, Gemini 1.5, DeepSeek R1, Qwen) are on the roadmap.
+- **Proprietary Core Architecture**: This repository hosts public developer toolkits, SDKs, Postman collections, and MCP wrappers. The core Federated Adversarial Consensus backend operates as a secure, hosted API service on Cloud Run with Zero Data Retention (ZDR). No backend application code or server secrets exist in this repository.
 
 ---
 
-##  API Reference
+## 🔑 Key Features
 
-### Real Endpoints (Live API Only)
-
-| Method | Path | Description |
-|---|---|---|
-| **GET** | `/api/health` | Health check + version info |
-| **GET** | `/api/version` | API version |
-| **POST** | `/api/v1/verify` | Verify agent action (core endpoint) |
-| **POST** | `/api/mcp` | MCP JSON-RPC 2.0 server |
-| **POST** | `/v1/chat/completions` | OpenAI-compatible chat completion proxy |
-| **GET** | `/.well-known/jwks.json` | JWKS public key set for attestation verification |
-| **GET** | `/.well-known/attestation.json` | Attestation manifest |
-| **POST** | `/api/v1/verify-attestation` | Verify Ed25519 node signatures |
-
-### Base URL
-
-**Live API:** `https://ethersflow-225907257236.us-east1.run.app`
-
-**Demo Token:** `ef_live_demo_key`
-
-### Verify Agent Action Payload
-
-```json
-{
-  "agent_action": "string (required)",
-  "reasoning_chain": "string (optional)",
-  "agent_count": "integer, 2-7 (default: 3)",
-  "persona_preset": "clinical_safety | financial_compliance | legal_citation | cybersecurity_auditor | general_adversarial (default: general_adversarial)"
-}
-```
-
-### Response
-
-```json
-{
-  "status": "APPROVED | FLAGGED_HUMAN_REVIEW | REJECTED",
-  "verified": true,
-  "consensus_score": 94.5,
-  "risk_index": 5.5,
-  "verdict_summary": "...",
-  "adversarial_debate": [
-    {
-      "role": "string",
-      "perspective": "string",
-      "node_status": "string",
-      "attestation_status": "VERIFIED_ED25519_SIG"
-    }
-  ],
-  "latency_ms": 1250,
-  "timestamp": "2026-08-13T21:19:40Z"
-}
-```
+- **Multi-Model Consensus**: Eliminates single-model bias by forcing heterogeneous models into adversarial debate.
+- **Ed25519 Attestation**: Every debate node output is signed with an Ed25519 cryptographic key. Public key set available at `/.well-known/jwks.json`.
+- **Zero Data Retention (ZDR)**: Submitted action chains are processed purely in volatile RAM and never stored or used for model training.
+- **OpenAI & Anthropic Drop-In Proxies**: Use `/v1/chat/completions` or `/v1/messages` as a drop-in replacement for existing agent pipelines.
+- **Specialized Personas**:
+  - `financial_compliance` (FINRA/SEC, wire limits, KYC, sanctions)
+  - `clinical_safety` (ISMP high-alert meds, dosage bounds, FDA)
+  - `cybersecurity_auditor` (NIST SP 800-53, privilege escalation, SOC 2)
+  - `legal_citation` (FCPA, evidentiary privilege, contract breach)
+  - `general_adversarial` (Cross-domain safety & logic verification)
 
 ---
 
-##  Framework Integrations
+## 🛠️ Framework Integrations
 
 ### LangChain (Python)
 
@@ -188,10 +142,12 @@ This repository contains **client-side developer tools only**. The core Federate
 from ethersflow.client import EthersFlowLangChainTool
 
 verifier_tool = EthersFlowLangChainTool(api_key="ef_live_demo_key")
+
+# Add to your LangChain agent tools
 tools = [verifier_tool]
 ```
 
-### Cloudflare Workers (TypeScript)
+### Cloudflare Workers / Agents SDK (TypeScript)
 
 ```typescript
 import { cloudflareVerifyGate } from '@ethersflow/sdk';
@@ -205,77 +161,34 @@ export default {
     );
 
     if (!isSafe) {
-      return new Response("Action blocked", { status: 403 });
+      return new Response("Action blocked by EthersFlow Consensus Gate", { status: 403 });
     }
-    // Proceed...
+
+    // Proceed with execution
   }
 };
 ```
 
 ---
 
-##  Status & Known Limitations
+## 🛡️ Security & Ed25519 Attestation
 
-- **Ed25519-Signed Audit Trail** ✅: Every audit node output is cryptographically signed with Ed25519-EdDSA. Verify independently against `/.well-known/jwks.json`.
-
-- **Probabilistic, Not Deterministic** ⚠️: Borderline or ambiguous actions (e.g., high-value wire transfers, missing compliance records) may evaluate near decision thresholds. Edge cases require manual review.
-
-- **FLAGGED_HUMAN_REVIEW is a Hard Gate** 🚨: Actions marked `FLAGGED_HUMAN_REVIEW` must route to a human operator for sign-off before execution. This is not a soft warning.
-
-- **Live Consensus Models**: Powered by **Llama 3.3 70B** and **Llama 3.1 8B** via Groq. Additional models (GPT-4o, Claude 3.5, Gemini, DeepSeek, Qwen) are on the roadmap but not live today.
-
-- **Beta API**: This is a production-grade service, but API contracts and response schemas may evolve. Pin your SDK/client version in production.
-
-- **Zero Data Retention (ZDR)**: Submitted actions and prompts are processed in volatile memory only. Never stored, logged to disk, or used for model training.
-
----
-
-##  Key Features
-
-- **Multi-Model Consensus**: Forces heterogeneous LLMs into structured adversarial debate to eliminate single-model blind spots.
-- **Ed25519 Attestation**: Every node perspective is cryptographically signed. Verify signatures locally with no trust required.
-- **Zero Data Retention**: Submitted decisions are processed in RAM only—never persisted or fine-tuned on.
-- **OpenAI & Anthropic Drop-In Proxies**: Use `/v1/chat/completions` as a drop-in replacement for existing agent pipelines.
-- **Specialized Personas**:
-  - `financial_compliance` — FINRA/SEC wire limits, KYC, sanctions, AML
-  - `clinical_safety` — ISMP high-alert meds, dosage bounds, FDA regulations
-  - `cybersecurity_auditor` — NIST SP 800-53, privilege escalation, SOC 2 controls
-  - `legal_citation` — FCPA, contract law, evidentiary privilege, regulatory compliance
-  - `general_adversarial` — Cross-domain safety, logic verification, hallucination detection
-
----
-
-##  Security & Ed25519 Attestation
-
-EthersFlow publishes its public key set in JWKS format:
+EthersFlow publishes its public key set in JSON Web Key Set (JWKS) format:
 
 - **JWKS Endpoint**: `GET /.well-known/jwks.json`
 - **Attestation Manifest**: `GET /.well-known/attestation.json`
 - **Verification Endpoint**: `POST /api/v1/verify-attestation`
 
-You can verify signatures locally or through the API to cryptographically prove that every audit node's perspective originated directly from the EthersFlow signing authority.
+You can verify signatures locally or through the API to prove that every audit node's perspective originated directly from the EthersFlow signing authority.
 
 ---
 
-##  Postman Collection
+## 📬 Postman Collection
 
-1. Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json)
-2. Import [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json)
-3. Default environment is pre-configured with the live API and demo token
+Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json) and [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json) into Postman to test all 11 core endpoints instantly.
 
 ---
 
-##  License
+## 📄 License
 
-Code & SDK wrappers licensed under [MIT License](LICENSE).
-
-Hosted EthersFlow API services subject to Terms of Service at https://www.ethersflow.com
-
----
-
-##  Learn More
-
-**Website**: https://www.ethersflow.com  
-**npm Package**: `@ethersflow/mcp-server`  
-**Live API**: https://ethersflow-225907257236.us-east1.run.app  
-**Demo Token**: `ef_live_demo_key`
+Code & SDK wrappers licensed under [MIT License](LICENSE). Hosted EthersFlow API services subject to Terms of Service.

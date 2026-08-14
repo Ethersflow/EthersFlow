@@ -7,6 +7,8 @@
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "start": "node dist/server.cjs",
+    "mcp": "node mcp-server/index.js",
+    "publish:mcp": "cd mcp-server && npm publish --access public",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

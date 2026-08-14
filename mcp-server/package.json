@@ -16,8 +16,8 @@
   "author": "EthersFlow",
   "license": "MIT",
   "homepage": "https://www.ethersflow.com",
-  "repository": { "type": "git", "url": "git+https://github.com/ethersflow/ethersflow.git", "directory": "mcp-server" },
-  "bugs": { "url": "https://github.com/ethersflow/ethersflow/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/Ethersflow/EthersFlow.git", "directory": "mcp-server" },
+  "bugs": { "url": "https://github.com/Ethersflow/EthersFlow/issues" },
   "publishConfig": { "access": "public" },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.10.0",

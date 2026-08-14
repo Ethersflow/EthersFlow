@@ -8,8 +8,22 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-const ETHERSFLOW_API_URL = process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://ethersflow-225907257236.us-east1.run.app";
-const ETHERSFLOW_API_KEY = process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "ef_live_demo_key";
+// Parse CLI args (e.g. --api-key=xyz or --base-url=http://...)
+const args = process.argv.slice(2);
+let cliApiKey = "";
+let cliBaseUrl = "";
+for (let i = 0; i < args.length; i++) {
+  const arg = args[i];
+  if (arg.startsWith("--api-key=")) cliApiKey = arg.split("=")[1];
+  else if (arg === "--api-key" && args[i + 1]) cliApiKey = args[++i];
+  else if (arg.startsWith("--token=")) cliApiKey = arg.split("=")[1];
+  else if (arg === "--token" && args[i + 1]) cliApiKey = args[++i];
+  else if (arg.startsWith("--base-url=")) cliBaseUrl = arg.split("=")[1];
+  else if (arg === "--base-url" && args[i + 1]) cliBaseUrl = args[++i];
+}
+
+const ETHERSFLOW_API_URL = cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://ethersflow-225907257236.us-east1.run.app";
+const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "ef_live_demo_key";
 
 const server = new Server(
   {
@@ -64,17 +78,19 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  if (request.params.name !== "verify_agent_action") {
-    throw new Error(`Tool not found: ${request.params.name}`);
+  const toolName = request.params.name;
+  if (!["verify_agent_action", "ethersflow_verify_agent_action", "ethersflow_consensus_evaluate", "ethersflow_red_team_audit"].includes(toolName)) {
+    throw new Error(`Tool not found: ${toolName}`);
   }
 
   const args = request.params.arguments || {};
-  if (!args.agent_action) {
+  const actionText = args.agent_action || args.action || args.query || args.prompt || "";
+  if (!actionText) {
     return {
       content: [
         {
           type: "text",
-          text: "Error: Missing required argument 'agent_action'.",
+          text: "Error: Missing required argument 'agent_action' (or 'action' / 'query').",
         },
       ],
       isError: true,
@@ -91,8 +107,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         "User-Agent": "EthersFlow-MCP-Server/1.5.0",
       },
       body: JSON.stringify({
-        agent_action: args.agent_action,
-        reasoning_chain: args.reasoning_chain || "",
+        agent_action: actionText,
+        reasoning_chain: args.reasoning_chain || args.context || "",
         agent_count: args.agent_count || 3,
         persona_preset: args.persona_preset || "general_adversarial",
         zero_retention: true,

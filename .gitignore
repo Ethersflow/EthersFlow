@@ -5,7 +5,6 @@ dist/
 !.env.example
 firebase-applet-config.json
 firebase-blueprint.json
-firestore.rules
 serviceAccountKey.json
 *.pem
 *.key
