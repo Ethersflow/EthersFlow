@@ -9,7 +9,7 @@
 
 ---
 
-## 🚀 Overview
+##  Overview
 
 **EthersFlow** is a zero-trust verification engine for autonomous AI agents. Before an agent executes high-stakes actions—wire transfers, API calls, medical orders, code deployments, or claims approvals—EthersFlow routes the decision through a federated consensus of independent LLMs running adversarial debate.
 
@@ -19,32 +19,32 @@ If an audit node detects unverified counterparties, compliance risks, or logical
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│    Autonomous AI Agent              │
-│  (LangChain, CrewAI, or Custom)     │
-└─────────────────────────────────────┬──────────────────────────────────┘
-                   │ Proposed Action
-                   ▼
+│    Autonomous AI Agent                                                   │
+│  (LangChain, CrewAI, or Custom)                                          │
+└─────────────────────────────────────┬─────────────────────────────────  ─┘
+                                      │ Proposed Action
+                                      ▼
 ┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│           EthersFlow Verification Gateway                      │
-│                                                                │
-│  ┌──────────────────────────────────┐  ┌──────────────────────────────────┐  ┌──────────────────────────┐  │
-│  │ Llama 3.3 70B       │  │ Llama 3.1 8B        │  │  (Custom)          │  │
-│  │ (Pragmatist)        │  │ (Skeptic)           │  │ (Synthesizer)      │  │
-│  └──────────────┬──────────────┘  └──────────────┬──────────────┘  └──────────────┬──────────────┘  │
-│           └──────────────────────────────────────┬──────────────────────────┘           │
-│                                  │ Adversarial Cross-Examination             │
-│                                  ▼                                           │
-│                  ┌────────────────────────────────────────────────┐                          │
+│           EthersFlow Verification Gateway                                                                    │
+│                                                                                                              │
+│  ┌──────────────────────────────────┐  ┌──────────────────────────────────┐  ┌─────────────────────────   ─┐ │
+│  │ Llama 3.3 70B                    │  │ Llama 3.1 8B                     │  │  (Custom)                   │ │
+│  │ (Pragmatist)                     │  │ (Skeptic)                        │  │ (Synthesizer)               │ │
+│  └──────────────┬─────────────     ─┘  └──────────────┬───────────     ───┘  └──────────────┬──────────────┘ │
+│                 └──────────────────────────────────────┬──────────────────────────┘                          │
+│                                                        │ Adversarial Cross-Examination                       │
+│                                                        ▼                                                     │
+│                  ┌─────────────────────────────────────────────┐                                             │
 │                  │ Federated Consensus                         │
 │                  │ + Ed25519 Signature                         │
-│                  └──────────────────────────┬──────────────────────────┘                        │
-└──────────────────────────────────────────────┬──────────────────────────────────────────────────┘
-                                  │
-                                  ▼
+│                  └──────────────────────────┬──────────────────┘                                             │
+└─────────────────────────────────────────────┬─────────────────────────────────────────────────              ─┘
+                                              │
+                                              ▼
              ┌──────────────────────────────────────────────┐
-             │  Decision Gate           │
-             │  APPROVED / FLAGGED /    │
-             │  REJECTED                │
+             │  Decision Gate                               │
+             │  APPROVED / FLAGGED /                        │
+             │  REJECTED                                    │
              └──────────────────────────────────────────────┘
 ```
 
@@ -108,7 +108,7 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ---
 
-## 📦 What's Included
+##  What's Included
 
 This repository contains **client-side developer tools only**. The core Federated Adversarial Consensus engine runs on Cloud Run with Zero Data Retention (ZDR).
 
@@ -124,7 +124,7 @@ This repository contains **client-side developer tools only**. The core Federate
 
 ---
 
-## 🔎 API Reference
+##  API Reference
 
 ### Real Endpoints (Live API Only)
 
@@ -180,7 +180,7 @@ This repository contains **client-side developer tools only**. The core Federate
 
 ---
 
-## 🛠️ Framework Integrations
+##  Framework Integrations
 
 ### LangChain (Python)
 
@@ -214,7 +214,7 @@ export default {
 
 ---
 
-## 📊 Status & Known Limitations
+##  Status & Known Limitations
 
 - **Ed25519-Signed Audit Trail** ✅: Every audit node output is cryptographically signed with Ed25519-EdDSA. Verify independently against `/.well-known/jwks.json`.
 
@@ -230,7 +230,7 @@ export default {
 
 ---
 
-## 🔑 Key Features
+##  Key Features
 
 - **Multi-Model Consensus**: Forces heterogeneous LLMs into structured adversarial debate to eliminate single-model blind spots.
 - **Ed25519 Attestation**: Every node perspective is cryptographically signed. Verify signatures locally with no trust required.
@@ -245,7 +245,7 @@ export default {
 
 ---
 
-## 🛡️ Security & Ed25519 Attestation
+##  Security & Ed25519 Attestation
 
 EthersFlow publishes its public key set in JWKS format:
 
@@ -257,7 +257,7 @@ You can verify signatures locally or through the API to cryptographically prove 
 
 ---
 
-## 📬 Postman Collection
+##  Postman Collection
 
 1. Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json)
 2. Import [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json)
@@ -265,7 +265,7 @@ You can verify signatures locally or through the API to cryptographically prove 
 
 ---
 
-## 📄 License
+##  License
 
 Code & SDK wrappers licensed under [MIT License](LICENSE).
 
@@ -273,7 +273,7 @@ Hosted EthersFlow API services subject to Terms of Service at https://www.ethers
 
 ---
 
-## 🌐 Learn More
+##  Learn More
 
 **Website**: https://www.ethersflow.com  
 **npm Package**: `@ethersflow/mcp-server`  
