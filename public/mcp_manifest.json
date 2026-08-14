@@ -2,15 +2,16 @@
   "$schema": "https://modelcontextprotocol.io/schemas/server-manifest.json",
   "name": "ethersflow-agent-trust-gate",
   "displayName": "EthersFlow — Multi-Model Adversarial Agent Verification",
-  "description": "Verification middleware for AI agents. Forces independent LLMs into adversarial debate to cross-examine agent decisions before execution. Prevents hallucinations and unauthorized side-effects.",
+  "description": "Verification middleware for AI agents. Forces independent LLMs into adversarial debate to cross-examine agent decisions before execution. Powered by Llama 3.3 70B and Llama 3.1 8B via Groq.",
   "vendor": "EthersFlow Inc.",
   "homepage": "https://www.ethersflow.com",
-  "repository": "https://github.com/ethersflow/ethersflow",
+  "repository": "https://github.com/Ethersflow/EthersFlow",
   "version": "1.5.0",
   "license": "MIT",
   "transport": {
-    "type": "http-sse",
-    "url": "https://ethersflow-225907257236.us-east1.run.app/api/mcp"
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@ethersflow/mcp-server"]
   },
   "capabilities": {
     "tools": [
