@@ -30,154 +30,54 @@ jobs:
         run: |
           mkdir -p sdk/typescript/src
           cat > sdk/typescript/src/index.ts <<'EOF'
-// Minimal TypeScript SDK public surface for EthersFlow
-// Exports: cloudflareVerifyGate, EthersFlow, VerifyActionOptions, VerificationResult
+          // Minimal TypeScript SDK public surface for EthersFlow
+          // Exports: cloudflareVerifyGate, EthersFlow, VerifyActionOptions, VerificationResult
 
-export type VerifyActionOptions = {
-  reasoning_chain?: string;
-  agent_count?: number;
-  persona_preset?: string;
-  grounding_enabled?: boolean;
-};
+          export type VerifyActionOptions = {
+            reasoning_chain?: string;
+            agent_count?: number;
+            persona_preset?: string;
+            grounding_enabled?: boolean;
+          };
 
-export type VerificationResult = {
-  status: string;
-  verified: boolean;
-  consensus_score?: number;
-  risk_index?: number;
-  verdict_summary?: string;
-  [key: string]: any;
-};
+          export type VerificationResult = {
+            status: string;
+            verified: boolean;
+            consensus_score?: number;
+            risk_index?: number;
+            verdict_summary?: string;
+            [key: string]: any;
+          };
 
-export class EthersFlow {
-  baseUrl: string;
-  apiKey?: string;
+          export class EthersFlow {
+            baseUrl: string;
+            apiKey?: string;
 
-  constructor(apiKey?: string, baseUrl: string = "https://ethersflow-225907257236.us-east1.run.app") {
-    this.apiKey = apiKey;
-    this.baseUrl = baseUrl.replace(/\/$/, "");
-  }
+            constructor(apiKey?: string, baseUrl: string = "https://ethersflow-225907257236.us-east1.run.app") {
+              this.apiKey = apiKey;
+              this.baseUrl = baseUrl.replace(/\/$/, "");
+            }
 
-  async verifyAgentAction(agent_action: string, opts: VerifyActionOptions = {}): Promise<VerificationResult> {
-    const payload = {
-      agent_action,
-      reasoning_chain: opts.reasoning_chain,
-      agent_count: opts.agent_count,
-      persona_preset: opts.persona_preset,
-      grounding_enabled: opts.grounding_enabled ?? true,
-      zero_retention: true
-    };
+            async verifyAgentAction(agent_action: string, opts: VerifyActionOptions = {}): Promise<VerificationResult> {
+              const payload = {
+                agent_action,
+                reasoning_chain: opts.reasoning_chain,
+                agent_count: opts.agent_count,
+                persona_preset: opts.persona_preset,
+                grounding_enabled: opts.grounding_enabled ?? true,
+                zero_retention: true
+              };
 
-    const res = await fetch(`${this.baseUrl}/api/v1/verify`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(this.apiKey ? { "Authorization": `Bearer ${this.apiKey}` } : {})
-      },
-      body: JSON.stringify(payload)
-    });
+              const res = await fetch(`${this.baseUrl}/api/v1/verify`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...(this.apiKey ? { "Authorization": `Bearer ${this.apiKey}` } : {})
+                },
+                body: JSON.stringify(payload)
+              });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`EthersFlow verify request failed: ${res.status} ${text}`);
-    }
-
-    return (await res.json()) as VerificationResult;
-  }
-}
-
-export async function cloudflareVerifyGate(
-  agent_action: string,
-  reasoning: string | undefined,
-  apiKey: string | undefined
-): Promise<boolean> {
-  const client = new EthersFlow(apiKey);
-  const res = await client.verifyAgentAction(agent_action, { reasoning_chain: reasoning });
-  return Boolean(res.verified);
-}
-
-export default EthersFlow;
-EOF
-
-      - name: Add tsconfig.json
-        run: |
-          mkdir -p sdk/typescript
-          cat > sdk/typescript/tsconfig.json <<'EOF'
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ESNext",
-    "declaration": true,
-    "declarationMap": false,
-    "outDir": "dist",
-    "rootDir": "src",
-    "moduleResolution": "node",
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "strict": true,
-    "skipLibCheck": true
-  },
-  "include": ["src"]
-}
-EOF
-
-      - name: Add publish workflow
-        run: |
-          mkdir -p .github/workflows
-          cat > .github/workflows/publish-sdks.yml <<'EOF'
-name: Publish SDKs on Release
-
-on:
-  release:
-    types: [published]
-
-permissions:
-  contents: write
-  packages: write
-
-jobs:
-  publish:
-    name: Build and Publish SDKs
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-
-      - name: Publish TypeScript SDK to npm
-        if: ${{ secrets.NPM_TOKEN != '' }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          cd sdk/typescript
-          npm ci --prefer-offline --no-audit --progress=false || true
-          npm run build
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
-          npm publish --access public
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.10'
-
-      - name: Publish Python SDK to PyPI
-        if: ${{ secrets.PYPI_API_TOKEN != '' }}
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: |
-          cd sdk/python
-          python -m pip install --upgrade build twine
-          python -m build
-          python -m twine upload dist/*
-EOF
-
-      - name: Commit & push branch
-        run: |
-          git add sdk/typescript/src/index.ts sdk/typescript/tsconfig.json .github/workflows/publish-sdks.yml
-          git commit -m "Apply packaging fixes: TS index, tsconfig, publish workflow" || echo "No changes to commit"
-          git push --set-upstream origin packaging/fix-ts-ci
+              if (!res.ok) {
+                const text = await res.text().catch(() => "");
+                throw new Error(`EthersFlow verify request failed: ${res.status} ${text}`);
+
