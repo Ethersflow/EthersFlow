@@ -23,7 +23,7 @@ for (let i = 0; i < args.length; i++) {
 }
 
 const ETHERSFLOW_API_URL = cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://ethersflow-225907257236.us-east1.run.app";
-const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "ef_live_demo_key";
+const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "";
 
 const server = new Server(
   {
