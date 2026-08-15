@@ -95,7 +95,7 @@ const getGeminiAIClient = () => {
 let stripeClient: Stripe | null = null;
 let cachedStripeKey: string | null = null;
 const getStripeClient = () => {
-  const rawKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
+  const rawKey = process.env.STRIPE_SECRET_KEY || "";
   
   // Remove wrapping single/double quotes and whitespace that could interfere with Stripe authentication
   let key = rawKey.trim();
@@ -1277,7 +1277,7 @@ async function startServer() {
   // =========================================================================
 
   // Cryptographic Model Provenance & Attestation Engine
-  const ATTESTATION_SECRET = process.env.ETHERSFLOW_ATTESTATION_SECRET || "ef_attest_sec_2026_prod_v1";
+  const ATTESTATION_SECRET = process.env.ETHERSFLOW_ATTESTATION_SECRET || "";
 
   // Derive Ed25519 keypair deterministically from ATTESTATION_SECRET
   const ed25519Seed = crypto.createHash("sha256").update(ATTESTATION_SECRET).digest();
@@ -5753,7 +5753,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
   // --- GO-TO-MARKET (GTM) PIPELINE ENDPOINTS ---
   app.post("/api/gtm/verify-passcode", express.json(), (req, res) => {
     const { passcode } = req.body;
-    const adminPasscode = process.env.GTM_ADMIN_PASSCODE || "ethersflow-gtm-2026";
+    const adminPasscode = process.env.GTM_ADMIN_PASSCODE || "";
     
     if (passcode === adminPasscode) {
       return res.status(200).json({ success: true, message: "Passcode verified successfully." });
