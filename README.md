@@ -76,7 +76,7 @@ Optionally, once packages are published you can use the scoped npm package:
 
 ```bash
 # After publishing to npm
-npx @ethersflow/mcp-server --api-key=ef_live_demo_key
+npx @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
 ```
 
 ### 2. Python (Zero-Dependency Demo)
@@ -129,9 +129,10 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 ### LangChain (Python)
 
 ```python
+import os
 from ethersflow.client import EthersFlowLangChainTool
 
-verifier_tool = EthersFlowLangChainTool(api_key="ef_live_demo_key")
+verifier_tool = EthersFlowLangChainTool(api_key=os.environ["ETHERSFLOW_API_KEY"])
 
 # Add to your LangChain agent tools
 tools = [verifier_tool]
