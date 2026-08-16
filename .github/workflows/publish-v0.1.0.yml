@@ -10,6 +10,8 @@ jobs:
   publish-npm:
     name: Publish npm packages
     runs-on: ubuntu-latest
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -36,8 +38,6 @@ jobs:
             exit 0
           fi
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @ethersflow/sdk
         working-directory: sdk/typescript
@@ -49,8 +49,6 @@ jobs:
             exit 0
           fi
           npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
     name: Publish Python package
