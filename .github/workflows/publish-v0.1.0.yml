@@ -33,19 +33,16 @@ jobs:
         working-directory: sdk/typescript
         run: npm install && npm run build
 
-      - name: Validate npm OTP secret
-        run: |
-          if [ -z "$NPM_OTP" ]; then
-            echo "Provide a fresh 6-digit npm authenticator code when running this workflow or set NPM_OTP before publishing." >&2
-            exit 1
-          fi
-
       - name: Publish npm packages
         run: |
+          OTP_FLAG=""
+          if [ -n "$NPM_OTP" ]; then
+            OTP_FLAG="--otp=$NPM_OTP"
+          fi
           cd mcp-server
-          npm publish --access public --otp="$NPM_OTP"
+          npm publish --access public $OTP_FLAG
           cd ../sdk/typescript
-          npm publish --access public --otp="$NPM_OTP"
+          npm publish --access public $OTP_FLAG
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
