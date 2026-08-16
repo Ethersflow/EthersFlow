@@ -2,6 +2,11 @@ name: Publish v0.1.0
 
 on:
   workflow_dispatch:
+    inputs:
+      npm_otp:
+        description: Current 6-digit npm authenticator code (preferred over NPM_OTP secret)
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -11,7 +16,7 @@ jobs:
     name: Publish npm packages
     runs-on: ubuntu-latest
     env:
-      NPM_OTP: ${{ secrets.NPM_OTP }}
+      NPM_OTP: ${{ inputs.npm_otp || secrets.NPM_OTP }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -31,7 +36,7 @@ jobs:
       - name: Validate npm OTP secret
         run: |
           if [ -z "$NPM_OTP" ]; then
-            echo "NPM_OTP secret must be set to the current 6-digit authenticator code before running this workflow." >&2
+            echo "Provide a fresh 6-digit npm authenticator code when running this workflow or set NPM_OTP before publishing." >&2
             exit 1
           fi
 
