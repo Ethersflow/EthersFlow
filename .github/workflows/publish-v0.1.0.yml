@@ -28,13 +28,27 @@ jobs:
 
       - name: Publish @ethersflow/mcp-server
         working-directory: mcp-server
-        run: npm publish --access public
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "$PKG_NAME@$PKG_VERSION already published, skipping"
+            exit 0
+          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish @ethersflow/sdk
         working-directory: sdk/typescript
-        run: npm publish --access public
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if npm view "$PKG_NAME@$PKG_VERSION" version >/dev/null 2>&1; then
+            echo "$PKG_NAME@$PKG_VERSION already published, skipping"
+            exit 0
+          fi
+          npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
