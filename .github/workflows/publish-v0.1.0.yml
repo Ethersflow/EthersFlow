@@ -12,19 +12,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
+
+      - name: Validate npm OTP secret
+        run: |
+          if [ -z "${{ secrets.NPM_OTP }}" ]; then
+            echo "NPM_OTP secret must be set to the current 6-digit authenticator code before running this workflow." >&2
+            exit 1
+          fi
 
       - name: Publish @ethersflow/mcp-server
         working-directory: mcp-server
-        run: npm publish --access public
+        run: npm publish --access public --otp=${{ secrets.NPM_OTP }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -34,7 +41,7 @@ jobs:
 
       - name: Publish @ethersflow/sdk
         working-directory: sdk/typescript
-        run: npm publish --access public
+        run: npm publish --access public --otp=${{ secrets.NPM_OTP }}
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -43,12 +50,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -72,7 +79,7 @@ jobs:
     needs: [publish-npm, publish-pypi]
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
