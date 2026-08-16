@@ -38,9 +38,15 @@ console.log("[Server] Booting EthersFlow Backend...");
 
 // Immutable Sovereign Release Metadata (Fixes P3-DEPLOY & I-20)
 const ETHERSFLOW_RELEASE_VERSION = "r13_fac_unified_v1";
+const ETHERSFLOW_PACKAGE_VERSION = "0.1.0";
 const ETHERSFLOW_BUILD_REVISION = "r13_fac_unified_v1";
 const ETHERSFLOW_GIT_COMMIT = "e4724c5b989f";
 const ETHERSFLOW_DEPLOYED_AT = "2026-08-13T23:35:00.000Z";
+const CONFIGURED_ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID;
+const CONFIGURED_GROQ_SIGNER_KEY_ID = process.env.ETHERSFLOW_GROQ_SIGNER_KEY_ID;
+const ETHERSFLOW_LIVE_TOKEN_PATTERN = /^ef_live_[A-Za-z0-9_-]{16,}$/;
+const resolveAttestationKeyId = (publicKeyBase64: string) => CONFIGURED_ATTESTATION_KEY_ID || `attest_${publicKeyBase64.slice(0, 16)}`;
+const resolveGroqSignerKeyId = (publicKeyBase64: string) => CONFIGURED_GROQ_SIGNER_KEY_ID || `groq_${publicKeyBase64.slice(0, 16)}`;
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -1160,7 +1166,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: "ef_attest_sec_2026_prod_v1",
+      attestation_key_id: CONFIGURED_ATTESTATION_KEY_ID || "derived-at-runtime",
       active_consensus_models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
       active_providers: ["groq"],
       groq: true,
@@ -2498,23 +2504,7 @@ async function startServer() {
     }
 
     const token = authHeader.substring(7).trim();
-    const isKnownValidToken = 
-      token === "ef_live_demo_key" || 
-      token === "ef_live_test" || 
-      token.startsWith("ef_live_") || 
-      token.startsWith("ef_test_") || 
-      token.startsWith("key_") || 
-      (token.startsWith("ey") && token.split(".").length === 3);
-
-    const isExplicitlyBad = 
-      token.includes("invalid") || 
-      token.includes("bad_key") || 
-      token === "xyz_bad" || 
-      token === "bogus" || 
-      token === "null" || 
-      token.length < 5;
-
-    if (!isKnownValidToken || isExplicitlyBad) {
+    if (!ETHERSFLOW_LIVE_TOKEN_PATTERN.test(token)) {
       return res.status(401).json({
         error: "Unauthorized",
         message: "Invalid API key provided. Authorization header must contain a valid EthersFlow Bearer token."
@@ -2701,7 +2691,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: "ef_attest_sec_2026_prod_v1",
+      attestation_key_id: resolveAttestationKeyId(ed25519XBase64),
       active_consensus_models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
       active_providers: ["groq"]
     });
@@ -2728,7 +2718,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
-      key_id: "ef_attest_sec_2026_prod_v1",
+      key_id: resolveAttestationKeyId(ed25519XBase64),
       algorithm: "Ed25519-EdDSA",
       status: "ACTIVE_VERIFIED",
       public_key: ed25519XHex,
@@ -2737,7 +2727,7 @@ async function startServer() {
       jwks_uri: "https://ethersflow-225907257236.us-east1.run.app/.well-known/jwks.json",
       supported_providers: ["groq"],
       audit_node_signers: {
-        groq: "ef_groq_pub_2026_v1"
+        groq: resolveGroqSignerKeyId(ed25519XBase64)
       },
       zdr_compliance: "SOC2_TYPE_II_STRICT",
       timestamp: ETHERSFLOW_DEPLOYED_AT
@@ -2750,7 +2740,7 @@ async function startServer() {
         {
           kty: "OKP",
           crv: "Ed25519",
-          kid: "ef_attest_sec_2026_prod_v1",
+          kid: resolveAttestationKeyId(ed25519XBase64),
           use: "sig",
           alg: "EdDSA",
           x: ed25519XBase64
@@ -2786,7 +2776,7 @@ async function startServer() {
     return res.json({
       verified: isValid,
       payload_signed: payloadToSign,
-      key_id: "ef_attest_sec_2026_prod_v1",
+      key_id: resolveAttestationKeyId(ed25519XBase64),
       algorithm: "EdDSA/Ed25519",
       public_key_base64url: ed25519XBase64,
       public_key_hex: ed25519XHex,
@@ -2805,7 +2795,7 @@ async function startServer() {
       vendor: "EthersFlow Inc.",
       homepage: "https://www.ethersflow.com",
       repository: "https://github.com/Ethersflow/EthersFlow",
-      version: "1.5.0",
+      version: ETHERSFLOW_PACKAGE_VERSION,
       license: "MIT",
       transport: {
         type: "stdio",
@@ -2827,7 +2817,7 @@ async function startServer() {
     res.json({
       status: "online",
       server: "ethersflow-mcp-gateway",
-      version: "1.5.0",
+      version: ETHERSFLOW_PACKAGE_VERSION,
       protocol: "Model Context Protocol JSON-RPC 2.0",
       repository: "https://github.com/Ethersflow/EthersFlow",
       endpoints: {
@@ -2867,7 +2857,7 @@ async function startServer() {
           },
           serverInfo: {
             name: "ethersflow-agent-trust-gate",
-            version: "1.5.0",
+            version: ETHERSFLOW_PACKAGE_VERSION,
             description: "EthersFlow Federated Adversarial Consensus & Agent Action Verification Server"
           }
         }
@@ -2931,8 +2921,6 @@ async function startServer() {
       }
 
       req.body = toolArgs;
-      // Populate Authorization header for internal MCP handler forwarding
-      req.headers.authorization = req.headers.authorization || "Bearer ef_live_mcp_internal_token";
       // Mock res object to capture verification output for MCP JSON-RPC format
       const mockRes: any = {
         status: () => mockRes,
