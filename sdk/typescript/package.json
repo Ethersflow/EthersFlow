@@ -18,6 +18,9 @@
   "keywords": ["ethersflow", "mcp", "sdk", "cloudflare", "verifier"],
   "author": "EthersFlow",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "devDependencies": {
     "typescript": "^5.0.0"
   }
