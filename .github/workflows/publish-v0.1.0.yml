@@ -3,8 +3,12 @@ name: Publish v0.1.0
 on:
   workflow_dispatch:
     inputs:
-      npm_otp:
-        description: Current 6-digit npm authenticator code (required when npm account enforces 2FA for publish)
+      npm_otp_mcp_server:
+        description: npm OTP for publishing @ethersflow/mcp-server (6-digit authenticator code)
+        required: true
+        type: string
+      npm_otp_sdk:
+        description: npm OTP for publishing @ethersflow/sdk (6-digit authenticator code — use the next code after the one above)
         required: true
         type: string
 
@@ -31,14 +35,18 @@ jobs:
         working-directory: sdk/typescript
         run: npm install && npm run build
 
-      - name: Publish npm packages
-        run: |
-          cd mcp-server
-          npm publish --access public --otp="$NPM_OTP"
-          cd ../sdk/typescript
-          npm publish --access public --otp="$NPM_OTP"
+      - name: Publish @ethersflow/mcp-server
+        working-directory: mcp-server
+        run: npm publish --access public --otp="$NPM_OTP"
         env:
-          NPM_OTP: ${{ inputs.npm_otp }}
+          NPM_OTP: ${{ inputs.npm_otp_mcp_server }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish @ethersflow/sdk
+        working-directory: sdk/typescript
+        run: npm publish --access public --otp="$NPM_OTP"
+        env:
+          NPM_OTP: ${{ inputs.npm_otp_sdk }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
