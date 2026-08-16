@@ -43,7 +43,9 @@
               ]
             }
           },
-          "required": ["agent_action"]
+          "required": [
+            "agent_action"
+          ]
         }
       }
     ]
