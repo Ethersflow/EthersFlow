@@ -24,6 +24,10 @@ jobs:
           node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Install and build @ethersflow/sdk
+        working-directory: sdk/typescript
+        run: npm install && npm run build
+
       - name: Validate npm OTP secret
         run: |
           if [ -z "$NPM_OTP" ]; then
@@ -31,19 +35,12 @@ jobs:
             exit 1
           fi
 
-      - name: Publish @ethersflow/mcp-server
-        working-directory: mcp-server
-        run: npm publish --access public --otp="$NPM_OTP"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Install and build @ethersflow/sdk
-        working-directory: sdk/typescript
-        run: npm install && npm run build
-
-      - name: Publish @ethersflow/sdk
-        working-directory: sdk/typescript
-        run: npm publish --access public --otp="$NPM_OTP"
+      - name: Publish npm packages
+        run: |
+          cd mcp-server
+          npm publish --access public --otp="$NPM_OTP"
+          cd ../sdk/typescript
+          npm publish --access public --otp="$NPM_OTP"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
