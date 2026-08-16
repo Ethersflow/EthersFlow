@@ -2,6 +2,11 @@ name: Publish v0.1.0
 
 on:
   workflow_dispatch:
+    inputs:
+      npm_otp:
+        description: Current 6-digit npm authenticator code (preferred over NPM_OTP secret)
+        required: false
+        type: string
 
 permissions:
   contents: write
@@ -10,31 +15,37 @@ jobs:
   publish-npm:
     name: Publish npm packages
     runs-on: ubuntu-latest
+    env:
+      NPM_OTP: ${{ inputs.npm_otp || secrets.NPM_OTP }}
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
-
-      - name: Publish @ethersflow/mcp-server
-        working-directory: mcp-server
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Install and build @ethersflow/sdk
         working-directory: sdk/typescript
         run: npm install && npm run build
 
-      - name: Publish @ethersflow/sdk
-        working-directory: sdk/typescript
-        run: npm publish --access public
+      - name: Validate npm OTP secret
+        run: |
+          if [ -z "$NPM_OTP" ]; then
+            echo "Provide a fresh 6-digit npm authenticator code when running this workflow or set NPM_OTP before publishing." >&2
+            exit 1
+          fi
+
+      - name: Publish npm packages
+        run: |
+          cd mcp-server
+          npm publish --access public --otp="$NPM_OTP"
+          cd ../sdk/typescript
+          npm publish --access public --otp="$NPM_OTP"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -43,12 +54,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -72,7 +83,7 @@ jobs:
     needs: [publish-npm, publish-pypi]
     steps:
       - name: Checkout main
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: main
           fetch-depth: 0
