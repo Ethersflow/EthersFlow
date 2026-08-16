@@ -312,16 +312,19 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
   const handleRunPlayground = async () => {
     setApiExecuting(true);
     setApiResponse(null);
-    const activeKey = apiKeys.find(k => k.status === 'active')?.maskedKey || 'ef_live_demo_key_7a9f';
+    const activeKey = apiKeys.find(k => k.status === 'active')?.maskedKey || '';
 
     try {
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${generatedSecret || activeKey}`,
         'X-EthersFlow-Council': customCouncil,
         'X-EthersFlow-SLA-Timeout': String(slaTimeout),
         'X-EthersFlow-Zero-Retention': String(zeroDataRetention)
       };
+
+      if (activeKey) {
+        headers['Authorization'] = `Bearer ${activeKey}`;
+      }
 
       if (useWebhook && callbackUrl) {
         headers['X-EthersFlow-Callback-URL'] = callbackUrl;
