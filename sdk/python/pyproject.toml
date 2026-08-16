@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ethersflow"
-version = "0.1.1"
+version = "0.1.0"
 description = "EthersFlow Python SDK — lightweight client + LangChain tool wrapper"
 readme = "README.md"
 license = { text = "MIT" }
