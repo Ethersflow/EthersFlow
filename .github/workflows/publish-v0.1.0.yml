@@ -4,8 +4,8 @@ on:
   workflow_dispatch:
     inputs:
       npm_otp:
-        description: Current 6-digit npm authenticator code (preferred over NPM_OTP secret)
-        required: false
+        description: Current 6-digit npm authenticator code (required when npm account enforces 2FA for publish)
+        required: true
         type: string
 
 permissions:
@@ -15,8 +15,6 @@ jobs:
   publish-npm:
     name: Publish npm packages
     runs-on: ubuntu-latest
-    env:
-      NPM_OTP: ${{ inputs.npm_otp || secrets.NPM_OTP }}
     steps:
       - name: Checkout main
         uses: actions/checkout@v7
@@ -35,15 +33,12 @@ jobs:
 
       - name: Publish npm packages
         run: |
-          OTP_FLAG=""
-          if [ -n "$NPM_OTP" ]; then
-            OTP_FLAG="--otp=$NPM_OTP"
-          fi
           cd mcp-server
-          npm publish --access public $OTP_FLAG
+          npm publish --access public --otp="$NPM_OTP"
           cd ../sdk/typescript
-          npm publish --access public $OTP_FLAG
+          npm publish --access public --otp="$NPM_OTP"
         env:
+          NPM_OTP: ${{ inputs.npm_otp }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
