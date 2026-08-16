@@ -69,7 +69,7 @@ jobs:
 
       - name: Publish ethersflow to PyPI
         working-directory: sdk/python
-        run: python -m twine upload --non-interactive dist/*
+        run: python -m twine upload --non-interactive --skip-existing dist/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
