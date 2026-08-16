@@ -41,6 +41,7 @@ const ETHERSFLOW_RELEASE_VERSION = "r13_fac_unified_v1";
 const ETHERSFLOW_BUILD_REVISION = "r13_fac_unified_v1";
 const ETHERSFLOW_GIT_COMMIT = "e4724c5b989f";
 const ETHERSFLOW_DEPLOYED_AT = "2026-08-13T23:35:00.000Z";
+const ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID || "";
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -1160,7 +1161,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: "ef_attest_sec_2026_prod_v1",
+      attestation_key_id: ATTESTATION_KEY_ID,
       active_consensus_models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
       active_providers: ["groq"],
       groq: true,
@@ -2499,8 +2500,6 @@ async function startServer() {
 
     const token = authHeader.substring(7).trim();
     const isKnownValidToken = 
-      token === "ef_live_demo_key" || 
-      token === "ef_live_test" || 
       token.startsWith("ef_live_") || 
       token.startsWith("ef_test_") || 
       token.startsWith("key_") || 
@@ -2701,7 +2700,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: "ef_attest_sec_2026_prod_v1",
+      attestation_key_id: ATTESTATION_KEY_ID,
       active_consensus_models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
       active_providers: ["groq"]
     });
@@ -2728,7 +2727,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
-      key_id: "ef_attest_sec_2026_prod_v1",
+      key_id: ATTESTATION_KEY_ID,
       algorithm: "Ed25519-EdDSA",
       status: "ACTIVE_VERIFIED",
       public_key: ed25519XHex,
@@ -2750,7 +2749,7 @@ async function startServer() {
         {
           kty: "OKP",
           crv: "Ed25519",
-          kid: "ef_attest_sec_2026_prod_v1",
+          kid: ATTESTATION_KEY_ID,
           use: "sig",
           alg: "EdDSA",
           x: ed25519XBase64
@@ -2786,7 +2785,7 @@ async function startServer() {
     return res.json({
       verified: isValid,
       payload_signed: payloadToSign,
-      key_id: "ef_attest_sec_2026_prod_v1",
+      key_id: ATTESTATION_KEY_ID,
       algorithm: "EdDSA/Ed25519",
       public_key_base64url: ed25519XBase64,
       public_key_hex: ed25519XHex,

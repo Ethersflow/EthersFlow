@@ -3,7 +3,7 @@
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
     "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine.",
-    "version": "1.5.0",
+    "version": "0.1.0",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
@@ -36,7 +36,9 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["agent_action"],
+                "required": [
+                  "agent_action"
+                ],
                 "properties": {
                   "agent_action": {
                     "type": "string",
@@ -88,28 +90,59 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": ["APPROVED", "FLAGGED_HUMAN_REVIEW", "REJECTED"]
+                      "enum": [
+                        "APPROVED",
+                        "FLAGGED_HUMAN_REVIEW",
+                        "REJECTED"
+                      ]
                     },
-                    "verified": { "type": "boolean" },
-                    "consensus_score": { "type": "number", "example": 94.5 },
-                    "risk_index": { "type": "number", "example": 5.5 },
-                    "verdict_summary": { "type": "string" },
-                    "agent_action": { "type": "string" },
-                    "agent_count": { "type": "integer" },
-                    "persona_preset": { "type": "string" },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "consensus_score": {
+                      "type": "number",
+                      "example": 94.5
+                    },
+                    "risk_index": {
+                      "type": "number",
+                      "example": 5.5
+                    },
+                    "verdict_summary": {
+                      "type": "string"
+                    },
+                    "agent_action": {
+                      "type": "string"
+                    },
+                    "agent_count": {
+                      "type": "integer"
+                    },
+                    "persona_preset": {
+                      "type": "string"
+                    },
                     "adversarial_debate": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "role": { "type": "string" },
-                          "perspective": { "type": "string" },
-                          "node_status": { "type": "string" }
+                          "role": {
+                            "type": "string"
+                          },
+                          "perspective": {
+                            "type": "string"
+                          },
+                          "node_status": {
+                            "type": "string"
+                          }
                         }
                       }
                     },
-                    "latency_ms": { "type": "integer" },
-                    "timestamp": { "type": "string", "format": "date-time" }
+                    "latency_ms": {
+                      "type": "integer"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
                   }
                 }
               }
@@ -129,15 +162,30 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["jsonrpc", "method"],
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
                 "properties": {
-                  "jsonrpc": { "type": "string", "example": "2.0" },
-                  "id": { "type": "integer", "example": 1 },
+                  "jsonrpc": {
+                    "type": "string",
+                    "example": "2.0"
+                  },
+                  "id": {
+                    "type": "integer",
+                    "example": 1
+                  },
                   "method": {
                     "type": "string",
-                    "enum": ["initialize", "tools/list", "tools/call"]
+                    "enum": [
+                      "initialize",
+                      "tools/list",
+                      "tools/call"
+                    ]
                   },
-                  "params": { "type": "object" }
+                  "params": {
+                    "type": "object"
+                  }
                 }
               }
             }
