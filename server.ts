@@ -42,6 +42,8 @@ const ETHERSFLOW_PACKAGE_VERSION = "0.1.0";
 const ETHERSFLOW_BUILD_REVISION = "r13_fac_unified_v1";
 const ETHERSFLOW_GIT_COMMIT = "e4724c5b989f";
 const ETHERSFLOW_DEPLOYED_AT = "2026-08-13T23:35:00.000Z";
+const CONFIGURED_ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID;
+const CONFIGURED_GROQ_SIGNER_KEY_ID = process.env.ETHERSFLOW_GROQ_SIGNER_KEY_ID;
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -1161,7 +1163,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: ATTESTATION_KEY_ID,
+      attestation_key_id: CONFIGURED_ATTESTATION_KEY_ID || "derived-at-runtime",
       active_consensus_models: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
       active_providers: ["groq"],
       groq: true,
@@ -1290,9 +1292,9 @@ async function startServer() {
   const ed25519RawPub = ed25519SpkiDer.subarray(-32);
   const ed25519XBase64 = ed25519RawPub.toString("base64url");
   const ed25519XHex = "0x" + ed25519RawPub.toString("hex");
-  const ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID || `attest_${ed25519XBase64.slice(0, 16)}`;
-  const GROQ_SIGNER_KEY_ID = process.env.ETHERSFLOW_GROQ_SIGNER_KEY_ID || `groq_${ed25519XBase64.slice(0, 16)}`;
-  const ETHERSFLOW_LIVE_TOKEN_PATTERN = /^ef_live_[a-f0-9]{32}$/i;
+  const ATTESTATION_KEY_ID = CONFIGURED_ATTESTATION_KEY_ID || `attest_${ed25519XBase64.slice(0, 16)}`;
+  const GROQ_SIGNER_KEY_ID = CONFIGURED_GROQ_SIGNER_KEY_ID || `groq_${ed25519XBase64.slice(0, 16)}`;
+  const ETHERSFLOW_LIVE_TOKEN_PATTERN = /^ef_live_[A-Za-z0-9_-]{16,}$/;
 
   function analyzeDraftSentiment(contentText: string = "", evalStatus: string = ""): "CONTRADICTION_EXPOSED" | "FLAGGED_HUMAN_REVIEW" | "ALIGNED" {
     // 1. If statically evaluated as REJECTED (e.g. lethal medication, OFAC sanctions, privilege escalation, nonsense/gibberish input)

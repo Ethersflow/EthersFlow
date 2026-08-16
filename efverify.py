@@ -150,10 +150,8 @@ def run_demo(verifier: EthersFlowVerifier):
 def main():
     verifier = EthersFlowVerifier()
     if len(sys.argv) < 2 or sys.argv[1] == "demo":
-        verifier._require_api_key()
         run_demo(verifier)
     elif sys.argv[1] == "verify" and len(sys.argv) >= 3:
-        verifier._require_api_key()
         action = " ".join(sys.argv[2:])
         print(f"Verifying action: '{action}'...")
         res = verifier.verify_action(action)
