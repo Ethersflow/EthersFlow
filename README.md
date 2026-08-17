@@ -58,28 +58,62 @@ Note: The core Federated Adversarial Consensus engine runs on Cloud Run with Zer
 
 ---
 
+## Published Packages
+
+The public npm packages are now live and installable:
+
+- ✅ [`@ethersflow/mcp-server@0.1.0`](https://www.npmjs.com/package/@ethersflow/mcp-server)
+- ✅ [`@ethersflow/sdk@0.1.0`](https://www.npmjs.com/package/@ethersflow/sdk)
+
+Both packages were smoke-tested from clean temp projects with `npm view`, `npm install`, and import/runtime checks.
+
+---
+
 ## 5-Minute Quickstart
 
 ### 1. Model Context Protocol (MCP) Server
 
-If you want the absolute fastest cold-start without package registry requirements, run the server directly from this repository:
+Use the published package for the fastest install path:
 
 ```bash
-# Option: Local / GitHub source (recommended until packages are published)
+npx -y @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
+```
+
+If you want a local source checkout instead:
+
+```bash
 git clone https://github.com/Ethersflow/EthersFlow.git
 cd EthersFlow/mcp-server
 npm install
 npm start
 ```
 
-Optionally, once packages are published you can use the scoped npm package:
+The published MCP package exposes a single tool: `verify_agent_action`.
+
+### 2. TypeScript SDK
 
 ```bash
-# After publishing to npm
-npx @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
+npm install @ethersflow/sdk
 ```
 
-### 2. Python (Zero-Dependency Demo)
+```typescript
+import { EthersFlow } from '@ethersflow/sdk';
+
+const client = new EthersFlow(process.env.ETHERSFLOW_API_KEY);
+
+const result = await client.verifyAgentAction(
+  "Transfer 5000 USDC to wallet 0x9f for smart-contract audit",
+  {
+    reasoning_chain: "Vendor request via email notification",
+    persona_preset: "financial_compliance",
+    agent_count: 3,
+  }
+);
+
+console.log(result.status, result.consensus_score, result.verdict_summary);
+```
+
+### 3. Python (Zero-Dependency Demo)
 
 Run the included reference verifier script:
 
@@ -93,7 +127,7 @@ To verify a custom proposed action:
 python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract audit"
 ```
 
-### 3. cURL API Call
+### 4. cURL API Call
 
 ```bash
 curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
@@ -177,6 +211,167 @@ You can verify signatures locally or through the API to prove that every audit n
 ## Postman Collection
 
 Import `postman/ethersflow.postman_collection.json` and `postman/ethersflow.postman_environment.json`.
+
+---
+
+## Testing Guide
+
+### 1. Package Installation Verification
+
+```bash
+npm view @ethersflow/mcp-server version
+npm view @ethersflow/sdk version
+
+mkdir -p /tmp/ethersflow-smoke && cd /tmp/ethersflow-smoke
+npm init -y
+npm install @ethersflow/mcp-server @ethersflow/sdk
+```
+
+### 2. MCP Server Tool Exposure
+
+This verifies that the published MCP package starts correctly and advertises `verify_agent_action` over stdio:
+
+```bash
+node --input-type=module <<'EOF'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+const transport = new StdioClientTransport({
+  command: 'npx',
+  args: ['-y', '@ethersflow/mcp-server'],
+});
+
+const client = new Client({ name: 'smoke-test', version: '1.0.0' }, { capabilities: {} });
+await client.connect(transport);
+const result = await client.listTools();
+console.log(result.tools.map((tool) => tool.name));
+await client.close();
+EOF
+```
+
+Expected output includes:
+
+```text
+[ 'verify_agent_action' ]
+```
+
+### 3. TypeScript SDK Runtime + Types
+
+```bash
+npm install @ethersflow/sdk
+```
+
+```typescript
+import EthersFlow, {
+  cloudflareVerifyGate,
+  type VerificationResult,
+  type VerifyActionOptions,
+} from '@ethersflow/sdk';
+
+const client = new EthersFlow(process.env.ETHERSFLOW_API_KEY);
+
+const opts: VerifyActionOptions = {
+  reasoning_chain: 'Routine procurement request',
+  persona_preset: 'financial_compliance',
+  agent_count: 3,
+  grounding_enabled: true,
+};
+
+const result: VerificationResult = await client.verifyAgentAction(
+  '$50 office supplies (micro-expense)',
+  opts
+);
+
+const allowed = await cloudflareVerifyGate(
+  '$50 office supplies (micro-expense)',
+  'Routine procurement request',
+  process.env.ETHERSFLOW_API_KEY
+);
+
+console.log(result.status, allowed);
+```
+
+Behavior validated from the published package:
+
+- `new EthersFlow(apiKey, baseUrl?)` instantiates cleanly
+- `verifyAgentAction()` POSTs to `/api/v1/verify`
+- `cloudflareVerifyGate()` returns `Boolean(res.verified)` on success
+- non-2xx responses throw `EthersFlow verify request failed: <status> <body>`
+- the published `.d.ts` types compile in a standalone TypeScript smoke test
+
+### 4. Live API / Consensus / Attestation Checks
+
+Use the developer portal to create an `ef_live_...` key, then run:
+
+```bash
+export ETHERSFLOW_API_KEY="ef_live_your_key"
+export ETHERSFLOW_BASE_URL="https://ethersflow-225907257236.us-east1.run.app"
+```
+
+```bash
+curl -sS "$ETHERSFLOW_BASE_URL/api/health"
+curl -sS "$ETHERSFLOW_BASE_URL/.well-known/jwks.json"
+curl -sS "$ETHERSFLOW_BASE_URL/.well-known/attestation.json"
+```
+
+Consensus probes:
+
+```bash
+curl -X POST "$ETHERSFLOW_BASE_URL/api/v1/verify" \
+  -H "Authorization: ******" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_action": "$50 office supplies (micro-expense)",
+    "reasoning_chain": "Standard office procurement",
+    "persona_preset": "financial_compliance",
+    "agent_count": 3,
+    "zero_retention": true
+  }'
+```
+
+```bash
+curl -X POST "$ETHERSFLOW_BASE_URL/api/v1/verify" \
+  -H "Authorization: ******" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_action": "Transfer 5000 USDC to wallet 0x9f for a smart-contract audit",
+    "reasoning_chain": "Unverified third-party audit agreement",
+    "persona_preset": "financial_compliance",
+    "agent_count": 3,
+    "zero_retention": true
+  }'
+```
+
+Ed25519 verification flow:
+
+1. Fetch `/.well-known/jwks.json`
+2. Submit a node payload from `adversarial_debate[]` to `POST /api/v1/verify-attestation`
+3. Expect `verified: true` when the signature matches the published JWKS
+
+Zero Data Retention checklist:
+
+- set `zero_retention: true` in verification payloads
+- use the developer portal/API key vault for scoped production keys
+- confirm returned payloads do not require prompt persistence for follow-up use
+
+### 5. Developer Portal Workflow
+
+The developer portal at `https://ethersflow.com/#developers` is the canonical onboarding path:
+
+1. Open **Developers Hub**
+2. Review the **SDKs & Quickstarts** section for npm, Python, and REST examples
+3. Open the B2B/API portal and create a live `ef_live_...` key
+4. Copy the key into `ETHERSFLOW_API_KEY` (or `ETHERSFLOW_TOKEN`)
+5. Test via cURL, the TypeScript SDK, or `npx -y @ethersflow/mcp-server`
+6. For IDE integration, add the MCP config to Claude Desktop, Cursor, or another MCP-capable client
+
+### 6. Troubleshooting
+
+- **`npm view` or `npm install` fails**: confirm you are using the public npm registry and Node 18+
+- **MCP client cannot see tools**: verify the command is `npx -y @ethersflow/mcp-server`
+- **401/403 from `/api/v1/verify`**: confirm your live API key is present and unrevoked
+- **DNS / connectivity issues**: verify your environment can resolve `ethersflow-225907257236.us-east1.run.app`
+- **Cloudflare Worker errors**: `cloudflareVerifyGate()` rethrows upstream API failures; wrap it in `try/catch`
 
 ---
 

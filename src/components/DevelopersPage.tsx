@@ -58,35 +58,28 @@ export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView
   };
 
   const codeSnippets = {
-    ts: `import { EthersFlowClient } from '@ethersflow/sdk';
+    ts: `import { EthersFlow } from '@ethersflow/sdk';
 
-// Initialize the EthersFlow Consensus Client
-const client = new EthersFlowClient({
-  apiKey: process.env.ETHERSFLOW_API_KEY,
-  zeroDataRetention: true, // Enterprise ZDR mode
-});
+const client = new EthersFlow(process.env.ETHERSFLOW_API_KEY);
 
-async function runAdversarialConsensus() {
-  const consensus = await client.consensus.evaluate({
-    prompt: "Verify compliance and risk threshold for automated $500k treasury deployment.",
-    council: [
-      { id: "vc_partner", model: "llama-3.3-70b-versatile" },
-      { id: "red_team", model: "openai/gpt-4o" },
-      { id: "regulatory_counsel", model: "deepseek/deepseek-chat" },
-      { id: "macro_economist", model: "anthropic/claude-3-5-sonnet" }
-    ],
-    minConcordanceScore: 85,
-    timeoutMs: 8000
-  });
+async function verifyAction() {
+  const result = await client.verifyAgentAction(
+    "Transfer 5000 USDC to wallet 0x9f for a smart-contract audit",
+    {
+      reasoning_chain: "Vendor request via email notification",
+      persona_preset: "financial_compliance",
+      agent_count: 3,
+      grounding_enabled: true
+    }
+  );
 
-  console.log(\`Consensus Score: \${consensus.confidenceScore}%\`);
-  console.log(\`Verdict: \${consensus.verdict}\`);
-  console.log(\`Dissenting Points: \${consensus.dissents.length}\`);
-  
-  return consensus;
+  console.log(\`Status: \${result.status}\`);
+  console.log(\`Verified: \${result.verified}\`);
+  console.log(\`Consensus Score: \${result.consensus_score}\`);
+  console.log(\`Summary: \${result.verdict_summary}\`);
 }
 
-runAdversarialConsensus();`,
+verifyAction();`,
 
     python: `from ethersflow import EthersFlow, CouncilConfig
 
@@ -132,15 +125,15 @@ const response = await ethersflow.messages.create({
 console.log('Verified Output:', response.content[0].text);
 console.log('EthersFlow Verification Stamp:', response.ethersflow_stamp);`,
 
-    curl: `curl -X POST "https://ais-dev-seso5jqem3ikt27r37jaus-719377297018.us-east1.run.app/api/v1/consensus" \\
-  -H "Authorization: Bearer ef_live_your_api_key" \\
-  -H "Content-Type: application/json" \\
-  -H "X-EthersFlow-ZDR: true" \\
+    curl: `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
+  -H "Authorization: ******" \
+  -H "Content-Type: application/json" \
   -d '{
-    "query": "Evaluate portfolio correlation risk under 200bps rate hike scenario.",
-    "council": ["Macro Economist", "Red Team", "Quantitative Auditor"],
-    "minConcordance": 80,
-    "enforceJson": true
+    "agent_action": "$50 office supplies (micro-expense)",
+    "reasoning_chain": "Standard office procurement",
+    "persona_preset": "financial_compliance",
+    "agent_count": 3,
+    "zero_retention": true
   }'`,
 
     go: `package main

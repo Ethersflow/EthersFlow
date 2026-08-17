@@ -12,7 +12,7 @@
 
 ### Option A: Via NPX (Public Registry)
 ```bash
-npx @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
+npx -y @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
 ```
 
 ### Option B: Direct From GitHub (Zero npm publication dependency / Cold-start)
@@ -86,6 +86,67 @@ In Cursor Settings → **MCP Servers** → **Add New MCP Server**:
 
 ---
 
+## 🧪 Testing Guide
+
+### Installation Verification
+
+```bash
+npm view @ethersflow/mcp-server version
+npm install @ethersflow/mcp-server
+```
+
+### Tool Exposure Smoke Test
+
+Use the official MCP SDK client to verify that the published package advertises `verify_agent_action` over stdio:
+
+```bash
+node --input-type=module <<'EOF'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+const transport = new StdioClientTransport({
+  command: 'npx',
+  args: ['-y', '@ethersflow/mcp-server'],
+});
+
+const client = new Client({ name: 'smoke-test', version: '1.0.0' }, { capabilities: {} });
+await client.connect(transport);
+const result = await client.listTools();
+console.log(result.tools.map((tool) => tool.name));
+await client.close();
+EOF
+```
+
+Expected output:
+
+```text
+[ 'verify_agent_action' ]
+```
+
+### Live API Connectivity
+
+Create a live key from `https://ethersflow.com/#developers`, then launch the MCP server with:
+
+```bash
+ETHERSFLOW_API_KEY="ef_live_your_key" \
+ETHERSFLOW_BASE_URL="https://ethersflow-225907257236.us-east1.run.app" \
+npx -y @ethersflow/mcp-server
+```
+
+Any MCP client that can call `tools/list` and `tools/call` can now invoke `verify_agent_action`.
+
+### Generic MCP Client Example
+
+If you are not using Claude Desktop or Cursor, configure your MCP client to run:
+
+- command: `npx`
+- args: `["-y", "@ethersflow/mcp-server"]`
+- env:
+  - `ETHERSFLOW_API_KEY=ef_live_your_key`
+  - `ETHERSFLOW_BASE_URL=https://ethersflow-225907257236.us-east1.run.app`
+
+---
+
 ## 🚀 Maintainer Guide: Publishing to npm
 
 To publish this package to npm under `@ethersflow/mcp-server`:
@@ -102,7 +163,6 @@ npm publish --access public
 ```
 
 ---
-
 ## 🛠️ Tool Definition: `verify_agent_action`
 
 The server exposes a single typed tool:
@@ -151,3 +211,12 @@ verify_agent_action({
 EthersFlow operates on a strict **Zero-Data-Retention (ZDR)** policy. Submitted prompts and action chains are processed strictly in volatile memory and never stored, logged to disk, or used for model training.
 
 For full API reference and Ed25519 attestation details, visit [EthersFlow Documentation](https://www.ethersflow.com).
+
+---
+
+## Troubleshooting
+
+- **Tool not visible in client**: ensure the client is running `npx -y @ethersflow/mcp-server`
+- **401/403 API responses**: confirm `ETHERSFLOW_API_KEY` or `ETHERSFLOW_TOKEN` is set to an active `ef_live_...` key
+- **DNS/connectivity errors**: verify your environment can resolve `ethersflow-225907257236.us-east1.run.app`
+- **Claude Desktop/Cursor config issues**: fully restart the client after editing MCP settings
