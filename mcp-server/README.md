@@ -26,7 +26,7 @@ npm start
 ### Option C: Remote HTTP / SSE Gateway (Zero Local Node / NPX Dependencies)
 Connect your MCP client directly to EthersFlow's production endpoint:
 - **Endpoint**: `https://ethersflow-225907257236.us-east1.run.app/api/mcp`
-- **Headers**: `Authorization: Bearer ef_live_demo_key`
+- **Headers**: `Authorization: Bearer ef_live_your_key_here`
 
 ---
 
@@ -128,7 +128,7 @@ Expected output:
 Create a live key from `https://ethersflow.com/#developers`, then launch the MCP server with:
 
 ```bash
-ETHERSFLOW_API_KEY="ef_live_your_key" \
+ETHERSFLOW_API_KEY="ef_live_your_key_here" \
 ETHERSFLOW_BASE_URL="https://ethersflow-225907257236.us-east1.run.app" \
 npx -y @ethersflow/mcp-server
 ```
@@ -142,7 +142,7 @@ If you are not using Claude Desktop or Cursor, configure your MCP client to run:
 - command: `npx`
 - args: `["-y", "@ethersflow/mcp-server"]`
 - env:
-  - `ETHERSFLOW_API_KEY=ef_live_your_key`
+  - `ETHERSFLOW_API_KEY=ef_live_your_key_here`
   - `ETHERSFLOW_BASE_URL=https://ethersflow-225907257236.us-east1.run.app`
 
 ---

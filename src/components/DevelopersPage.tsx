@@ -85,7 +85,7 @@ verifyAction();`,
 
 # Initialize EthersFlow Python Client
 client = EthersFlow(
-    api_key="ef_live_your_secret_key_here",
+    api_key="ef_live_your_key_here",
     zero_data_retention=True
 )
 
@@ -125,9 +125,9 @@ const response = await ethersflow.messages.create({
 console.log('Verified Output:', response.content[0].text);
 console.log('EthersFlow Verification Stamp:', response.ethersflow_stamp);`,
 
-    curl: `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
-  -H "Authorization: ******" \
-  -H "Content-Type: application/json" \
+    curl: `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
+  -H "Authorization: Bearer ef_live_your_key_here" \\
+  -H "Content-Type: application/json" \\
   -d '{
     "agent_action": "$50 office supplies (micro-expense)",
     "reasoning_chain": "Standard office procurement",
@@ -145,7 +145,7 @@ import (
 )
 
 func main() {
-	client := ethersflow.NewClient("ef_live_your_api_key", &ethersflow.Config{
+	client := ethersflow.NewClient("ef_live_your_key_here", &ethersflow.Config{
 		ZeroDataRetention: true,
 	})
 
@@ -166,7 +166,7 @@ func main() {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let client = EthersFlowClient::new("ef_live_your_api_key")
+    let client = EthersFlowClient::new("ef_live_your_key_here")
         .with_zero_data_retention(true);
 
     let request = ConsensusRequest::builder()

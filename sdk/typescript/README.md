@@ -119,7 +119,7 @@ npm install @ethersflow/sdk
 ### Runtime Smoke Test
 
 ```typescript
-import EthersFlow from '@ethersflow/sdk';
+import { EthersFlow } from '@ethersflow/sdk';
 
 const client = new EthersFlow(process.env.ETHERSFLOW_API_KEY);
 const result = await client.verifyAgentAction('$50 office supplies (micro-expense)', {
@@ -135,7 +135,7 @@ console.log(result.status, result.verified);
 Generate a live key from `https://ethersflow.com/#developers`, then:
 
 ```bash
-export ETHERSFLOW_API_KEY="ef_live_your_key"
+export ETHERSFLOW_API_KEY="ef_live_your_key_here"
 export ETHERSFLOW_BASE_URL="https://ethersflow-225907257236.us-east1.run.app"
 
 curl -sS "$ETHERSFLOW_BASE_URL/api/health"

@@ -131,7 +131,7 @@ python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract 
 
 ```bash
 curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
-  -H "Authorization: Bearer ef_live_demo_key" \
+  -H "Authorization: Bearer ef_live_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_action": "Transfer 5000 USDC to wallet 0x9f for smart contract audit",
@@ -304,7 +304,7 @@ Behavior validated from the published package:
 Use the developer portal to create an `ef_live_...` key, then run:
 
 ```bash
-export ETHERSFLOW_API_KEY="ef_live_your_key"
+export ETHERSFLOW_API_KEY="ef_live_your_key_here"
 export ETHERSFLOW_BASE_URL="https://ethersflow-225907257236.us-east1.run.app"
 ```
 
@@ -318,7 +318,7 @@ Consensus probes:
 
 ```bash
 curl -X POST "$ETHERSFLOW_BASE_URL/api/v1/verify" \
-  -H "Authorization: ******" \
+  -H "Authorization: Bearer ef_live_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_action": "$50 office supplies (micro-expense)",
@@ -331,7 +331,7 @@ curl -X POST "$ETHERSFLOW_BASE_URL/api/v1/verify" \
 
 ```bash
 curl -X POST "$ETHERSFLOW_BASE_URL/api/v1/verify" \
-  -H "Authorization: ******" \
+  -H "Authorization: Bearer ef_live_your_key_here" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_action": "Transfer 5000 USDC to wallet 0x9f for a smart-contract audit",
