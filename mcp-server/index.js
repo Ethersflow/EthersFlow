@@ -54,6 +54,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Optional internal reasoning chain or context supporting the decision.",
             },
+            context: {
+              type: "object",
+              description: "Optional structured context or evidence payload.",
+            },
             agent_count: {
               type: "number",
               description: "Number of adversarial audit nodes (2 to 7, default 3).",
@@ -68,6 +72,18 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 "general_adversarial",
               ],
               description: "Audit persona preset for specialized domain compliance.",
+            },
+            policy_id: {
+              type: "string",
+              description: "Optional policy pack identifier to evaluate against.",
+            },
+            grounding_enabled: {
+              type: "boolean",
+              description: "Enable hybrid fact grounding check.",
+            },
+            zero_retention: {
+              type: "boolean",
+              description: "Enforce zero data retention (ZDR).",
             },
           },
           required: ["agent_action"],
@@ -97,6 +113,18 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
+  if (!ETHERSFLOW_API_KEY) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: "Error: Missing EthersFlow API key. Please pass --api-key=<key> or set the ETHERSFLOW_TOKEN environment variable.",
+        },
+      ],
+      isError: true,
+    };
+  }
+
   try {
     const url = `${ETHERSFLOW_API_URL.replace(/\/$/, "")}/api/v1/verify`;
     const response = await fetch(url, {
@@ -108,10 +136,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       },
       body: JSON.stringify({
         agent_action: actionText,
-        reasoning_chain: args.reasoning_chain || args.context || "",
+        reasoning_chain: args.reasoning_chain || (typeof args.context === "string" ? args.context : ""),
+        context: typeof args.context === "object" ? args.context : undefined,
         agent_count: args.agent_count || 3,
         persona_preset: args.persona_preset || "general_adversarial",
-        zero_retention: true,
+        policy_id: args.policy_id || "default_enterprise_safety_v1",
+        grounding_enabled: args.grounding_enabled !== undefined ? args.grounding_enabled : true,
+        zero_retention: args.zero_retention !== undefined ? args.zero_retention : true,
       }),
     });
 
