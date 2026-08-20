@@ -1,0 +1,202 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "EthersFlow Autonomous Agent Trust & Consensus API",
+    "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine.",
+    "version": "0.1.0",
+    "contact": {
+      "name": "EthersFlow Developer Support",
+      "email": "ethersflow.dev@gmail.com",
+      "url": "https://www.ethersflow.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://ethersflow-225907257236.us-east1.run.app",
+      "description": "Production API Gateway (Cloud Run)"
+    },
+    {
+      "url": "https://www.ethersflow.com",
+      "description": "Canonical Production Domain"
+    },
+    {
+      "url": "http://localhost:3000",
+      "description": "Local Development Server"
+    }
+  ],
+  "paths": {
+    "/api/v1/verify": {
+      "post": {
+        "summary": "Verify Autonomous Agent Proposed Action",
+        "description": "Gates an agent decision (e.g., execute_trade, send_email, approve_claim) with multi-model adversarial cross-examination across 2-7 audit nodes.",
+        "operationId": "verifyAgentAction",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "agent_action"
+                ],
+                "properties": {
+                  "agent_action": {
+                    "type": "string",
+                    "example": "Execute $250,000 wire transfer to Vendor X"
+                  },
+                  "reasoning_chain": {
+                    "type": "string",
+                    "example": "Invoice PO-8841 matched vendor payment record; approval threshold under $500k auto-limit."
+                  },
+                  "agent_count": {
+                    "type": "integer",
+                    "minimum": 2,
+                    "maximum": 7,
+                    "default": 3,
+                    "example": 5
+                  },
+                  "persona_preset": {
+                    "type": "string",
+                    "enum": [
+                      "clinical_safety",
+                      "financial_compliance",
+                      "legal_citation",
+                      "cybersecurity_auditor",
+                      "general_adversarial"
+                    ],
+                    "default": "general_adversarial",
+                    "example": "financial_compliance"
+                  },
+                  "grounding_enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "zero_retention": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Verification Verdict & Adversarial Transcript",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "APPROVED",
+                        "FLAGGED_HUMAN_REVIEW",
+                        "REJECTED"
+                      ]
+                    },
+                    "verified": {
+                      "type": "boolean"
+                    },
+                    "consensus_score": {
+                      "type": "number",
+                      "example": 94.5
+                    },
+                    "risk_index": {
+                      "type": "number",
+                      "example": 5.5
+                    },
+                    "verdict_summary": {
+                      "type": "string"
+                    },
+                    "agent_action": {
+                      "type": "string"
+                    },
+                    "agent_count": {
+                      "type": "integer"
+                    },
+                    "persona_preset": {
+                      "type": "string"
+                    },
+                    "adversarial_debate": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "role": {
+                            "type": "string"
+                          },
+                          "perspective": {
+                            "type": "string"
+                          },
+                          "node_status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "latency_ms": {
+                      "type": "integer"
+                    },
+                    "timestamp": {
+                      "type": "string",
+                      "format": "date-time"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mcp": {
+      "post": {
+        "summary": "Model Context Protocol (MCP) JSON-RPC 2.0 Server",
+        "description": "Native MCP Server endpoint enabling LangChain, CrewAI, AutoGPT, Claude, or Cloudflare Workers to invoke EthersFlow verification as a tool.",
+        "operationId": "mcpServerRPC",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "jsonrpc",
+                  "method"
+                ],
+                "properties": {
+                  "jsonrpc": {
+                    "type": "string",
+                    "example": "2.0"
+                  },
+                  "id": {
+                    "type": "integer",
+                    "example": 1
+                  },
+                  "method": {
+                    "type": "string",
+                    "enum": [
+                      "initialize",
+                      "tools/list",
+                      "tools/call"
+                    ]
+                  },
+                  "params": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCP Protocol Standard JSON-RPC Response"
+          }
+        }
+      }
+    }
+  }
+}
