@@ -1,11 +1,12 @@
 {
   "name": "@ethersflow/sdk",
-  "version": "0.1.0",
-  "description": "EthersFlow TypeScript SDK & Cloudflare Worker helpers",
+  "version": "0.2.0",
+  "description": "EthersFlow TypeScript SDK & Cloudflare Worker helpers for Multi-Model Adversarial Consensus",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
-    "dist"
+    "dist",
+    "src"
   ],
   "scripts": {
     "build": "tsc -p ./tsconfig.json",
@@ -15,8 +16,16 @@
     "type": "git",
     "url": "https://github.com/Ethersflow/EthersFlow.git"
   },
-  "keywords": ["ethersflow", "mcp", "sdk", "cloudflare", "verifier"],
-  "author": "EthersFlow",
+  "keywords": [
+    "ethersflow",
+    "mcp",
+    "sdk",
+    "ai-consensus",
+    "cloudflare",
+    "verifier",
+    "adversarial-consensus"
+  ],
+  "author": "EthersFlow Inc.",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

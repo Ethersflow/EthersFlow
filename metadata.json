@@ -1,0 +1,6 @@
+{
+  "name": "EthersFlow",
+  "description": "Multi-model AI consensus platform & MCP Server. Includes canonical repo casing (Ethersflow/EthersFlow), @ethersflow/mcp-server cold-start fallbacks, dynamic 2-7 agent consensus, and hardened Firestore security rules.",
+  "requestFramePermissions": ["camera", "microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

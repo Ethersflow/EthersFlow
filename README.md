@@ -16,28 +16,31 @@ EthersFlow is a zero-trust verification engine for autonomous AI agents. Before 
 If an audit node uncovers hallucinations, unverified counterparties, or compliance risks, the proposed action is flagged or rejected with an Ed25519 cryptographically signed attestation trail.
 
 ```
-                        Autonomous AI Agent
-                                 |
-                                 v
-                    +------------------------------+
-                    | EthersFlow Verification Gate |
-                    +------------------------------+
-                                 |
-        +------------------------+------------------------+
-        |                        |                        |
-+------------------+   +----------------------+   +---------------------+
-| Direct Pragmatist|   | Constructive Skeptic |   | Lateral Synthesizer |
-|  (Claude / Llama)|   |  (Gemini / Mistral)  |   |  (DeepSeek / Qwen)  |
-+------------------+   +----------------------+   +---------------------+
-         \                     |                      /
-          \                    |                     /
-           \                   |                    /
-            +-----------------------------------------+
-            |        Federated Consensus Engine       |
-            +-----------------------------------------+
-                                 |
-                                 v
-                    APPROVED   /   FLAGGED   /   REJECTED
+                           +-------------------------------------+
+                           |      Autonomous AI Agent            |
+                           +------------------+------------------+
+                                              | Proposed Action
+                                              v
++----------------------------------------------------------------------------------------+
+|                        EthersFlow Verification Gateway                                 |
+|                                                                                        |
+|  +----------------------+   +----------------------+   +----------------------------+  |
+|  | Direct Pragmatist    |   | Constructive Skeptic |   | Lateral Synthesizer        |  |
+|  | (Claude / Llama)     |   | (Gemini / Mistral)   |   | (DeepSeek / Qwen)          |  |
+|  +----------+-----------+   +----------+-----------+   +-------------+--------------+  |
+|             +--------------------------+-----------------------------+                 |
+|                                        | Adversarial Cross-Examination                 |
+|                                        v                                               |
+|                         +-----------------------------+                                |
+|                         | Federated Consensus Engine  |                                |
+|                         +--------------+--------------+                                |
+|                                        | Ed25519 Signature                             |
++----------------------------------------+-----------------------------------------------+
+                                         | Signed Verdict
+                                         v
+                 +----------------------------------------------+
+                 |  APPROVED / FLAGGED / REJECTED Decision Gate |
+                 +----------------------------------------------+
 ```
 
 ---
@@ -48,13 +51,13 @@ This repository contains the official client surfaces and developer tools for th
 
 | Surface | Path | Description |
 |---|---|---|
-| MCP Server | [`/mcp-server`](mcp-server/README.md) | npx @ethersflow/mcp-server for Claude Desktop, Cursor, and MCP clients |
+| MCP Server | [`/mcp-server`](mcp-server/README.md) | Model Context Protocol server for Claude Desktop, Cursor, and MCP clients |
 | Python Demo & Verifier | [`efverify.py`](efverify.py) | Zero-dependency pure-Python client and Ed25519 signature validator |
 | Python SDK | [`/sdk/python`](sdk/python) | Native Python package & LangChain tool wrapper |
 | TypeScript SDK | [`/sdk/typescript`](sdk/typescript) | TypeScript SDK + Cloudflare Worker middleware helper |
 | Postman Collection | [`/postman`](postman) | 11-request Postman collection + environment variables |
 
-Note: The core Federated Adversarial Consensus engine runs on Cloud Run with Zero Data Retention (ZDR). This public repository hosts client-side tools, SDKs, and integration specs.
+*Note: The core Federated Adversarial Consensus engine runs on Cloud Run with Zero Data Retention (ZDR). This public repository hosts client-side tools, SDKs, and integration specs.*
 
 ---
 
@@ -62,21 +65,33 @@ Note: The core Federated Adversarial Consensus engine runs on Cloud Run with Zer
 
 ### 1. Model Context Protocol (MCP) Server
 
-If you want the absolute fastest cold-start without package registry requirements, run the server directly from this repository:
-
+#### Option A: Direct from GitHub Source (Recommended Cold-Start)
 ```bash
-# Option: Local / GitHub source (recommended until packages are published)
 git clone https://github.com/Ethersflow/EthersFlow.git
 cd EthersFlow/mcp-server
 npm install
 npm start
 ```
 
-Optionally, once packages are published you can use the scoped npm package:
-
+#### Option B: Via NPX (Public Registry)
 ```bash
-# After publishing to npm
-npx @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
+npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
+```
+
+#### Option C: Claude Desktop Configuration
+```json
+{
+  "mcpServers": {
+    "ethersflow": {
+      "command": "node",
+      "args": ["/path/to/EthersFlow/mcp-server/index.js"],
+      "env": {
+        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
+      }
+    }
+  }
+}
 ```
 
 ### 2. Python (Zero-Dependency Demo)
@@ -88,7 +103,6 @@ python efverify.py demo
 ```
 
 To verify a custom proposed action:
-
 ```bash
 python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract audit"
 ```
@@ -97,7 +111,7 @@ python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract 
 
 ```bash
 curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
-  -H "Authorization: Bearer ef_live_demo_key" \
+  -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_action": "Transfer 5000 USDC to wallet 0x9f for smart contract audit",
@@ -110,17 +124,25 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ## Status & Known Limitations
 
-- Ed25519-Signed Audit Trail: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required.
-- Probabilistic, Not Deterministic: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (APPROVED ↔ FLAGGED).
-- Live Model Engine: Powered by live inference nodes (Llama 3.3 70B + Llama 3.1 8B via Groq) with active pipeline routing.
+- **Ed25519-Signed Audit Trail**: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
+- **Probabilistic, Not Deterministic**: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` <-> `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
+- **Live Model Engine**: Powered by live inference nodes (Llama 3.3 70B + Llama 3.1 8B via Groq) with active pipeline routing. Additional providers (Claude 3.5, GPT-4o, Gemini 1.5, DeepSeek R1, Qwen) are on the roadmap.
+- **Proprietary Core Architecture**: This repository hosts public developer toolkits, SDKs, Postman collections, and MCP wrappers. The core Federated Adversarial Consensus backend operates as a secure, hosted API service on Cloud Run with Zero Data Retention (ZDR). No backend application code or server secrets exist in this repository.
 
 ---
 
 ## Key Features
 
-- Multi-Model Consensus: Eliminates single-model bias by forcing heterogeneous models into adversarial debate.
-- Ed25519 Attestation: Every debate node output is signed with an Ed25519 cryptographic key. Public key set available at `/.well-known/jwks.json`.
-- Zero Data Retention (ZDR): Submitted action chains are processed purely in volatile RAM and never stored or used for model training.
+- **Multi-Model Consensus**: Eliminates single-model bias by forcing heterogeneous models into adversarial debate.
+- **Ed25519 Attestation**: Every debate node output is signed with an Ed25519 cryptographic key. Public key set available at `/.well-known/jwks.json`.
+- **Zero Data Retention (ZDR)**: Submitted action chains are processed purely in volatile RAM and never stored or used for model training.
+- **OpenAI & Anthropic Drop-In Proxies**: Use `/v1/chat/completions` or `/v1/messages` as a drop-in replacement for existing agent pipelines.
+- **Specialized Personas**:
+  - `financial_compliance` (FINRA/SEC, wire limits, KYC, sanctions)
+  - `clinical_safety` (ISMP high-alert meds, dosage bounds, FDA)
+  - `cybersecurity_auditor` (NIST SP 800-53, privilege escalation, SOC 2)
+  - `legal_citation` (FCPA, evidentiary privilege, contract breach)
+  - `general_adversarial` (Cross-domain safety & logic verification)
 
 ---
 
@@ -130,9 +152,9 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
 
 ```python
 import os
-from ethersflow.client import EthersFlowLangChainTool
+from ethersflow import EthersFlowLangChainTool
 
-verifier_tool = EthersFlowLangChainTool(api_key=os.environ["ETHERSFLOW_API_KEY"])
+verifier_tool = EthersFlowLangChainTool(api_key=os.getenv("ETHERSFLOW_API_KEY", "your_api_key"))
 
 # Add to your LangChain agent tools
 tools = [verifier_tool]
@@ -144,7 +166,7 @@ tools = [verifier_tool]
 import { cloudflareVerifyGate } from '@ethersflow/sdk';
 
 export default {
-  async fetch(request, env) {
+  async fetch(request: Request, env: { ETHERSFLOW_API_KEY: string }) {
     const isSafe = await cloudflareVerifyGate(
       "Transfer 5000 USDC to wallet 0x9f",
       "Vendor audit payment",
@@ -166,9 +188,9 @@ export default {
 
 EthersFlow publishes its public key set in JSON Web Key Set (JWKS) format:
 
-- JWKS Endpoint: `GET /.well-known/jwks.json`
-- Attestation Manifest: `GET /.well-known/attestation.json`
-- Verification Endpoint: `POST /api/v1/verify-attestation`
+- **JWKS Endpoint**: `GET /.well-known/jwks.json`
+- **Attestation Manifest**: `GET /.well-known/attestation.json`
+- **Verification Endpoint**: `POST /api/v1/verify-attestation`
 
 You can verify signatures locally or through the API to prove that every audit node's perspective originated directly from the EthersFlow signing authority.
 
@@ -176,7 +198,7 @@ You can verify signatures locally or through the API to prove that every audit n
 
 ## Postman Collection
 
-Import `postman/ethersflow.postman_collection.json` and `postman/ethersflow.postman_environment.json`.
+Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json) and [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json) into Postman to test all 11 core endpoints instantly.
 
 ---
 

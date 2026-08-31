@@ -4,16 +4,27 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ethersflow"
-version = "0.1.0"
-description = "EthersFlow Python SDK — lightweight client + LangChain tool wrapper"
+version = "0.2.0"
+description = "EthersFlow Python SDK — lightweight client + LangChain tool wrapper for Multi-Model Adversarial Consensus"
 readme = "README.md"
 license = { text = "MIT" }
-authors = [{ name = "EthersFlow", email = "dev@ethersflow.com" }]
+authors = [{ name = "EthersFlow Inc.", email = "dev@ethersflow.com" }]
 requires-python = ">=3.8"
 dependencies = [
-  "requests>=2.28"
+  "requests>=2.28.0"
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License"
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent"
 ]
+
+[project.urls]
+Homepage = "https://www.ethersflow.com"
+Repository = "https://github.com/Ethersflow/EthersFlow"
+Issues = "https://github.com/Ethersflow/EthersFlow/issues"

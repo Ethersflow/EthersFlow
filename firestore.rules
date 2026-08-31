@@ -1,0 +1,43 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /analyses/{analysisId} {
+      allow read: if request.auth != null && (
+        resource == null || 
+        resource.data.userId == request.auth.uid || 
+        (resource.data.tenantId != null && request.auth.token.tenantId == resource.data.tenantId) ||
+        request.auth.token.email == 'ethersflow.dev@gmail.com'
+      );
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || 
+        request.auth.token.email == 'ethersflow.dev@gmail.com'
+      );
+    }
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      
+      match /projects/{projectId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      
+      match /{allSubcollections=**} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    match /shared_debates/{shareId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    match /custom_agents/{agentId} {
+      allow read: if resource == null || resource.data.isShared == true || (request.auth != null && (resource.data.userId == request.auth.uid || request.auth.token.email == 'ethersflow.dev@gmail.com'));
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+      allow update, delete: if request.auth != null && (resource.data.userId == request.auth.uid || request.auth.token.email == 'ethersflow.dev@gmail.com');
+    }
+    match /gtm_leads/{leadId} {
+      // Restricted: Admin-only access. Server-side Admin SDK bypasses rules; client access locked to verified admin.
+      allow read, write: if request.auth != null && request.auth.token.email == 'ethersflow.dev@gmail.com';
+    }
+  }
+}
+
