@@ -18,7 +18,7 @@ import urllib.request
 import urllib.error
 from typing import Dict, Any, Optional
 
-DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "https://ethersflow-225907257236.us-east1.run.app")
+DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "https://www.ethersflow.com")
 DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", os.getenv("ETHERSFLOW_TOKEN", ""))
 
 class EthersFlowVerifier:

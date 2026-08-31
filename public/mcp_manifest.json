@@ -6,11 +6,11 @@
   "vendor": "EthersFlow Inc.",
   "homepage": "https://www.ethersflow.com",
   "repository": "https://github.com/Ethersflow/EthersFlow",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "transport": {
     "type": "http-sse",
-    "url": "https://ethersflow-225907257236.us-east1.run.app/api/mcp"
+    "url": "https://www.ethersflow.com/api/mcp"
   },
   "capabilities": {
     "tools": [

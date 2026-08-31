@@ -87,7 +87,7 @@ npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
       "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "env": {
         "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
-        "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
+        "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
       }
     }
   }
@@ -110,7 +110,7 @@ python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract 
 ### 3. cURL API Call
 
 ```bash
-curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \
+curl -X POST "https://www.ethersflow.com/api/v1/verify" \
   -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
