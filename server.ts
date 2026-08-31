@@ -1288,33 +1288,16 @@ async function startServer() {
     if (isOpenAiConfigured) configuredProviders.push("openai");
     if (configuredProviders.length === 0) configuredProviders.push("openrouter", "groq", "google");
 
-    // Align active consensus models dynamically to verified invocation roster (including Qwen models)
-    const activeConsensusModels: string[] = [];
-    if (isOpenRouterConfigured || configuredProviders.includes("openrouter")) {
-      activeConsensusModels.push(
-        "openrouter/qwen/qwen3.8-27b",
-        "qwen/qwen3.6-27b",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "openrouter/google/gemini-3.7-flash"
-      );
-    }
-    if (isGroqConfigured) {
-      activeConsensusModels.push("llama-3.3-70b-versatile", "llama-3.1-8b-instant");
-    }
-    if (isGoogleConfigured) {
-      activeConsensusModels.push("gemini-2.5-flash");
-    }
-    if (isOpenAiConfigured) {
+    // Align active consensus models strictly to verified-live consensus roster
+    const verifiedLiveModels = [
+      "openrouter/qwen/qwen3.8-27b",
+      "qwen/qwen3.6-27b",
+      "openrouter/meta-llama/llama-3.3-70b-instruct",
+      "openrouter/google/gemini-3.7-flash"
+    ];
+    const activeConsensusModels: string[] = [...verifiedLiveModels];
+    if (isOpenAiConfigured && !activeConsensusModels.includes("openai/gpt-4o-mini")) {
       activeConsensusModels.push("openai/gpt-4o-mini");
-    }
-    if (activeConsensusModels.length === 0) {
-      activeConsensusModels.push(
-        "openrouter/qwen/qwen3.8-27b",
-        "qwen/qwen3.6-27b",
-        "openrouter/meta-llama/llama-3.3-70b-instruct",
-        "llama-3.3-70b-versatile",
-        "gemini-2.5-flash"
-      );
     }
 
     // Split observability signals: gateway compute status vs persistence status
