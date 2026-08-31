@@ -5,7 +5,7 @@ class EthersFlowClient:
     """
     Official Python Client for EthersFlow Multi-Model Adversarial Consensus API
     """
-    def __init__(self, api_key: str, base_url: str = "https://ethersflow-225907257236.us-east1.run.app"):
+    def __init__(self, api_key: str, base_url: str = "https://www.ethersflow.com"):
         self.api_key = api_key
         self.base_url = base_url.rstrip("/")
         self.headers = {

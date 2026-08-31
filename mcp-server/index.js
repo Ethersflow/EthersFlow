@@ -22,7 +22,7 @@ for (let i = 0; i < args.length; i++) {
   else if (arg === "--base-url" && args[i + 1]) cliBaseUrl = args[++i];
 }
 
-const ETHERSFLOW_API_URL = cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://ethersflow-225907257236.us-east1.run.app";
+const ETHERSFLOW_API_URL = cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://www.ethersflow.com";
 const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "";
 
 const server = new Server(

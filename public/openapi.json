@@ -3,7 +3,7 @@
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
     "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
@@ -12,12 +12,8 @@
   },
   "servers": [
     {
-      "url": "https://ethersflow-225907257236.us-east1.run.app",
-      "description": "Production API Gateway (Cloud Run)"
-    },
-    {
       "url": "https://www.ethersflow.com",
-      "description": "Canonical Production Domain"
+      "description": "Production API Gateway"
     },
     {
       "url": "http://localhost:3000",
@@ -220,7 +216,7 @@
     "/v1/messages": {
       "post": {
         "summary": "Anthropic-Compatible Multi-Model Adversarial Messages Endpoint",
-        "description": "Drop-in Anthropic SDK (@anthropic-ai/sdk) proxy endpoint. Pass baseURL 'https://ethersflow-225907257236.us-east1.run.app'.",
+        "description": "Drop-in Anthropic SDK (@anthropic-ai/sdk) proxy endpoint. Pass baseURL 'https://www.ethersflow.com'.",
         "operationId": "messages",
         "security": [{ "BearerAuth": [] }],
         "requestBody": {

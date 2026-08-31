@@ -59,7 +59,7 @@ export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView
 
   const codeSnippets = {
     ts: `// EthersFlow Agent Action Gate Verification (Node.js / TypeScript)
-const API_URL = "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify";
+const API_URL = "https://www.ethersflow.com/api/v1/verify";
 const API_KEY = process.env.ETHERSFLOW_API_KEY || "YOUR_API_KEY";
 
 async function verifyAgentAction() {
@@ -95,7 +95,7 @@ verifyAgentAction();`,
 import requests
 
 # EthersFlow Agent Action Gate Verification (Python)
-API_URL = "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify"
+API_URL = "https://www.ethersflow.com/api/v1/verify"
 API_KEY = os.getenv("ETHERSFLOW_API_KEY", "YOUR_API_KEY")
 
 payload = {
@@ -128,7 +128,7 @@ for node in data.get("adversarial_debate", []):
 
 // Anthropic SDK Drop-in Proxy: Point client to EthersFlow Adversarial Gateway
 const anthropic = new Anthropic({
-  baseURL: 'https://ethersflow-225907257236.us-east1.run.app',
+  baseURL: 'https://www.ethersflow.com',
   apiKey: process.env.ETHERSFLOW_API_KEY || 'YOUR_API_KEY',
   defaultHeaders: {
     'X-EthersFlow-Persona-Preset': 'financial_compliance',
@@ -153,7 +153,7 @@ async function runConsensus() {
 
 runConsensus();`,
 
-    curl: `curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
+    curl: `curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
   -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -198,7 +198,7 @@ func main() {
 		ZeroRetention:  true,
 	})
 
-	req, _ := http.NewRequest("POST", "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify", bytes.NewBuffer(payload))
+	req, _ := http.NewRequest("POST", "https://www.ethersflow.com/api/v1/verify", bytes.NewBuffer(payload))
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -230,7 +230,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let res = client
-        .post("https://ethersflow-225907257236.us-east1.run.app/api/v1/verify")
+        .post("https://www.ethersflow.com/api/v1/verify")
         .header(AUTHORIZATION, format!("Bearer {}", api_key))
         .header(CONTENT_TYPE, "application/json")
         .json(&payload)
@@ -253,7 +253,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "env": {
         "ETHERSFLOW_API_KEY": "${mcpApiKey}",
-        "ETHERSFLOW_API_URL": "https://ethersflow-225907257236.us-east1.run.app"
+        "ETHERSFLOW_API_URL": "https://www.ethersflow.com"
       }
     }
   }
@@ -268,7 +268,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "environment": {
         "ETHERSFLOW_API_KEY": "${mcpApiKey}",
-        "ETHERSFLOW_API_URL": "https://ethersflow-225907257236.us-east1.run.app"
+        "ETHERSFLOW_API_URL": "https://www.ethersflow.com"
       }
     }
   ]
@@ -278,7 +278,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
       return `{
   "mcpServers": {
     "ethersflow-remote": {
-      "url": "https://ethersflow-225907257236.us-east1.run.app/api/mcp",
+      "url": "https://www.ethersflow.com/api/mcp",
       "headers": {
         "Authorization": "Bearer ${mcpApiKey}"
       }
@@ -295,7 +295,7 @@ mcp_tools = await load_mcp_tools(
     args=["./mcp-server/index.js"],
     env={
         "ETHERSFLOW_API_KEY": "${mcpApiKey}",
-        "ETHERSFLOW_API_URL": "https://ethersflow-225907257236.us-east1.run.app"
+        "ETHERSFLOW_API_URL": "https://www.ethersflow.com"
     }
 )
 
@@ -939,7 +939,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
 
               <pre className="p-5 bg-[#07080a] border border-slate-800 rounded-xl text-xs font-mono text-sky-300 overflow-x-auto leading-relaxed">
 {`# Example: Verify action with Custom BYOK Provider Keys
-curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
+curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
   -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \\
   -H "X-Groq-API-Key: gsk_your_groq_key_here" \\
   -H "X-OpenRouter-API-Key: sk-or-v1-your_openrouter_key_here" \\
@@ -1079,9 +1079,9 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
                   <div className="space-y-2">
                     <div className="text-[11px] text-slate-400 font-medium">1. Remote HTTP / SSE Gateway Endpoint (Zero Installation):</div>
                     <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-[11px] text-amber-300 flex items-center justify-between">
-                      <span className="truncate">https://ethersflow-225907257236.us-east1.run.app/api/mcp</span>
+                      <span className="truncate">https://www.ethersflow.com/api/mcp</span>
                       <button
-                        onClick={() => handleCopy(`https://ethersflow-225907257236.us-east1.run.app/api/mcp`, 'mcp-url')}
+                        onClick={() => handleCopy(`https://www.ethersflow.com/api/mcp`, 'mcp-url')}
                         className="text-slate-400 hover:text-white cursor-pointer ml-2 shrink-0"
                       >
                         <Copy className="w-4 h-4" />
@@ -1105,9 +1105,9 @@ curl -X POST "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify" \\
                   <div className="space-y-2">
                     <div className="text-[11px] text-slate-400 font-medium">3. Native REST API Action Gate:</div>
                     <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-[11px] text-emerald-400 flex items-center justify-between">
-                      <span className="truncate">POST https://ethersflow-225907257236.us-east1.run.app/api/v1/verify</span>
+                      <span className="truncate">POST https://www.ethersflow.com/api/v1/verify</span>
                       <button
-                        onClick={() => handleCopy(`https://ethersflow-225907257236.us-east1.run.app/api/v1/verify`, 'rest-url')}
+                        onClick={() => handleCopy(`https://www.ethersflow.com/api/v1/verify`, 'rest-url')}
                         className="text-slate-400 hover:text-white cursor-pointer ml-2 shrink-0"
                       >
                         <Copy className="w-4 h-4" />

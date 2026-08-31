@@ -3750,7 +3750,7 @@ async function startServer() {
   app.get(["/.well-known/attestation.json", "/api/v1/attestation.json"], (req, res) => {
     return res.json({
       attestation_authority: "EthersFlow Sovereign Attestation Network",
-      issuer: "https://ethersflow-225907257236.us-east1.run.app",
+      issuer: "https://www.ethersflow.com",
       version: ETHERSFLOW_RELEASE_VERSION,
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
@@ -3761,8 +3761,8 @@ async function startServer() {
       status: "ACTIVE_VERIFIED",
       public_key: ed25519XHex,
       public_key_base64url: ed25519XBase64,
-      verification_endpoint: "https://ethersflow-225907257236.us-east1.run.app/api/v1/verify-attestation",
-      jwks_uri: "https://ethersflow-225907257236.us-east1.run.app/.well-known/jwks.json",
+      verification_endpoint: "https://www.ethersflow.com/api/v1/verify-attestation",
+      jwks_uri: "https://www.ethersflow.com/.well-known/jwks.json",
       supported_providers: ["groq"],
       audit_node_signers: {
         groq: GROQ_SIGNER_KEY_ID
@@ -3882,7 +3882,7 @@ async function startServer() {
       vendor: "EthersFlow Inc.",
       homepage: "https://www.ethersflow.com",
       repository: "https://github.com/Ethersflow/EthersFlow",
-      version: "0.1.0",
+      version: "0.2.0",
       license: "MIT",
       transport: {
         type: "stdio",
@@ -3890,7 +3890,7 @@ async function startServer() {
         command: "npx -y @ethersflow/mcp-server",
         source_install: "git clone https://github.com/Ethersflow/EthersFlow.git && cd EthersFlow/mcp-server && npm install && npm start"
       },
-      http_endpoint: "https://ethersflow-225907257236.us-east1.run.app/api/mcp",
+      http_endpoint: "https://www.ethersflow.com/api/mcp",
       tools: [
         {
           name: "verify_agent_action",
@@ -4138,7 +4138,7 @@ async function startServer() {
     res.json({
       status: "online",
       description: "EthersFlow OpenAI-Compatible Adversarial Consensus Proxy",
-      usage: "Set baseURL to https://ethersflow-225907257236.us-east1.run.app/v1 or /v1 in your OpenAI or Anthropic SDK.",
+      usage: "Set baseURL to https://www.ethersflow.com/v1 or /v1 in your OpenAI or Anthropic SDK.",
       supported_headers: ["Authorization: Bearer ef_live_...", "X-EthersFlow-Council", "X-EthersFlow-SLA-Timeout", "X-EthersFlow-Callback-URL", "X-EthersFlow-Zero-Retention"]
     });
   });
