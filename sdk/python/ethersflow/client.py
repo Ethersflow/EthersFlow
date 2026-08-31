@@ -54,7 +54,8 @@ class EthersFlowLangChainTool:
             reasoning_chain=reasoning_chain,
             persona_preset=persona_preset
         )
+        score = res.get("consensus_score") if res.get("consensus_score") is not None else res.get("alignment_score", 0)
         if res.get("verified"):
-            return f"APPROVED (Consensus Score: {res.get('consensus_score')}%). Action is safe to execute."
+            return f"APPROVED (Consensus Score: {score}%). Action is safe to execute."
         else:
-            return f"REJECTED/FLAGGED (Risk Index: {res.get('risk_index')}%). Reason: {res.get('verdict_summary')}"
+            return f"REJECTED/FLAGGED (Risk Index: {res.get('risk_index', 0)}%). Reason: {res.get('verdict_summary')}"

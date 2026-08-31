@@ -12,7 +12,7 @@
 
 ### Option A: Via NPX (Public Registry)
 ```bash
-npx @ethersflow/mcp-server --api-key="$ETHERSFLOW_API_KEY"
+npx @ethersflow/mcp-server --api-key=YOUR_API_KEY
 ```
 
 ### Option B: Direct From GitHub (Zero npm publication dependency / Cold-start)
@@ -26,7 +26,7 @@ npm start
 ### Option C: Remote HTTP / SSE Gateway (Zero Local Node / NPX Dependencies)
 Connect your MCP client directly to EthersFlow's production endpoint:
 - **Endpoint**: `https://ethersflow-225907257236.us-east1.run.app/api/mcp`
-- **Headers**: `Authorization: Bearer ef_live_demo_key`
+- **Headers**: `Authorization: Bearer YOUR_API_KEY`
 
 ---
 
@@ -47,7 +47,7 @@ Add EthersFlow to your `claude_desktop_config.json`:
       "command": "npx",
       "args": ["-y", "@ethersflow/mcp-server"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_ETHERSFLOW_API_KEY",
+        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
         "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
       }
     }
@@ -63,7 +63,7 @@ Add EthersFlow to your `claude_desktop_config.json`:
       "command": "node",
       "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_ETHERSFLOW_API_KEY",
+        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
         "ETHERSFLOW_BASE_URL": "https://ethersflow-225907257236.us-east1.run.app"
       }
     }
@@ -81,7 +81,7 @@ In Cursor Settings → **MCP Servers** → **Add New MCP Server**:
 - **Type**: `command`
 - **Command**: `npx -y @ethersflow/mcp-server` (or `node /path/to/EthersFlow/mcp-server/index.js`)
 - **Environment Variables**:
-  - `ETHERSFLOW_TOKEN`: `YOUR_ETHERSFLOW_API_KEY`
+  - `ETHERSFLOW_TOKEN`: `YOUR_API_KEY`
   - `ETHERSFLOW_BASE_URL`: `https://ethersflow-225907257236.us-east1.run.app`
 
 ---

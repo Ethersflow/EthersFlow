@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
-    "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine.",
+    "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
     "version": "0.1.0",
     "contact": {
       "name": "EthersFlow Developer Support",
@@ -24,21 +24,278 @@
       "description": "Local Development Server"
     }
   ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "EthersFlow API Key (ef_live_...)",
+        "description": "Provide your EthersFlow API key in the Authorization header as 'Bearer <token>'."
+      }
+    },
+    "schemas": {
+      "ConsensusMetadata": {
+        "type": "object",
+        "properties": {
+          "alignment_score": { "type": "number", "example": 98.6 },
+          "verdict": { "type": "string", "example": "VERIFIED_CONSENSUS_ACHIEVED" },
+          "hallucination_index": { "type": "number", "example": 0.014 },
+          "risk_index": { "type": "number", "example": 1.4 },
+          "sla_latency_ms": { "type": "integer", "example": 1840 },
+          "sla_budget_ms": { "type": "integer", "nullable": true, "example": 2500 },
+          "sla_status": { "type": "string", "example": "WITHIN_SLA_BUDGET" },
+          "council_roster": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["FINRA/SEC Compliance Officer", "Quantitative Risk Auditor", "Market Manipulation Detector"]
+          },
+          "agent_count": { "type": "integer", "example": 3 },
+          "adversarial_debate": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": { "type": "string" },
+                "perspective": { "type": "string" },
+                "node_status": { "type": "string" }
+              }
+            }
+          },
+          "zero_data_retention": { "type": "boolean", "example": true }
+        }
+      }
+    }
+  },
   "paths": {
-    "/api/v1/verify": {
+    "/v1/chat/completions": {
       "post": {
-        "summary": "Verify Autonomous Agent Proposed Action",
-        "description": "Gates an agent decision (e.g., execute_trade, send_email, approve_claim) with multi-model adversarial cross-examination across 2-7 audit nodes.",
-        "operationId": "verifyAgentAction",
+        "summary": "OpenAI-Compatible Multi-Model Adversarial Chat Completions",
+        "description": "Drop-in OpenAI SDK proxy endpoint. Intercepts prompt, executes multi-model adversarial consensus in parallel, enforces zero data retention (ZDR), and returns synthesized response with consensus audit metadata.",
+        "operationId": "chatCompletions",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "X-EthersFlow-Council",
+            "in": "header",
+            "required": false,
+            "description": "JSON array of custom analyst roles (e.g. ['Fiduciary Auditor', 'SEC Compliance', 'Skeptic'])",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-EthersFlow-Persona-Preset",
+            "in": "header",
+            "required": false,
+            "description": "Pre-configured auditor council preset",
+            "schema": {
+              "type": "string",
+              "enum": ["clinical_safety", "financial_compliance", "legal_citation", "cybersecurity_auditor", "general_adversarial"]
+            }
+          },
+          {
+            "name": "X-EthersFlow-Agent-Count",
+            "in": "header",
+            "required": false,
+            "description": "Number of parallel adversarial audit nodes (2 to 7, default 3)",
+            "schema": { "type": "integer", "minimum": 2, "maximum": 7, "default": 3 }
+          },
+          {
+            "name": "X-EthersFlow-Zero-Retention",
+            "in": "header",
+            "required": false,
+            "description": "Enforce client-side PII token masking and zero logging across all nodes",
+            "schema": { "type": "boolean", "default": true }
+          },
+          {
+            "name": "X-EthersFlow-SLA-Timeout",
+            "in": "header",
+            "required": false,
+            "description": "SLA latency budget target in milliseconds (e.g. 2500)",
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "X-EthersFlow-Callback-URL",
+            "in": "header",
+            "required": false,
+            "description": "Webhook URL for asynchronous consensus delivery (returns HTTP 202 immediately)",
+            "schema": { "type": "string", "format": "uri" }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "agent_action"
-                ],
+                "required": ["messages"],
+                "properties": {
+                  "model": {
+                    "type": "string",
+                    "default": "ethersflow-adversarial-consensus-v1",
+                    "example": "ethersflow-adversarial-consensus-v1"
+                  },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["role", "content"],
+                      "properties": {
+                        "role": { "type": "string", "enum": ["system", "user", "assistant"] },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  },
+                  "stream": { "type": "boolean", "default": false },
+                  "response_format": { "type": "object" },
+                  "agent_count": { "type": "integer", "minimum": 2, "maximum": 7 },
+                  "persona_preset": { "type": "string" },
+                  "callback_url": { "type": "string", "format": "uri" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Standard OpenAI Chat Completion with Top-Level & Choice-Level EthersFlow Consensus Metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "object": { "type": "string", "example": "chat.completion" },
+                    "created": { "type": "integer" },
+                    "model": { "type": "string" },
+                    "choices": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "index": { "type": "integer" },
+                          "message": {
+                            "type": "object",
+                            "properties": {
+                              "role": { "type": "string" },
+                              "content": { "type": "string" },
+                              "ethersflow_consensus_metadata": { "$ref": "#/components/schemas/ConsensusMetadata" }
+                            }
+                          },
+                          "finish_reason": { "type": "string" }
+                        }
+                      }
+                    },
+                    "usage": { "type": "object" },
+                    "ethersflow_consensus_metadata": { "$ref": "#/components/schemas/ConsensusMetadata" }
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Asynchronous Consensus Task Queued (Dispatched to background pipeline and delivered via webhook)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "example": "ef_task_a7f92b4c10" },
+                    "object": { "type": "string", "example": "chat.completion.task" },
+                    "created": { "type": "integer" },
+                    "status": { "type": "string", "example": "queued" },
+                    "callback_url": { "type": "string" },
+                    "zero_data_retention": { "type": "boolean" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/messages": {
+      "post": {
+        "summary": "Anthropic-Compatible Multi-Model Adversarial Messages Endpoint",
+        "description": "Drop-in Anthropic SDK (@anthropic-ai/sdk) proxy endpoint. Pass baseURL 'https://ethersflow-225907257236.us-east1.run.app'.",
+        "operationId": "messages",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["messages"],
+                "properties": {
+                  "model": { "type": "string", "default": "ethersflow-adversarial-consensus-v1" },
+                  "max_tokens": { "type": "integer", "default": 1024 },
+                  "system": { "type": "string" },
+                  "messages": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "required": ["role", "content"],
+                      "properties": {
+                        "role": { "type": "string", "enum": ["user", "assistant"] },
+                        "content": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Standard Anthropic Message Response with Top-Level EthersFlow Consensus Metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "type": { "type": "string", "example": "message" },
+                    "role": { "type": "string", "example": "assistant" },
+                    "model": { "type": "string" },
+                    "content": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "type": { "type": "string", "example": "text" },
+                          "text": { "type": "string" }
+                        }
+                      }
+                    },
+                    "stop_reason": { "type": "string", "example": "end_turn" },
+                    "usage": { "type": "object" },
+                    "ethersflow_consensus_metadata": { "$ref": "#/components/schemas/ConsensusMetadata" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/verify": {
+      "post": {
+        "summary": "Verify Autonomous Agent Proposed Action",
+        "description": "Gates an agent decision (e.g., execute_trade, send_email, approve_claim) with multi-model adversarial cross-examination across 2-7 audit nodes.",
+        "operationId": "verifyAgentAction",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agent_action"],
                 "properties": {
                   "agent_action": {
                     "type": "string",
@@ -90,59 +347,28 @@
                   "properties": {
                     "status": {
                       "type": "string",
-                      "enum": [
-                        "APPROVED",
-                        "FLAGGED_HUMAN_REVIEW",
-                        "REJECTED"
-                      ]
+                      "enum": ["APPROVED", "FLAGGED_HUMAN_REVIEW", "REJECTED"]
                     },
-                    "verified": {
-                      "type": "boolean"
-                    },
-                    "consensus_score": {
-                      "type": "number",
-                      "example": 94.5
-                    },
-                    "risk_index": {
-                      "type": "number",
-                      "example": 5.5
-                    },
-                    "verdict_summary": {
-                      "type": "string"
-                    },
-                    "agent_action": {
-                      "type": "string"
-                    },
-                    "agent_count": {
-                      "type": "integer"
-                    },
-                    "persona_preset": {
-                      "type": "string"
-                    },
+                    "verified": { "type": "boolean" },
+                    "consensus_score": { "type": "number", "example": 94.5 },
+                    "risk_index": { "type": "number", "example": 5.5 },
+                    "verdict_summary": { "type": "string" },
+                    "agent_action": { "type": "string" },
+                    "agent_count": { "type": "integer" },
+                    "persona_preset": { "type": "string" },
                     "adversarial_debate": {
                       "type": "array",
                       "items": {
                         "type": "object",
                         "properties": {
-                          "role": {
-                            "type": "string"
-                          },
-                          "perspective": {
-                            "type": "string"
-                          },
-                          "node_status": {
-                            "type": "string"
-                          }
+                          "role": { "type": "string" },
+                          "perspective": { "type": "string" },
+                          "node_status": { "type": "string" }
                         }
                       }
                     },
-                    "latency_ms": {
-                      "type": "integer"
-                    },
-                    "timestamp": {
-                      "type": "string",
-                      "format": "date-time"
-                    }
+                    "latency_ms": { "type": "integer" },
+                    "timestamp": { "type": "string", "format": "date-time" }
                   }
                 }
               }
@@ -156,36 +382,22 @@
         "summary": "Model Context Protocol (MCP) JSON-RPC 2.0 Server",
         "description": "Native MCP Server endpoint enabling LangChain, CrewAI, AutoGPT, Claude, or Cloudflare Workers to invoke EthersFlow verification as a tool.",
         "operationId": "mcpServerRPC",
+        "security": [{ "BearerAuth": [] }],
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": [
-                  "jsonrpc",
-                  "method"
-                ],
+                "required": ["jsonrpc", "method"],
                 "properties": {
-                  "jsonrpc": {
-                    "type": "string",
-                    "example": "2.0"
-                  },
-                  "id": {
-                    "type": "integer",
-                    "example": 1
-                  },
+                  "jsonrpc": { "type": "string", "example": "2.0" },
+                  "id": { "type": "integer", "example": 1 },
                   "method": {
                     "type": "string",
-                    "enum": [
-                      "initialize",
-                      "tools/list",
-                      "tools/call"
-                    ]
+                    "enum": ["initialize", "tools/list", "tools/call"]
                   },
-                  "params": {
-                    "type": "object"
-                  }
+                  "params": { "type": "object" }
                 }
               }
             }

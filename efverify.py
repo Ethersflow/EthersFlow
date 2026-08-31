@@ -19,17 +19,12 @@ import urllib.error
 from typing import Dict, Any, Optional
 
 DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "https://ethersflow-225907257236.us-east1.run.app")
-DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY") or os.getenv("ETHERSFLOW_TOKEN")
+DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", os.getenv("ETHERSFLOW_TOKEN", ""))
 
 class EthersFlowVerifier:
-    def __init__(self, base_url: str = DEFAULT_BASE_URL, api_key: Optional[str] = DEFAULT_API_KEY):
+    def __init__(self, base_url: str = DEFAULT_BASE_URL, api_key: str = DEFAULT_API_KEY):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key
-
-    def _require_api_key(self) -> str:
-        if self.api_key:
-            return self.api_key
-        raise ValueError("EthersFlow API key is required. Pass api_key=... or set ETHERSFLOW_API_KEY / ETHERSFLOW_TOKEN.")
 
     def _http_get(self, path: str) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
@@ -40,8 +35,8 @@ class EthersFlowVerifier:
     def _http_post(self, path: str, payload: Dict[str, Any], auth: bool = True) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
         headers = {"Content-Type": "application/json", "User-Agent": "EthersFlow-Python-Verifier/1.0"}
-        if auth:
-            headers["Authorization"] = f"Bearer {self._require_api_key()}"
+        if auth and self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers=headers, method="POST")
         try:
