@@ -406,7 +406,7 @@ export async function runAdversarialStressTest(
 
   try {
     const rawResult = await callModel({
-      model: 'llama-3.1-8b-instant', // Fast, deterministic, cost-effective
+      model: 'qwen/qwen3.6-27b', // Fast, deterministic, cost-effective
       systemInstruction: 'You are a strict security and logic auditor. Respond with raw JSON only. NO PREAMBLE.',
       userPrompt: evaluatorPrompt,
       temperature: 0.1, // Low temperature for high consistency and determinism
@@ -425,7 +425,7 @@ export async function runAdversarialStressTest(
 
     // Replace actual unescaped control characters inside JSON string literals with safe escaped sequences
     let sanitizedJsonStr = jsonStr;
-    sanitizedJsonStr = sanitizedJsonStr.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (m, p1) => {
+    sanitizedJsonStr = sanitizedJsonStr.replace(/"([^"\\]*(?:\\.[^"\\]*)*)"/g, (m: string, p1: string) => {
       const cleaned = p1
         .replace(/\n/g, '\\n')
         .replace(/\r/g, '\\r')
@@ -815,18 +815,18 @@ async function executeAgentCallWithFallback(options: AgentCallOptions): Promise<
 
   // --- DYNAMIC AUTO-SELECT ROUTER OPTIMIZER ---
   if (currentModel === 'auto-select') {
-    // We prefer llama-3.3-70b-versatile as the default auto-select model due to its high speed, intelligence, and reliability.
-    currentModel = 'llama-3.3-70b-versatile';
+    // We prefer meta-llama/llama-3.3-70b-instruct as the default auto-select model due to its high speed, intelligence, and reliability.
+    currentModel = 'meta-llama/llama-3.3-70b-instruct';
     console.log(`[Consensus Auto-Select] Routed ${options.slot.name} to Llama 3.3 70B for high performance and availability.`);
   }
 
   const triedModels = new Set<string>();
 
-  // If the prompt is extremely large, Groq's tight 6,000 TPM limit on llama-3.1-8b-instant will reject it.
-  // Proactively swap to the larger llama-3.3-70b-versatile model if we are starting on the 8B model.
-  if (currentModel === 'llama-3.1-8b-instant' && totalPromptLength > 8000 && !triedModels.has('llama-3.3-70b-versatile')) {
-    console.warn(`[Consensus API fallback] Prompt for ${options.slot.name} is large (${totalPromptLength} chars). Swapping proactively from Llama 3.1 8B to Llama 3.3 70B to prevent Groq TPM limit overflow on 8B.`);
-    currentModel = 'llama-3.3-70b-versatile';
+  // If the prompt is extremely large, Groq's tight 6,000 TPM limit on small models will reject it.
+  // Proactively swap to the larger meta-llama/llama-3.3-70b-instruct model if we are starting on the smaller model.
+  if (currentModel === 'qwen/qwen3.6-27b' && totalPromptLength > 8000 && !triedModels.has('meta-llama/llama-3.3-70b-instruct')) {
+    console.warn(`[Consensus API fallback] Prompt for ${options.slot.name} is large (${totalPromptLength} chars). Swapping proactively from Qwen 27B to Llama 3.3 70B to prevent Groq TPM limit overflow.`);
+    currentModel = 'meta-llama/llama-3.3-70b-instruct';
   }
 
   while (attempt < maxAttempts) {
@@ -893,10 +893,10 @@ async function executeAgentCallWithFallback(options: AgentCallOptions): Promise<
                             errMsg.toLowerCase().includes("more credits");
 
       if (isAffordLimit) {
-        // Fallback directly to llama-3.3-70b-versatile if we can't afford the current option
-        if (currentModel !== 'llama-3.3-70b-versatile' && !triedModels.has('llama-3.3-70b-versatile')) {
+        // Fallback directly to meta-llama/llama-3.3-70b-instruct if we can't afford the current option
+        if (currentModel !== 'meta-llama/llama-3.3-70b-instruct' && !triedModels.has('meta-llama/llama-3.3-70b-instruct')) {
           console.warn(`[Consensus API fallback] Credit/Token limit caught. Falling back immediately to Llama 3.3 70B...`);
-          currentModel = 'llama-3.3-70b-versatile';
+          currentModel = 'meta-llama/llama-3.3-70b-instruct';
           attempt = 0;
           continue;
         }
@@ -1215,7 +1215,7 @@ export async function runConsensus(
   slots: { id: string; name: string; systemPrompt: string; model: string; description?: string }[],
   synthesisTemp: number,
   onAnalystComplete?: (response: AnalystResponse) => void,
-  synthesisModel: string = 'llama-3.3-70b-versatile',
+  synthesisModel: string = 'meta-llama/llama-3.3-70b-instruct',
   attachedFiles: { name: string; content: string; type: string }[] = [],
   planTier: 'free' | 'pro' | 'max' | 'enterprise' = 'free',
   onSynthesisChunk?: (text: string) => void,
@@ -1369,7 +1369,7 @@ export async function runConsensus(
       `;
       
       const recoveryResponse = await callModel({
-        model: 'llama-3.3-70b-versatile', // Escalation to high-reasoning Llama 3.3 70B
+        model: 'meta-llama/llama-3.3-70b-instruct', // Escalation to high-reasoning Llama 3.3 70B
         systemInstruction: recoverySystemPrompt,
         userPrompt: fullPrompt,
         temperature: 0.1,
@@ -1694,7 +1694,7 @@ Use bold key-term highlights. Start your output directly with the first section 
         nudge: `Adversarial stress score exceeded safe threshold of 70%. Executing single-retry reasoning-hardening fallback.`
       });
 
-      const retryPromises = slots.map(async (slot, index) => {
+      const retryPromises: Promise<AnalystResponse>[] = slots.map(async (slot, index): Promise<AnalystResponse> => {
         const prevResponse = analystResponses.find(r => r.slotId === slot.id);
         if (prevResponse && prevResponse.flags.includes('failed_model')) {
           return prevResponse;
@@ -1768,11 +1768,12 @@ Use bold key-term highlights. Start your output directly with the first section 
           return finalResponse;
         } catch (retryErr) {
           console.error(`[Consensus Retry Fail] Redraft failed for analyst ${slot.name}:`, retryErr);
-          return prevResponse || {
+          if (prevResponse) return prevResponse;
+          return {
             slotId: slot.id,
             persona: slot.name,
             text: `RE-DRAFT DIRECTIVE FAILED: ${retryErr instanceof Error ? retryErr.message : 'Timeout'}.`,
-            confidence: 'LOW',
+            confidence: 'LOW' as const,
             flags: ['error', 'failed_model'],
             model: slot.model,
             specialization: slot.description
@@ -2219,9 +2220,11 @@ Use bold key-term highlights. Start your output directly with the first section 
   const raceResult = await Promise.race([debatePromise(), timeoutPromise]);
   clearTimeout(debateTimeoutId);
 
-  if (raceResult.isSlaTimeout) {
+  if ('isSlaTimeout' in raceResult && raceResult.isSlaTimeout) {
      return await runEmergencySlaRecovery();
+  } else if ('results' in raceResult && raceResult.results) {
+     return raceResult.results;
   } else {
-     return raceResult.results!;
+     return await runEmergencySlaRecovery();
   }
 }

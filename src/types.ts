@@ -44,6 +44,7 @@ export interface AnalystSlot {
 
 export interface SavedAnalysis {
   id: string;
+  userId?: string;
   query: string;
   timestamp: number;
   analystResponses: AnalystResponse[];

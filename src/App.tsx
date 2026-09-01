@@ -393,7 +393,7 @@ function AgentLibrary({
     const [editingAgent, setEditingAgent] = useState<any | null>(null);
     const [newName, setNewName] = useState('');
     const [newDesc, setNewDesc] = useState('');
-    const [newModel, setNewModel] = useState<Model>('llama-3.3-70b-versatile');
+    const [newModel, setNewModel] = useState<Model>('meta-llama/llama-3.3-70b-instruct');
     const [newSystemPrompt, setNewSystemPrompt] = useState('');
     const [isSaving, setIsSaving] = useState(false);
 
@@ -401,7 +401,7 @@ function AgentLibrary({
       setEditingAgent(null);
       setNewName('');
       setNewDesc('');
-      setNewModel('llama-3.3-70b-versatile');
+      setNewModel('meta-llama/llama-3.3-70b-instruct');
       setNewSystemPrompt('Provide a unique perspective on the query. State your confidence (HIGH/MEDIUM/LOW) at the start.');
       setShowCreateModal(true);
     };
@@ -436,7 +436,7 @@ function AgentLibrary({
         // Clear fields
         setNewName('');
         setNewDesc('');
-        setNewModel('llama-3.3-70b-versatile');
+        setNewModel('meta-llama/llama-3.3-70b-instruct');
         setNewSystemPrompt('');
         setEditingAgent(null);
       } catch (err) {
@@ -604,10 +604,10 @@ function AgentLibrary({
                         </button>
                         <button
                           onClick={() => toggleShareCustomAgent(agent as any)}
-                          title={agent.isShared ? "Open share console" : "Share public link"}
+                          title={(agent as any).isShared ? "Open share console" : "Share public link"}
                           className={cn(
                             "p-2 rounded-xl border transition-all cursor-pointer",
-                            agent.isShared 
+                            (agent as any).isShared 
                               ? "bg-indigo-50 border-indigo-200 text-indigo-600 animate-pulse" 
                               : "bg-gray-50 border-gray-100 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50"
                           )}
@@ -993,9 +993,12 @@ export default function App() {
   const savePhoto = () => {
     if (capturedImage) {
       setAttachedFiles(prev => [...prev, {
+        id: `camera-${Date.now()}`,
         name: `camera-capture-${Date.now()}.png`,
-        content: "[Captured Image Data]",
-        type: 'image/png'
+        content: capturedImage || "[Captured Image Data]",
+        type: 'image/png',
+        size: capturedImage.length || 1024,
+        status: 'ready'
       }]);
       setShowCamera(false);
       setCapturedImage(null);
@@ -1805,7 +1808,7 @@ export default function App() {
             const data = await res.json();
             if (data.debate) {
               setResults(data.debate);
-              setPrompt(data.debate.query || '');
+              setQuery(data.debate.query || '');
               setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Shared consensus loaded successfully.`]);
             }
           } catch (e) {
@@ -2155,7 +2158,7 @@ export default function App() {
       // Create project with current work context
       const projectWithContext = {
         ...project,
-        activeAnalysis: results ? { query, results, analystResponses } : null
+        activeAnalysis: results ? { query, results, analystResponses: results.analystResponses } : null
       };
 
       await fetch('/api/project/share', {
@@ -2603,7 +2606,7 @@ export default function App() {
                 id: 'shared-' + Date.now().toString(),
                 name: agentData.name || "Shared Agent",
                 description: agentData.description || "Shared reasoning perspective",
-                model: (agentData.model || "llama-3.3-70b-versatile") as Model,
+                model: (agentData.model || "meta-llama/llama-3.3-70b-instruct") as Model,
                 active: true,
                 systemPrompt: agentData.systemPrompt || ""
               };
@@ -2645,9 +2648,10 @@ export default function App() {
         userId: effectiveUserId,
         name: agent.name || "Custom Agent",
         description: agent.description || (agent as any).desc || "Custom reasoning perspective",
-        model: agent.model || "llama-3.3-70b-versatile",
+        model: agent.model || "meta-llama/llama-3.3-70b-instruct",
         systemPrompt: agent.systemPrompt || `Analyze the query as ${agent.name}.`,
         category: 'custom',
+        active: true,
         createdAt: Date.now(),
         isShared: (agent as any).isShared || false
       };
@@ -3235,7 +3239,7 @@ function NestedAgentLibraryUnused() { return null; }
       id: newId,
       name: preset?.name || 'New Agent',
       description: preset?.description || 'Custom perspective',
-      model: (preset?.model as Model) || 'llama-3.3-70b-versatile',
+      model: (preset?.model as Model) || 'meta-llama/llama-3.3-70b-instruct',
       active: true,
       systemPrompt: preset?.systemPrompt || 'Provide a unique perspective on the query. State your confidence (HIGH/MEDIUM/LOW) at the start.'
     }]);
@@ -3273,7 +3277,7 @@ function NestedAgentLibraryUnused() { return null; }
       // 4. Clear fields
       setWorkspaceNewName('');
       setWorkspaceNewDesc('');
-      setWorkspaceNewModel('llama-3.3-70b-versatile');
+      setWorkspaceNewModel('meta-llama/llama-3.3-70b-instruct');
       setWorkspaceNewSystemPrompt('Provide a unique perspective on the query. State your confidence (HIGH/MEDIUM/LOW) at the start.');
     } catch (err) {
       console.error("Error saving workspace custom agent:", err);
@@ -3805,7 +3809,7 @@ function NestedAgentLibraryUnused() { return null; }
     ${results.synthesis.dissents && results.synthesis.dissents.length > 0 ? results.synthesis.dissents.map(d => `
       <div class="dissent-card">
         <p class="dissent-who"><strong>${d.who}:</strong></p>
-        <p class="dissent-text">${d.argument || d.text || ''}</p>
+        <p class="dissent-text">${d.text || ''}</p>
       </div>
     `).join('') : '<p style="font-size: 13.5px; color: #64748b; font-style: italic;">No significant dissenting minority paths recorded.</p>'}
     
@@ -4118,9 +4122,12 @@ function NestedAgentLibraryUnused() { return null; }
             if (extractedText && extractedText.length > 20) {
               setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] PIPELINE SUCCESS: ${file.name} - Extracted ${extractedText.length} characters locally.`]);
               setAttachedFiles(prev => [...prev, {
+                id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                 name: file.name,
                 content: extractedText,
-                type: file.type || 'application/pdf'
+                type: file.type || 'application/pdf',
+                size: file.size || extractedText.length,
+                status: 'ready'
               }]);
             } else {
               // Fallback seamlessly to cloud extraction route
@@ -4146,9 +4153,12 @@ function NestedAgentLibraryUnused() { return null; }
               const data = await res.json();
               if (data.text) {
                 setAttachedFiles(prev => [...prev, {
+                  id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                   name: file.name,
                   content: data.text,
-                  type: file.type || 'application/pdf'
+                  type: file.type || 'application/pdf',
+                  size: file.size || data.text.length,
+                  status: 'ready'
                 }]);
                 setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] PIPELINE SUCCESS: ${file.name} - Extracted ${data.text.length} characters via cloud parser.`]);
               } else {
@@ -4204,9 +4214,12 @@ function NestedAgentLibraryUnused() { return null; }
             
             if (data.text) {
               setAttachedFiles(prev => [...prev, {
+                id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
                 name: file.name,
                 content: data.text,
-                type: file.type || (isPdf ? 'application/pdf' : 'application/docx')
+                type: file.type || (isPdf ? 'application/pdf' : 'application/docx'),
+                size: file.size || data.text.length,
+                status: 'ready'
               }]);
               const vInfo = data.v ? ` [API ${data.v}]` : "";
               setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] PIPELINE SUCCESS: ${file.name}${vInfo} - Extracted ${data.text.length} characters using ${data.info?.method || 'neural analysis'}.`]);
@@ -4216,9 +4229,12 @@ function NestedAgentLibraryUnused() { return null; }
           } else if (isText) {
             const content = await file.text();
             setAttachedFiles(prev => [...prev, {
+              id: `file-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
               name: file.name,
               content: content || "Empty file content",
-              type: file.type || 'text/plain'
+              type: file.type || 'text/plain',
+              size: file.size || content.length,
+              status: 'ready'
             }]);
             setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] LOCAL READ: ${file.name} attached (${content.length} chars).`]);
           } else {
@@ -4444,7 +4460,7 @@ function NestedAgentLibraryUnused() { return null; }
     
     completedList.forEach(ca => {
       const caModelInfo = AVAILABLE_MODELS.find(m => m.id === ca.model);
-      const modelName = caModelInfo?.name || ca.model;
+      const modelName = caModelInfo?.label || ca.model;
       const snippets = getAnalystDialogueSnippets(ca);
       if (snippets.length > 0) {
         snippets.forEach(snip => {
@@ -7193,7 +7209,7 @@ function NestedAgentLibraryUnused() { return null; }
               <NemotronVectorInspector
                 initialDocuments={attachedFiles.map(f => f.content)}
                 onInjectContext={(groundedText) => {
-                  setPromptInput((prev) => (prev ? `${prev}\n\n[NEMOTRON GROUNDING CONTEXT]: ${groundedText}` : `[NEMOTRON GROUNDING CONTEXT]: ${groundedText}`));
+                  setQuery((prev: string) => (prev ? `${prev}\n\n[NEMOTRON GROUNDING CONTEXT]: ${groundedText}` : `[NEMOTRON GROUNDING CONTEXT]: ${groundedText}`));
                   setShowVectorInspector(false);
                 }}
               />
@@ -8400,10 +8416,10 @@ function NestedAgentLibraryUnused() { return null; }
                                   if (!results.analystResponses || results.analystResponses.length <= 1) {
                                     return "Single Expert Review Briefing";
                                   }
-                                  if (results.synthesis?.dissent && results.synthesis.dissent.length > 30) {
+                                  if (results.synthesis?.dissents && results.synthesis.dissents.length > 0) {
                                     return "Adversarial Consensus with Unresolved Dissent";
                                   }
-                                  if (results.synthesis?.score && results.synthesis.score >= 80) {
+                                  if (results.synthesis?.confidenceMetric && results.synthesis.confidenceMetric >= 80) {
                                     return "Consensus Reached: Supporting Evidence Synthesized";
                                   }
                                   return t('consensus_narrative') || "Consensus Narrative & Verdict";
