@@ -5,8 +5,6 @@ export type Model =
   | 'gemini-3.1-pro-preview'
   | 'models/gemini-2.0-flash'
   | 'models/gemini-2.0-pro-exp-02-05'
-  | 'llama-3.3-70b-versatile' 
-  | 'llama-3.1-8b-instant'
   | 'meta-llama/llama-3.3-70b-instruct'
   | 'openrouter/meta-llama/llama-3.3-70b-instruct'
   | 'openrouter/openai/gpt-4o-mini'
