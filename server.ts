@@ -1626,7 +1626,7 @@ async function startServer() {
         try {
           // If Groq API Key is present, make live high-speed call via Groq using active Qwen / LPUs models
           if (groqApiKey) {
-            const targetModel = idx % 2 === 0 ? "qwen-2.5-32b" : "llama-3.3-70b-versatile";
+            const targetModel = idx % 2 === 0 ? "qwen/qwen3.6-27b" : "openrouter/meta-llama/llama-3.3-70b-instruct";
             const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
               method: "POST",
               headers: {
@@ -1713,7 +1713,7 @@ async function startServer() {
 
     const liveDebate = analystDrafts && analystDrafts.length > 0
       ? analystDrafts.map((draft, idx) => {
-          const modelId = draft.model || (idx % 2 === 0 ? "llama-3.3-70b-versatile" : "llama-3.1-8b-instant");
+          const modelId = draft.model || (idx % 2 === 0 ? "openrouter/meta-llama/llama-3.3-70b-instruct" : "qwen/qwen3.6-27b");
           const provider = draft.provider || "groq";
           const nodeStatus = analyzeDraftSentiment(draft.content, evalResult.status);
 
@@ -3822,7 +3822,7 @@ async function startServer() {
     // Node Perspective Attestation
     const node = body.node || body;
     const provider = node.provider || "groq";
-    const modelId = node.model_id || node.model || "llama-3.3-70b-versatile";
+    const modelId = node.model_id || node.model || "openrouter/meta-llama/llama-3.3-70b-instruct";
     const role = node.role || "Direct Pragmatist";
     const perspective = node.perspective || "";
     const providerRequestId = node.provider_request_id || "";

@@ -946,8 +946,7 @@ async function executeAgentCallWithFallback(options: AgentCallOptions): Promise<
         'openrouter/meta-llama/llama-3.3-70b-instruct',
         'openrouter/openai/gpt-4o-mini',
         'openrouter/nvidia/nemotron-3-super-120b-a12b:free',
-        'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
-        'llama-3.3-70b-versatile'
+        'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free'
       ];
 
       if (isRequestTooLarge) {
@@ -1939,8 +1938,7 @@ Use bold key-term highlights. Start your output directly with the first section 
         'openrouter/qwen/qwen3.8-27b',
         'openai/gpt-oss-20b',
         'openrouter/meta-llama/llama-3.3-70b-instruct',
-        'openrouter/openai/gpt-4o-mini',
-        'llama-3.3-70b-versatile'
+        'openrouter/openai/gpt-4o-mini'
       ])).filter(Boolean);
 
       const triedSynthModels = new Set<string>();

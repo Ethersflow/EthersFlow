@@ -142,7 +142,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"role\": \"Direct Pragmatist\",\n  \"perspective\": \"VERIFIED (Direct Pragmatist): Micro-expense $50 office supplies approved.\",\n  \"node_status\": \"ALIGNED\",\n  \"model_id\": \"llama-3.3-70b-versatile\",\n  \"provider\": \"groq\",\n  \"signature\": \"03f47543e8a94951d89e39281f9277e7af1412baaedc72447e85cea8febc27bdbc28ab278a2da41677c4fc2508e7fc9ae9e32758817267f6c263e6ecccfacf09\"\n}"
+              "raw": "{\n  \"role\": \"Direct Pragmatist\",\n  \"perspective\": \"VERIFIED (Direct Pragmatist): Micro-expense $50 office supplies approved.\",\n  \"node_status\": \"ALIGNED\",\n  \"model_id\": \"openrouter/meta-llama/llama-3.3-70b-instruct\",\n  \"provider\": \"groq\",\n  \"signature\": \"03f47543e8a94951d89e39281f9277e7af1412baaedc72447e85cea8febc27bdbc28ab278a2da41677c4fc2508e7fc9ae9e32758817267f6c263e6ecccfacf09\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/api/v1/verify-attestation",
