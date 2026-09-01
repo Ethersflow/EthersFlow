@@ -16,6 +16,7 @@ pip install git+https://github.com/Ethersflow/EthersFlow.git#subdirectory=sdk/py
 ## Quick Start
 
 ```python
+import os
 from ethersflow import EthersFlowClient
 
 client = EthersFlowClient(api_key=os.getenv("ETHERSFLOW_API_KEY", "your_api_key"))

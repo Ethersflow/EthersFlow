@@ -15,7 +15,7 @@
 npx @ethersflow/mcp-server --api-key=YOUR_API_KEY
 ```
 
-### Option B: Direct From GitHub (Zero npm publication dependency / Cold-start)
+### Option B: From source
 ```bash
 git clone https://github.com/Ethersflow/EthersFlow.git
 cd EthersFlow/mcp-server

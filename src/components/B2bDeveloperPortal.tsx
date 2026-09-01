@@ -54,6 +54,7 @@ interface ApiLogItem {
   status: number;
   zeroRetention: boolean;
   webhookStatus: string;
+  isSample?: boolean;
 }
 
 export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, userEmail }) => {
@@ -189,60 +190,14 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
     try {
       const res = await fetch(`/api/v1/keys/logs?userId=${encodeURIComponent(userId)}`);
       const data = await res.json();
-      if (data.logs && data.logs.length > 0) {
+      if (Array.isArray(data.logs)) {
         setLogs(data.logs);
       } else {
-        setLogs([
-          {
-            id: 'log_01',
-            timestamp: new Date().toISOString(),
-            endpoint: '/v1/chat/completions',
-            model: 'ethersflow-adversarial-consensus-v1',
-            latencyMs: 1840,
-            alignmentScore: 98.6,
-            status: 200,
-            zeroRetention: true,
-            webhookStatus: 'DELIVERED_200_OK'
-          },
-          {
-            id: 'log_02',
-            timestamp: new Date(Date.now() - 3600000).toISOString(),
-            endpoint: '/v1/chat/completions',
-            model: 'ethersflow-adversarial-consensus-v1',
-            latencyMs: 1420,
-            alignmentScore: 99.1,
-            status: 200,
-            zeroRetention: true,
-            webhookStatus: 'DELIVERED_200_OK'
-          },
-          {
-            id: 'log_03',
-            timestamp: new Date(Date.now() - 7200000).toISOString(),
-            endpoint: '/v1/chat/completions',
-            model: 'ethersflow-adversarial-consensus-v1',
-            latencyMs: 2100,
-            alignmentScore: 97.8,
-            status: 200,
-            zeroRetention: true,
-            webhookStatus: 'DELIVERED_200_OK'
-          }
-        ]);
+        setLogs([]);
       }
     } catch (e) {
       console.error("Failed to load logs:", e);
-      setLogs([
-        {
-          id: 'log_01',
-          timestamp: new Date().toISOString(),
-          endpoint: '/v1/chat/completions',
-          model: 'ethersflow-adversarial-consensus-v1',
-          latencyMs: 1840,
-          alignmentScore: 98.6,
-          status: 200,
-          zeroRetention: true,
-          webhookStatus: 'DELIVERED_200_OK'
-        }
-      ]);
+      setLogs([]);
     }
   }, [userId]);
 
@@ -531,7 +486,7 @@ main();`;
           { id: 'mcp_server', label: 'MCP Protocol Server (/mcp)', icon: Server },
           { id: 'keys', label: 'API Keys & Vault', icon: Key },
           { id: 'playground', label: 'Interactive API Sandbox', icon: Terminal },
-          { id: 'logs', label: 'Telemetry & Webhook Logs', icon: Activity }
+          { id: 'logs', label: 'Request log', icon: Activity }
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -1384,19 +1339,19 @@ main();`;
         </div>
       )}
 
-      {/* Tab 4: Telemetry & Logs */}
+      {/* Tab 4: Request log */}
       {activeTab === 'logs' && (
         <div className="bg-[#12131a] rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-xl font-black text-white tracking-tight">API Telemetry & Webhook Logs</h3>
+                <h3 className="text-xl font-black text-white tracking-tight">Request log</h3>
                 <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full text-[10px] font-black uppercase">
-                  Live & Sample Buffer
+                  Live
                 </span>
               </div>
               <p className="text-xs sm:text-sm font-medium text-slate-400 mt-1">
-                Real-time audit record of proxy calls, alignment scores, and webhook delivery status (includes baseline sample records and live executions).
+                Real-time audit record of proxy calls, alignment scores, and webhook delivery status.
               </p>
             </div>
 
@@ -1409,52 +1364,68 @@ main();`;
             </button>
           </div>
 
-          <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-900/50">
-            <table className="w-full text-left text-xs font-sans">
-              <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-wider">
-                <tr>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Endpoint</th>
-                  <th className="py-3 px-4">Model</th>
-                  <th className="py-3 px-4">Latency</th>
-                  <th className="py-3 px-4">Alignment Score</th>
-                  <th className="py-3 px-4">ZDR Status</th>
-                  <th className="py-3 px-4">Webhook Delivery</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800/80 font-medium text-slate-200">
-                {logs.map((log) => (
-                  <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-indigo-400">
-                      {log.endpoint}
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-white">
-                      {log.model}
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-purple-400 font-bold">
-                      {log.latencyMs} ms
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-emerald-400">
-                      {log.alignmentScore}%
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
-                        <Lock className="w-2.5 h-2.5 text-emerald-400" /> Sanitized
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 font-bold text-xs">
-                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-black text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
-                        <CheckCircle2 className="w-3 h-3 text-indigo-400" /> {log.webhookStatus}
-                      </span>
-                    </td>
+          {logs.length === 0 ? (
+            <div className="text-center py-12 px-4 border border-dashed border-slate-800 rounded-2xl bg-slate-900/30">
+              <Activity className="w-8 h-8 text-slate-600 mx-auto mb-3" />
+              <p className="text-sm font-medium text-slate-400">
+                No calls yet — your first verified action will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-slate-800 rounded-2xl bg-slate-900/50">
+              <table className="w-full text-left text-xs font-sans">
+                <thead className="bg-slate-900 border-b border-slate-800 text-slate-400 font-black uppercase text-[10px] tracking-wider">
+                  <tr>
+                    <th className="py-3 px-4">Timestamp</th>
+                    <th className="py-3 px-4">Endpoint</th>
+                    <th className="py-3 px-4">Model</th>
+                    <th className="py-3 px-4">Latency</th>
+                    <th className="py-3 px-4">Alignment Score</th>
+                    <th className="py-3 px-4">ZDR Status</th>
+                    <th className="py-3 px-4">Webhook Delivery</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80 font-medium text-slate-200">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-slate-800/40 transition-colors">
+                      <td className="py-3.5 px-4 font-mono text-slate-400 text-[11px]">
+                        {new Date(log.timestamp).toLocaleTimeString()}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-indigo-400">
+                        <div className="flex items-center gap-2">
+                          <span>{log.endpoint}</span>
+                          {log.isSample && (
+                            <span className="px-1.5 py-0.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 rounded text-[9px] font-mono font-normal">
+                              Sample
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-white">
+                        {log.model}
+                      </td>
+                      <td className="py-3.5 px-4 font-mono text-purple-400 font-bold">
+                        {log.latencyMs} ms
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-bold text-emerald-400">
+                        {log.alignmentScore}%
+                      </td>
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-emerald-300 bg-emerald-500/20 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                          <Lock className="w-2.5 h-2.5 text-emerald-400" /> Sanitized
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-bold text-xs">
+                        <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider font-black text-indigo-300 bg-indigo-500/20 px-2.5 py-0.5 rounded-full border border-indigo-500/30">
+                          <CheckCircle2 className="w-3 h-3 text-indigo-400" /> {log.webhookStatus}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

@@ -38,7 +38,7 @@ interface DevelopersPageProps {
 
 export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView }) => {
   const [activeSection, setActiveSection] = useState<'quickstart' | 'models' | 'mcp' | 'agent_gate' | 'architecture' | 'community'>('quickstart');
-  const [activeLang, setActiveLang] = useState<'ts' | 'python' | 'anthropic' | 'curl' | 'go' | 'rust'>('ts');
+  const [activeLang, setActiveLang] = useState<'ts' | 'python' | 'curl' | 'mcp' | 'anthropic' | 'go' | 'rust'>('ts');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // MCP Configuration State
@@ -164,6 +164,24 @@ runConsensus();`,
     "grounding_enabled": true,
     "zero_retention": true
   }'`,
+
+    mcp: `// Model Context Protocol (MCP) Setup
+// Run via NPX:
+// npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
+
+// Or configure Claude Desktop (claude_desktop_config.json):
+{
+  "mcpServers": {
+    "ethersflow": {
+      "command": "npx",
+      "args": ["-y", "@ethersflow/mcp-server"],
+      "env": {
+        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
+      }
+    }
+  }
+}`,
 
     go: `package main
 
@@ -464,7 +482,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
             </div>
             <span className="font-black text-white tracking-tight">Developers Hub</span>
             <span className="text-[10px] text-slate-400 font-bold px-2 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded uppercase tracking-wider">
-              v0.1.0 Developer Preview (REST & MCP)
+              v0.2.0 (REST & MCP)
             </span>
           </div>
 
@@ -489,10 +507,16 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
       {/* Hero Header */}
       <header className="relative pt-16 pb-20 px-6 overflow-hidden border-b border-slate-800/50 bg-gradient-to-b from-indigo-950/30 via-[#0d0e12] to-[#0d0e12]">
         <div className="max-w-7xl mx-auto relative z-10 text-center sm:text-left">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-mono font-bold mb-6">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Developer Center for EthersFlow Review and Verification</span>
-            <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[9px] font-black uppercase tracking-wider">API + MCP extensions</span>
+          <div className="flex flex-wrap items-center gap-3 mb-6">
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-400 text-xs font-mono font-bold">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Developer Center for EthersFlow Review and Verification</span>
+              <span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 rounded text-[9px] font-black uppercase tracking-wider">API + MCP extensions</span>
+            </div>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-medium">
+              <Check className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Free during early access · No credit card required</span>
+            </div>
           </div>
 
           <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-[1.1] mb-6">
@@ -642,14 +666,6 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                     Python Client
                   </button>
                   <button
-                    onClick={() => setActiveLang('anthropic')}
-                    className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
-                      activeLang === 'anthropic' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    Anthropic Adapter
-                  </button>
-                  <button
                     onClick={() => setActiveLang('curl')}
                     className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
                       activeLang === 'curl' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
@@ -658,20 +674,38 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                     cURL REST API
                   </button>
                   <button
-                    onClick={() => setActiveLang('go')}
+                    onClick={() => setActiveLang('mcp')}
                     className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      activeLang === 'mcp' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    MCP Config
+                  </button>
+                  <button
+                    onClick={() => setActiveLang('anthropic')}
+                    className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                      activeLang === 'anthropic' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    Anthropic Adapter
+                  </button>
+                  <button
+                    onClick={() => setActiveLang('go')}
+                    className={`px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeLang === 'go' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    Go SDK
+                    <span>Go</span>
+                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-900/80 text-amber-300 rounded border border-amber-500/20 font-normal">Community</span>
                   </button>
                   <button
                     onClick={() => setActiveLang('rust')}
-                    className={`px-4 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer ${
+                    className={`px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                       activeLang === 'rust' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
                     }`}
                   >
-                    Rust Crate
+                    <span>Rust</span>
+                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-900/80 text-amber-300 rounded border border-amber-500/20 font-normal">Community</span>
                   </button>
                 </div>
 
@@ -699,11 +733,12 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                   <Terminal className="w-4 h-4 text-indigo-400" />
                   <span>
                     {activeLang === 'ts' && 'npm install @ethersflow/sdk # or npm install openai'}
-                    {activeLang === 'python' && 'pip install ethersflow # or pip install requests openai'}
-                    {activeLang === 'anthropic' && 'npm install @anthropic-ai/sdk # Drop-in base URL proxy client'}
+                    {activeLang === 'python' && 'pip install ethersflow # or pip install requests'}
                     {activeLang === 'curl' && '# Native cURL — zero packages required'}
-                    {activeLang === 'go' && 'go run main.go # Native standard library net/http'}
-                    {activeLang === 'rust' && 'cargo add reqwest tokio serde_json'}
+                    {activeLang === 'mcp' && 'npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY'}
+                    {activeLang === 'anthropic' && 'npm install @anthropic-ai/sdk # Drop-in base URL proxy client'}
+                    {activeLang === 'go' && '# community examples — no official packages published (raw HTTP request)'}
+                    {activeLang === 'rust' && '# community examples — no official packages published (raw HTTP request)'}
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500 uppercase font-bold">Package Setup</span>
