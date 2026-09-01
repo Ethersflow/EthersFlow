@@ -423,7 +423,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
 
       // Race with a 3.5s timeout so developers never wait or see network timeout errors
       const callPromise = callModel({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3.5-flash',
         systemInstruction,
         userPrompt: `Proposed Agent Action: "${actionQuery}"`,
         temperature: 0.1

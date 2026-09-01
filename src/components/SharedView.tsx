@@ -39,6 +39,7 @@ interface SharedViewProps {
       confidence: 'HIGH' | 'MEDIUM' | 'LOW';
       text: string;
       flags: string[];
+      specialization?: string;
     }[];
   };
   onClose: () => void;

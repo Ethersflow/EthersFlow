@@ -1,5 +1,5 @@
 import React from 'react';
-import { View } from './types';
+import { View } from '../types';
 
 export const PAGE_CONTENT: Partial<Record<Exclude<View, 'main'>, { 
   title: string; 

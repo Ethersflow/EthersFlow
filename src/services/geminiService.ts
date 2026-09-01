@@ -26,14 +26,15 @@ export async function callModel(params: {
       };
 
       if (params.onChunk) {
-        const result = await ai.getGenerativeModel({ model: normalizedModel }).generateContentStream({
+        const responseStream = await ai.models.generateContentStream({
+          model: normalizedModel,
           contents: [{ role: 'user', parts: [{ text: params.userPrompt }] }],
-          ...config as any
+          config
         });
 
         let fullText = "";
-        for await (const chunk of result.stream) {
-          const text = chunk.text();
+        for await (const chunk of responseStream) {
+          const text = chunk.text;
           if (text) {
             fullText += text;
             params.onChunk(text);
@@ -41,11 +42,12 @@ export async function callModel(params: {
         }
         return fullText;
       } else {
-        const result = await ai.getGenerativeModel({ model: normalizedModel }).generateContent({
+        const result = await ai.models.generateContent({
+          model: normalizedModel,
           contents: [{ role: 'user', parts: [{ text: params.userPrompt }] }],
-          ...config as any
+          config
         });
-        return result.response.text() || "";
+        return result.text || "";
       }
     } catch (error: any) {
       console.warn("Client-side Gemini failed, falling back to server proxy:", error.message);

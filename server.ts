@@ -480,7 +480,7 @@ async function startServer() {
               method: "POST",
               headers: { "Authorization": `Bearer ${groqKey}`, "Content-Type": "application/json" },
               body: JSON.stringify({
-                model: "llama-3.3-70b-versatile",
+                model: "meta-llama/llama-3.3-70b-instruct",
                 messages: [{ 
                   role: "user", 
                   content: [
@@ -1657,7 +1657,7 @@ async function startServer() {
           if (geminiAI) {
             try {
               const res = await geminiAI.models.generateContent({
-                model: "gemini-2.5-flash",
+                model: "gemini-3.5-flash",
                 contents: [{ role: "user", parts: [{ text: `Role: ${analystName}\nDirective: ${prompt}` }] }],
                 config: {
                   systemInstruction: `You are ${analystName}, a specialized expert analyst operating inside EthersFlow's multi-agent consensus layer. Provide your rigorous, independent perspective.`,
@@ -1666,7 +1666,7 @@ async function startServer() {
                 }
               });
               if (res.text && res.text.trim().length > 20) {
-                return { name: analystName, content: res.text.trim(), provider: "google", model: "gemini-2.5-flash" };
+                return { name: analystName, content: res.text.trim(), provider: "google", model: "gemini-3.5-flash" };
               }
             } catch (err) {
               // Graceful fallback to default signed perspective
@@ -1692,7 +1692,7 @@ async function startServer() {
           const synthPrompt = `USER DIRECTIVE: ${prompt}\n\nANALYST PERSPECTIVES:\n${draftSummaries}\n\nExecute Phase 3 Consensus Synthesis. Resolve any friction between the analyst perspectives, eliminate speculative hallucinations, and state the verified consensus outcome.${jsonSchemaEnforced ? " OUTPUT STRICT VALID JSON MATCHING THE REQUESTED SCHEMA." : ""}`;
           
           const synthRes = await geminiAI.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.5-flash",
             contents: [{ role: "user", parts: [{ text: synthPrompt }] }],
             config: {
               systemInstruction: "You are EthersFlow's Multi-Agent Consensus Synthesizer. Output a clear, verified, authoritative consensus response.",
@@ -5221,7 +5221,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
           const queryToSearch = searchQuery || userPrompt;
           console.log(`[Google Grounding Fallback] Fetching Google Search grounding for non-Gemini model ${model}...`);
           const searchRes = await geminiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.5-flash',
             contents: [{
               role: 'user',
               parts: [{ text: `Search Google for current real-time details regarding: "${queryToSearch}". Give a highly concise synthesis of current prices, statistics, or status, and extract the exact URLs of the primary search results. Make sure to return actual, valid URLs so the user can check them.` }]
@@ -5286,15 +5286,15 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
       }
     }
 
-    // Apply low TPM optimization for Groq models (such as llama-3.1-8b-instant or llama-3.3-70b-versatile)
-    if (model.includes('llama-3.1-8b-instant') || model.includes('instant')) {
+    // Apply low TPM optimization for compact model footprints
+    if (model.includes('instant') || model.includes('8b')) {
       const maxChars = 12000; // ~3000 tokens safe input ceiling
       if (groundedPrompt.length + (systemInstruction?.length || 0) > maxChars) {
         console.log(`[LOW_TPM_OPTIMIZER] Shortening prompt for ${model}. Original grounded len: ${groundedPrompt.length}`);
         groundedPrompt = trimPromptForLowTPM(groundedPrompt, systemInstruction || "", maxChars);
         console.log(`[LOW_TPM_OPTIMIZER] Shortened grounded len: ${groundedPrompt.length}`);
       }
-    } else if (model.includes('llama') || model.includes('versatile')) {
+    } else if (model.includes('llama') || model.includes('instruct')) {
       const maxChars = 15000; // ~3800 tokens safe input ceiling
       if (groundedPrompt.length + (systemInstruction?.length || 0) > maxChars) {
         console.log(`[LOW_TPM_OPTIMIZER] Shortening prompt for ${model}. Original grounded len: ${groundedPrompt.length}`);
@@ -5430,8 +5430,10 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
         if (isGroq) {
           apiUrl = "https://api.groq.com/openai/v1/chat/completions";
           apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || "";
-          if (modelFullId === 'llama-3.3-70b-versatile' || modelFullId.includes('versatile') || modelFullId === 'llama-3.1-8b-instant' || modelFullId.includes('instant') || modelFullId.startsWith('llama')) {
+          if (modelFullId.includes('qwen') || modelFullId === 'qwen/qwen3.6-27b') {
             modelFullId = "qwen/qwen3.6-27b";
+          } else if (modelFullId.includes('llama') || modelFullId === 'meta-llama/llama-3.3-70b-instruct') {
+            modelFullId = "meta-llama/llama-3.3-70b-instruct";
           }
         } else if (isOpenRouter) {
           apiUrl = "https://openrouter.ai/api/v1/chat/completions";
@@ -5457,7 +5459,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
             modelFullId = 'google/gemini-3.7-flash';
           } else if (modelFullId === 'qwen/qwen3.8-27b') {
             modelFullId = 'qwen/qwen3.8-27b';
-          } else if (modelFullId === 'meta-llama/llama-3.3-70b-instruct' || modelFullId === 'llama-3.3-70b-versatile' || modelFullId.includes('llama-3.3')) {
+          } else if (modelFullId === 'meta-llama/llama-3.3-70b-instruct' || modelFullId.includes('llama-3.3')) {
             modelFullId = 'meta-llama/llama-3.3-70b-instruct';
           } else if (modelFullId === 'openai/gpt-4o-mini') {
             modelFullId = 'openai/gpt-4o-mini';
@@ -5488,11 +5490,11 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
         let safeSystemInstruction = enhancedSystemInstruction;
         let safeGroundedPrompt = groundedPrompt;
 
-        // Compact prompt for Groq Llama models to strictly avoid Groq's 6,000 TPM limit
+        // Compact prompt for Groq models to strictly avoid Groq's 6,000 TPM limit
         if (isGroq) {
           const totalLen = safeSystemInstruction.length + safeGroundedPrompt.length;
-          const is8B = modelFullId.includes("llama-3.1-8b-instant") || modelFullId.includes("8b");
-          const maxAllowedChars = is8B ? 5000 : 10000;
+          const isCompact = modelFullId.includes("27b") || modelFullId.includes("8b");
+          const maxAllowedChars = isCompact ? 5000 : 10000;
           if (totalLen > maxAllowedChars) {
             console.warn(`[Groq TPM Guard] Trimming prompt from ${totalLen} chars to fit within Groq ${maxAllowedChars} limit...`);
             if (safeGroundedPrompt.length > maxAllowedChars * 0.7) {
@@ -5802,7 +5804,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
           const queryToSearch = searchQuery || userPrompt;
           console.log(`[Google Grounding Fallback] Fetching Google Search grounding for non-Gemini model ${model} (Stream)...`);
           const searchRes = await geminiClient.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3.5-flash',
             contents: [{
               role: 'user',
               parts: [{ text: `Search Google for current real-time details regarding: "${queryToSearch}". Give a highly concise synthesis of current prices, statistics, or status, and extract the exact URLs of the primary search results. Make sure to return actual, valid URLs so the user can check them.` }]
@@ -5867,15 +5869,15 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
       }
     }
 
-    // Apply low TPM optimization for Groq models (such as llama-3.1-8b-instant or llama-3.3-70b-versatile)
-    if (model.includes('llama-3.1-8b-instant') || model.includes('instant')) {
+    // Apply low TPM optimization for compact model footprints
+    if (model.includes('instant') || model.includes('8b')) {
       const maxChars = 12000; // ~3000 tokens safe input ceiling
       if (groundedPrompt.length + (systemInstruction?.length || 0) > maxChars) {
         console.log(`[LOW_TPM_OPTIMIZER] Shortening stream prompt for ${model}. Original grounded len: ${groundedPrompt.length}`);
         groundedPrompt = trimPromptForLowTPM(groundedPrompt, systemInstruction || "", maxChars);
         console.log(`[LOW_TPM_OPTIMIZER] Shortened stream grounded len: ${groundedPrompt.length}`);
       }
-    } else if (model.includes('llama') || model.includes('versatile')) {
+    } else if (model.includes('llama') || model.includes('instruct')) {
       const maxChars = 15000; // ~3800 tokens safe input ceiling
       if (groundedPrompt.length + (systemInstruction?.length || 0) > maxChars) {
         console.log(`[LOW_TPM_OPTIMIZER] Shortening stream prompt for ${model}. Original grounded len: ${groundedPrompt.length}`);
@@ -5996,8 +5998,10 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
         if (isGroq) {
           apiUrl = "https://api.groq.com/openai/v1/chat/completions";
           apiKey = process.env.GROQ_API_KEY || process.env.VITE_GROQ_API_KEY || "";
-          if (modelFullId === 'llama-3.3-70b-versatile' || modelFullId.includes('versatile') || modelFullId === 'llama-3.1-8b-instant' || modelFullId.includes('instant') || modelFullId.startsWith('llama')) {
+          if (modelFullId.includes('qwen') || modelFullId === 'qwen/qwen3.6-27b') {
             modelFullId = "qwen/qwen3.6-27b";
+          } else if (modelFullId.includes('llama') || modelFullId === 'meta-llama/llama-3.3-70b-instruct') {
+            modelFullId = "meta-llama/llama-3.3-70b-instruct";
           }
         } else if (isOpenRouter) {
           apiUrl = "https://openrouter.ai/api/v1/chat/completions";
@@ -6023,7 +6027,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
             modelFullId = 'google/gemini-3.7-flash';
           } else if (modelFullId === 'qwen/qwen3.8-27b') {
             modelFullId = 'qwen/qwen3.8-27b';
-          } else if (modelFullId === 'meta-llama/llama-3.3-70b-instruct' || modelFullId === 'llama-3.3-70b-versatile' || modelFullId.includes('llama-3.3')) {
+          } else if (modelFullId === 'meta-llama/llama-3.3-70b-instruct' || modelFullId.includes('llama-3.3')) {
             modelFullId = 'meta-llama/llama-3.3-70b-instruct';
           } else if (modelFullId === 'openai/gpt-4o-mini') {
             modelFullId = 'openai/gpt-4o-mini';
@@ -6128,12 +6132,12 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
           res.write('data: [DONE]\n\n');
           return res.end();
         } catch (openAiErr: any) {
-          const isLlama33 = modelFullId.includes("llama-3.3-70b-versatile") || modelFullId.includes("versatile");
-          const isLlama31 = modelFullId.includes("llama-3.1-8b-instant") || modelFullId.includes("instant");
+          const isLlama33 = modelFullId.includes("meta-llama/llama-3.3-70b-instruct") || modelFullId.includes("llama-3.3");
+          const isQwen = modelFullId.includes("qwen") || modelFullId.includes("27b");
 
-          if (isGroq && (isLlama33 || isLlama31)) {
-            const fallbackModelId = isLlama33 ? "llama-3.1-8b-instant" : "llama-3.3-70b-versatile";
-            console.warn(`[OpenAI Stream Warning] ${openAiErr.message}. Attempting LLaMA streaming fallback to ${fallbackModelId}...`);
+          if (isGroq && (isLlama33 || isQwen)) {
+            const fallbackModelId = isLlama33 ? "qwen/qwen3.6-27b" : "meta-llama/llama-3.3-70b-instruct";
+            console.warn(`[OpenAI Stream Warning] ${openAiErr.message}. Attempting streaming fallback to ${fallbackModelId}...`);
             try {
               const response = await fetch(apiUrl, {
                 method: "POST",
@@ -6382,7 +6386,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
             console.log(`[Scraper] Triggering highly resilient Google Search Grounding fallback for URL: ${url}`);
             try {
               const res = await geminiClient.models.generateContent({
-                model: 'gemini-2.5-flash',
+                model: 'gemini-3.5-flash',
                 contents: [{
                   role: 'user',
                   parts: [{
@@ -7146,9 +7150,9 @@ For each prospect, generate a JSON object with:
 
 Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or any other explanation. Ensure it's a valid JSON array matching the structure.`;
 
-      // 1. Primary: Groq Llama 3.1 8b Instant
+      // 1. Primary: Groq Qwen 3.6 27B
       if (groqKey) {
-        console.log(`[GTM] [Primary] Running AI-powered lead enrichment with Groq llama-3.1-8b-instant for query: ${query}`);
+        console.log(`[GTM] [Primary] Running AI-powered lead enrichment with Groq qwen/qwen3.6-27b for query: ${query}`);
         try {
           const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -7157,7 +7161,7 @@ Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or an
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "llama-3.1-8b-instant",
+              model: "qwen/qwen3.6-27b",
               messages: [{ role: "user", content: prompt }],
               temperature: 0.7,
               response_format: { type: "json_object" }
@@ -7198,19 +7202,19 @@ Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or an
                 status: "new",
                 createdAt: Date.now()
               }));
-              console.log(`[GTM] [Primary] Groq Llama 3.1 8B successfully generated ${enrichedLeads.length} leads.`);
+              console.log(`[GTM] [Primary] Groq Qwen 3.6 27B successfully generated ${enrichedLeads.length} leads.`);
             }
           } else {
-            console.error(`[GTM] [Primary] Groq llama-3.1-8b-instant API error: ${response.status} ${response.statusText}`);
+            console.error(`[GTM] [Primary] Groq qwen/qwen3.6-27b API error: ${response.status} ${response.statusText}`);
           }
         } catch (groqErr: any) {
-          console.error("[GTM] [Primary] Groq llama-3.1-8b-instant failed, cascading:", groqErr);
+          console.error("[GTM] [Primary] Groq qwen/qwen3.6-27b failed, cascading:", groqErr);
         }
       }
 
       // 2. First Fallback: Groq Llama 3.3 70B
       if (enrichedLeads.length === 0 && groqKey) {
-        console.log(`[GTM] [Fallback-1] Running lead enrichment with Groq llama-3.3-70b-versatile for query: ${query}`);
+        console.log(`[GTM] [Fallback-1] Running lead enrichment with Groq meta-llama/llama-3.3-70b-instruct for query: ${query}`);
         try {
           const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
             method: "POST",
@@ -7219,7 +7223,7 @@ Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or an
               "Content-Type": "application/json"
             },
             body: JSON.stringify({
-              model: "llama-3.3-70b-versatile",
+              model: "meta-llama/llama-3.3-70b-instruct",
               messages: [{ role: "user", content: prompt }],
               temperature: 0.7,
               response_format: { type: "json_object" }
@@ -7263,10 +7267,10 @@ Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or an
               console.log(`[GTM] [Fallback-1] Groq Llama 3.3 successfully generated ${enrichedLeads.length} leads.`);
             }
           } else {
-            console.error(`[GTM] [Fallback-1] Groq llama-3.3-70b-versatile API error: ${response.status} ${response.statusText}`);
+            console.error(`[GTM] [Fallback-1] Groq meta-llama/llama-3.3-70b-instruct API error: ${response.status} ${response.statusText}`);
           }
         } catch (groq33Err: any) {
-          console.error("[GTM] [Fallback-1] Groq llama-3.3-70b-versatile failed, cascading:", groq33Err);
+          console.error("[GTM] [Fallback-1] Groq meta-llama/llama-3.3-70b-instruct failed, cascading:", groq33Err);
         }
       }
 

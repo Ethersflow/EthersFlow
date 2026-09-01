@@ -472,10 +472,11 @@ main();`;
   }'`;
   };
 
-  const copyToClipboard = (text: string, isKey = false) => {
+  const copyToClipboard = (text: string, keyIdentifier?: string | boolean) => {
     navigator.clipboard.writeText(text);
-    if (isKey) {
-      setCopiedKey(text);
+    if (keyIdentifier) {
+      const id = typeof keyIdentifier === 'string' ? keyIdentifier : text;
+      setCopiedKey(id);
       setTimeout(() => setCopiedKey(null), 2000);
     } else {
       setCopiedCode(true);
