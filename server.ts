@@ -1886,42 +1886,7 @@ async function startServer() {
       return res.json({ logs: liveLogs.slice(0, 25) });
     }
 
-    const defaultLogs = [
-      {
-        id: "log_" + Math.random().toString(36).substring(2, 7),
-        timestamp: new Date(Date.now() - 120000).toISOString(),
-        endpoint: "/v1/chat/completions",
-        model: "ethersflow-adversarial-consensus-v1",
-        latencyMs: 1840,
-        alignmentScore: 98.6,
-        status: 200,
-        zeroRetention: true,
-        webhookStatus: "DELIVERED_200_OK"
-      },
-      {
-        id: "log_" + Math.random().toString(36).substring(2, 7),
-        timestamp: new Date(Date.now() - 600000).toISOString(),
-        endpoint: "/v1/messages",
-        model: "ethersflow-adversarial-consensus-v1",
-        latencyMs: 1620,
-        alignmentScore: 99.2,
-        status: 200,
-        zeroRetention: true,
-        webhookStatus: "DELIVERED_200_OK"
-      },
-      {
-        id: "log_" + Math.random().toString(36).substring(2, 7),
-        timestamp: new Date(Date.now() - 1800000).toISOString(),
-        endpoint: "/api/v1/verify",
-        model: "ethersflow-adversarial-consensus-v1",
-        latencyMs: 1350,
-        alignmentScore: 97.4,
-        status: 200,
-        zeroRetention: true,
-        webhookStatus: "DELIVERED_200_OK"
-      }
-    ];
-    return res.json({ logs: defaultLogs });
+    return res.json({ logs: [] });
   });
 
   // Explicit allowlist for demo sandbox API keys

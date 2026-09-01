@@ -2,7 +2,7 @@
 
 Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI outputs through adversarial consensus. MCP server, SDKs, and API docs.
 
-[![API Status](https://img.shields.io/badge/API-Live_r13-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.2.0-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Crypto: Ed25519](https://img.shields.io/badge/Attestation-Ed25519__EdDSA-purple.svg)](/.well-known/jwks.json)
@@ -11,9 +11,7 @@ Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI 
 
 ## Overview
 
-EthersFlow is a zero-trust verification engine for autonomous AI agents. Before an agent executes side effects—such as wire transfers, API calls, medical orders, or code changes—EthersFlow evaluates the proposed action using a federated, adversarial cross-examination of heterogeneous models and emits a cryptographically signed attestation trail.
-
-If an audit node uncovers hallucinations, unverified counterparties, or compliance risks, the proposed action is flagged or rejected with an Ed25519 cryptographically signed attestation trail.
+EthersFlow verifies what an AI agent is about to do — before it does it — using multiple independent models and a cryptographically signed audit trail.
 
 ```
                            +-------------------------------------+
@@ -26,7 +24,6 @@ If an audit node uncovers hallucinations, unverified counterparties, or complian
 |                                                                                        |
 |  +----------------------+   +----------------------+   +----------------------------+  |
 |  | Direct Pragmatist    |   | Constructive Skeptic |   | Lateral Synthesizer        |  |
-|  | (Claude / Llama)     |   | (Gemini / Mistral)   |   | (DeepSeek / Qwen)          |  |
 |  +----------+-----------+   +----------+-----------+   +-------------+--------------+  |
 |             +--------------------------+-----------------------------+                 |
 |                                        | Adversarial Cross-Examination                 |
@@ -63,51 +60,7 @@ This repository contains the official client surfaces and developer tools for th
 
 ## 5-Minute Quickstart
 
-### 1. Model Context Protocol (MCP) Server
-
-#### Option A: Direct from GitHub Source (Recommended Cold-Start)
-```bash
-git clone https://github.com/Ethersflow/EthersFlow.git
-cd EthersFlow/mcp-server
-npm install
-npm start
-```
-
-#### Option B: Via NPX (Public Registry)
-```bash
-npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
-```
-
-#### Option C: Claude Desktop Configuration
-```json
-{
-  "mcpServers": {
-    "ethersflow": {
-      "command": "node",
-      "args": ["/path/to/EthersFlow/mcp-server/index.js"],
-      "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
-        "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
-      }
-    }
-  }
-}
-```
-
-### 2. Python (Zero-Dependency Demo)
-
-Run the included reference verifier script:
-
-```bash
-python efverify.py demo
-```
-
-To verify a custom proposed action:
-```bash
-python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract audit"
-```
-
-### 3. cURL API Call
+### 1. cURL API Call (Fastest Proof)
 
 ```bash
 curl -X POST "https://www.ethersflow.com/api/v1/verify" \
@@ -120,13 +73,61 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \
   }'
 ```
 
+### 2. Python SDK & Zero-Dependency Verifier
+
+Install via pip:
+```bash
+pip install ethersflow
+```
+
+Or run the included zero-dependency reference script:
+```bash
+python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract audit"
+```
+
+### 3. Model Context Protocol (MCP) Server
+
+#### Option A: Via NPX (Recommended)
+```bash
+npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
+```
+
+#### Option B: Remote HTTP / SSE Gateway (Zero Local Dependencies)
+Connect your MCP client directly to EthersFlow's production endpoint:
+- **Endpoint**: `https://www.ethersflow.com/api/mcp`
+- **Headers**: `Authorization: Bearer YOUR_API_KEY`
+
+#### Option C: Claude Desktop Configuration
+```json
+{
+  "mcpServers": {
+    "ethersflow": {
+      "command": "npx",
+      "args": ["-y", "@ethersflow/mcp-server"],
+      "env": {
+        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
+      }
+    }
+  }
+}
+```
+
+#### Option D: From source
+```bash
+git clone https://github.com/Ethersflow/EthersFlow.git
+cd EthersFlow/mcp-server
+npm install
+npm start
+```
+
 ---
 
 ## Status & Known Limitations
 
 - **Ed25519-Signed Audit Trail**: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
 - **Probabilistic, Not Deterministic**: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` <-> `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
-- **Live Model Engine**: Powered by live inference nodes (Llama 3.3 70B + Llama 3.1 8B via Groq) with active pipeline routing. Additional providers (Claude 3.5, GPT-4o, Gemini 1.5, DeepSeek R1, Qwen) are on the roadmap.
+- **Live Model Engine**: Powered by heterogeneous inference nodes across independent providers (Llama 3.3 70B Instruct via Groq, Qwen 3.6 27B / Qwen 3.8 27B, and Gemini 3.7 Flash) with active pipeline routing and automated failover. Multi-provider custom BYOK model routing is under continuous expansion.
 - **Proprietary Core Architecture**: This repository hosts public developer toolkits, SDKs, Postman collections, and MCP wrappers. The core Federated Adversarial Consensus backend operates as a secure, hosted API service on Cloud Run with Zero Data Retention (ZDR). No backend application code or server secrets exist in this repository.
 
 ---
