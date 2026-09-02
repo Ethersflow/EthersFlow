@@ -1,0 +1,20 @@
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        title: EthersFlow API Key
+        description: Your EthersFlow API key
+    required:
+      - apiKey
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "@ethersflow/mcp-server"],
+      env: {
+        ETHERSFLOW_TOKEN: config.apiKey,
+        ETHERSFLOW_BASE_URL: "https://www.ethersflow.com"
+      }
+    })

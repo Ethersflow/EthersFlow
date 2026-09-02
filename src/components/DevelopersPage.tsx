@@ -38,7 +38,7 @@ interface DevelopersPageProps {
 
 export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView }) => {
   const [activeSection, setActiveSection] = useState<'quickstart' | 'models' | 'mcp' | 'agent_gate' | 'architecture' | 'community'>('quickstart');
-  const [activeLang, setActiveLang] = useState<'ts' | 'python' | 'curl' | 'mcp' | 'anthropic' | 'go' | 'rust'>('ts');
+  const [activeLang, setActiveLang] = useState<'ts' | 'python' | 'curl' | 'mcp' | 'anthropic'>('ts');
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // MCP Configuration State
@@ -181,84 +181,6 @@ runConsensus();`,
       }
     }
   }
-}`,
-
-    go: `package main
-
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
-)
-
-type VerifyRequest struct {
-	AgentAction    string \`json:"agent_action"\`
-	PersonaPreset  string \`json:"persona_preset"\`
-	AgentCount     int    \`json:"agent_count"\`
-	ReasoningChain string \`json:"reasoning_chain"\`
-	ZeroRetention  bool   \`json:"zero_retention"\`
-}
-
-func main() {
-	apiKey := os.Getenv("ETHERSFLOW_API_KEY")
-	if apiKey == "" {
-		apiKey = "YOUR_API_KEY"
-	}
-
-	payload, _ := json.Marshal(VerifyRequest{
-		AgentAction:    "Execute $150,000 wire transfer to Vendor Corp",
-		PersonaPreset:  "financial_compliance",
-		AgentCount:     3,
-		ReasoningChain: "Vendor PO approved under corporate threshold.",
-		ZeroRetention:  true,
-	})
-
-	req, _ := http.NewRequest("POST", "https://www.ethersflow.com/api/v1/verify", bytes.NewBuffer(payload))
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		panic(err)
-	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Println("EthersFlow Gate Response:", string(body))
-}`,
-
-    rust: `use reqwest::header::{AUTHORIZATION, CONTENT_TYPE};
-use serde_json::json;
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let api_key = std::env::var("ETHERSFLOW_API_KEY").unwrap_or_else(|_| "YOUR_API_KEY".into());
-    let client = reqwest::Client::new();
-
-    let payload = json!({
-        "agent_action": "Execute $150,000 wire transfer to Vendor Corp",
-        "persona_preset": "financial_compliance",
-        "agent_count": 3,
-        "reasoning_chain": "Invoice PO-8841 verified against vendor master catalog.",
-        "zero_retention": true
-    });
-
-    let res = client
-        .post("https://www.ethersflow.com/api/v1/verify")
-        .header(AUTHORIZATION, format!("Bearer {}", api_key))
-        .header(CONTENT_TYPE, "application/json")
-        .json(&payload)
-        .send()
-        .await?
-        .text()
-        .await?;
-
-    println!("Verification Result: {}", res);
-    Ok(())
 }`
   };
 
@@ -689,24 +611,6 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                   >
                     Anthropic Adapter
                   </button>
-                  <button
-                    onClick={() => setActiveLang('go')}
-                    className={`px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeLang === 'go' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>Go</span>
-                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-900/80 text-amber-300 rounded border border-amber-500/20 font-normal">Community</span>
-                  </button>
-                  <button
-                    onClick={() => setActiveLang('rust')}
-                    className={`px-3 py-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      activeLang === 'rust' ? 'bg-indigo-600 text-white' : 'bg-slate-800 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    <span>Rust</span>
-                    <span className="text-[9px] px-1.5 py-0.2 bg-slate-900/80 text-amber-300 rounded border border-amber-500/20 font-normal">Community</span>
-                  </button>
                 </div>
 
                 <button
@@ -737,8 +641,6 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
                     {activeLang === 'curl' && '# Native cURL — zero packages required'}
                     {activeLang === 'mcp' && 'npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY'}
                     {activeLang === 'anthropic' && 'npm install @anthropic-ai/sdk # Drop-in base URL proxy client'}
-                    {activeLang === 'go' && '# community examples — no official packages published (raw HTTP request)'}
-                    {activeLang === 'rust' && '# community examples — no official packages published (raw HTTP request)'}
                   </span>
                 </div>
                 <span className="text-[10px] text-slate-500 uppercase font-bold">Package Setup</span>

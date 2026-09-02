@@ -1,6 +1,7 @@
 {
   "name": "@ethersflow/mcp-server",
   "version": "0.2.0",
+  "mcpName": "io.github.Ethersflow/EthersFlow",
   "description": "Model Context Protocol (MCP) server for EthersFlow — run proposed agent actions through federated adversarial multi-model consensus before executing them.",
   "type": "module",
   "main": "index.js",
