@@ -3930,8 +3930,13 @@ async function startServer() {
       vendor: "EthersFlow Inc.",
       homepage: "https://www.ethersflow.com",
       repository: "https://github.com/Ethersflow/EthersFlow",
-      version: "0.2.0",
+      version: "0.2.1",
       license: "MIT",
+      listings: {
+        smithery: "https://smithery.ai/servers/ethersflow-dev/ethersflow",
+        mcp_registry: "https://registry.modelcontextprotocol.io",
+        glama: "https://glama.ai/mcp/servers/Ethersflow/EthersFlow"
+      },
       transport: {
         type: "stdio",
         package: "@ethersflow/mcp-server",
@@ -3952,9 +3957,13 @@ async function startServer() {
     res.json({
       status: "online",
       server: "ethersflow-mcp-gateway",
-      version: "0.1.0",
+      version: "0.2.1",
       protocol: "Model Context Protocol JSON-RPC 2.0",
       repository: "https://github.com/Ethersflow/EthersFlow",
+      listings: {
+        smithery: "https://smithery.ai/servers/ethersflow-dev/ethersflow",
+        mcp_registry: "https://registry.modelcontextprotocol.io"
+      },
       endpoints: {
         jsonrpc_post: "/api/mcp",
         manifest: "/.well-known/mcp.json"
