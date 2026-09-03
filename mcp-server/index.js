@@ -132,7 +132,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ETHERSFLOW_API_KEY}`,
-        "User-Agent": "EthersFlow-MCP-Server/0.2.0",
+        "User-Agent": "EthersFlow-MCP-Server/0.2.1",
       },
       body: JSON.stringify({
         agent_action: actionText,

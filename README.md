@@ -2,7 +2,7 @@
 
 Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI outputs through adversarial consensus. MCP server, SDKs, and API docs.
 
-[![API Status](https://img.shields.io/badge/API-0.2.0-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.2.1-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
