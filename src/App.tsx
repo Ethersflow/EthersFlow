@@ -270,7 +270,12 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
             <li><a href="#pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
             <li><a href="#developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
             <li><a href="#api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
-            <li><a href="https://smithery.ai/servers/ethersflow-dev/ethersflow" target="_blank" rel="noreferrer" className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Smithery</span><span className="px-1.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/30 rounded text-[9px] font-black uppercase">MCP</span></a></li>
+            <li>
+              <a href="https://smithery.ai/servers/ethersflow-dev/ethersflow" target="_blank" rel="noreferrer" className="hover:text-white transition-colors text-left font-bold flex items-center gap-2">
+                <span>Smithery MCP</span>
+                <img src="https://smithery.ai/badge/ethersflow-dev/ethersflow" alt="smithery badge" className="h-4 inline-block" />
+              </a>
+            </li>
           </ul>
         </div>
 
