@@ -27,8 +27,8 @@ const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.
 
 const server = new Server(
   {
-    name: "@ethersflow/mcp-server",
-    version: "0.2.0",
+    name: "EthersFlow",
+    version: "0.2.1",
   },
   {
     capabilities: {
