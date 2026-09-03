@@ -4,6 +4,8 @@ Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI 
 
 [![API Status](https://img.shields.io/badge/API-0.2.0-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
+[![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
+[![Smithery](https://img.shields.io/badge/Smithery-Listed-orange)](https://smithery.ai/server/@ethersflow-dev/ethersflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Crypto: Ed25519](https://img.shields.io/badge/Attestation-Ed25519__EdDSA-purple.svg)](/.well-known/jwks.json)
 
@@ -200,6 +202,15 @@ You can verify signatures locally or through the API to prove that every audit n
 ## Postman Collection
 
 Import [`postman/ethersflow.postman_collection.json`](postman/ethersflow.postman_collection.json) and [`postman/ethersflow.postman_environment.json`](postman/ethersflow.postman_environment.json) into Postman to test all 11 core endpoints instantly.
+
+---
+
+## Links & Community
+
+### MCP Listings
+- Official MCP Registry: https://registry.modelcontextprotocol.io (search "Ethersflow")
+- Smithery: https://smithery.ai/server/@ethersflow-dev/ethersflow
+- Glama: https://glama.ai/mcp/servers/Ethersflow/EthersFlow
 
 ---
 

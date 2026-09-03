@@ -3991,8 +3991,8 @@ async function startServer() {
             tools: { listChanged: false }
           },
           serverInfo: {
-            name: "ethersflow-agent-trust-gate",
-            version: "1.5.0",
+            name: "EthersFlow",
+            version: "0.2.1",
             description: "EthersFlow Federated Adversarial Consensus & Agent Action Verification Server"
           }
         }

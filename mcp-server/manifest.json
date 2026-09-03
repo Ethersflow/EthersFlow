@@ -1,6 +1,6 @@
 {
-  "name": "ethersflow-trust-layer",
-  "version": "0.1.0",
+  "name": "EthersFlow",
+  "version": "0.2.1",
   "description": "Multi-model adversarial consensus engine for verifying AI outputs across regulated industries.",
   "author": "EthersFlow",
   "homepage": "https://www.ethersflow.com",
