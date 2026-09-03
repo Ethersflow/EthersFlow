@@ -4,6 +4,7 @@
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Ethersflow%2FEthersFlow-blue.svg)](https://github.com/Ethersflow/EthersFlow)
 [![npm version](https://img.shields.io/npm/v/@ethersflow/mcp-server.svg)](https://www.npmjs.com/package/@ethersflow/mcp-server)
+[![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
