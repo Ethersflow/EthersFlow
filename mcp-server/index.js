@@ -73,6 +73,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               ],
               description: "Audit persona preset for specialized domain compliance.",
             },
+            scope_hint: {
+              type: "string",
+              description: "Optional domain or task scope hint (e.g. 'clinical_safety', 'financial_compliance', 'legal_citation', 'cybersecurity_auditor').",
+            },
             policy_id: {
               type: "string",
               description: "Optional policy pack identifier to evaluate against.",
@@ -139,7 +143,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         reasoning_chain: args.reasoning_chain || (typeof args.context === "string" ? args.context : ""),
         context: typeof args.context === "object" ? args.context : undefined,
         agent_count: args.agent_count || 3,
-        persona_preset: args.persona_preset || "general_adversarial",
+        persona_preset: args.persona_preset,
+        scope_hint: args.scope_hint || args.scope || args.hint,
         policy_id: args.policy_id || "default_enterprise_safety_v1",
         grounding_enabled: args.grounding_enabled !== undefined ? args.grounding_enabled : true,
         zero_retention: args.zero_retention !== undefined ? args.zero_retention : true,
