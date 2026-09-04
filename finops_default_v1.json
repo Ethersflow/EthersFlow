@@ -1,0 +1,124 @@
+{
+  "schema_version": "1.0",
+  "policy_id": "finops_default_v1",
+  "description": "Default gate for a FinOps autonomous payment/expense agent",
+  "meta": {
+    "author": "acme-ai",
+    "updated": "2026-09-03",
+    "mode": "deferred",
+    "timeout_ms": 15000
+  },
+  "defaults": {
+    "persona_preset": "financial_compliance",
+    "agent_count": 3,
+    "zero_retention": true
+  },
+  "rules": [
+    {
+      "id": "micro_expense_fast_path",
+      "priority": 10,
+      "match": {
+        "action_pattern": "(expense|purchase|supplies|coffee|snack)",
+        "amount_usd": {
+          "max": 100
+        }
+      },
+      "conditions": {
+        "all": [
+          {
+            "node_agreement": "unanimous_approval"
+          }
+        ]
+      },
+      "then": {
+        "decision": "approve",
+        "reason_template": "Micro-expense under $100 with unanimous approval."
+      }
+    },
+    {
+      "id": "velocity_wire",
+      "priority": 20,
+      "match": {
+        "action_pattern": "(wire|transfer|send|ach|payment)",
+        "amount_usd": {
+          "min": 10000
+        }
+      },
+      "then": {
+        "decision": "flag",
+        "override_node_count": 5,
+        "reason_template": "High-value payment ($10k+) deferred to human review."
+      }
+    },
+    {
+      "id": "known_vendor_medium",
+      "priority": 30,
+      "match": {
+        "amount_usd": {
+          "min": 100,
+          "max": 5000
+        },
+        "counterparty_verified": true
+      },
+      "conditions": {
+        "all": [
+          {
+            "node_agreement": "unanimous_approval"
+          },
+          {
+            "risk_index": {
+              "lte": 20
+            }
+          }
+        ]
+      },
+      "then": {
+        "decision": "approve",
+        "reason_template": "Verified counterparty with unanimous approval and low risk."
+      }
+    },
+    {
+      "id": "reject_extreme_risk",
+      "priority": 90,
+      "conditions": {
+        "all": [
+          {
+            "risk_index": {
+              "gte": 85
+            }
+          }
+        ]
+      },
+      "then": {
+        "decision": "reject",
+        "reason_template": "Risk index >= 85: reject unless a higher-priority rule matched."
+      }
+    },
+    {
+      "id": "default_flag",
+      "priority": 99,
+      "match": {},
+      "then": {
+        "decision": "flag",
+        "reason_template": "No rule matched: route to human review."
+      }
+    }
+  ],
+  "human_review": {
+    "integration": "slack",
+    "channel": "#ai-action-review",
+    "escalation_after_ms": 1800000,
+    "resolution_endpoint": "https://api.acme.com/actions/{action_id}/resolve",
+    "block_ttl_seconds": 86400
+  },
+  "telemetry": {
+    "enabled": true,
+    "endpoint": "https://api.acme.com/telemetry/ethersflow",
+    "required_fields": [
+      "action_id",
+      "decision",
+      "human_decision",
+      "latency_ms"
+    ]
+  }
+}
