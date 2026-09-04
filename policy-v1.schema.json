@@ -1,0 +1,94 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://ethersflow.com/schemas/reference/policy-v1.schema.json",
+  "title": "EthersFlow Decision Rubric",
+  "type": "object",
+  "required": ["schema_version", "policy_id", "rules"],
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "policy_id": { "type": "string", "pattern": "^[a-z0-9_\\-]{2,64}$" },
+    "description": { "type": "string" },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "author": { "type": "string" },
+        "updated": { "type": "string", "format": "date" },
+        "mode": { "enum": ["advisory", "deferred", "hard"] },
+        "timeout_ms": { "type": "integer", "minimum": 1000 }
+      }
+    },
+    "defaults": {
+      "type": "object",
+      "properties": {
+        "persona_preset": { "enum": ["financial_compliance", "clinical_safety", "legal_citation", "cybersecurity_auditor", "general_adversarial"] },
+        "agent_count": { "type": "integer", "minimum": 2, "maximum": 7 },
+        "zero_retention": { "type": "boolean" },
+        "grounding_enabled": { "type": "boolean" }
+      }
+    },
+    "rules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" } },
+    "human_review": {
+      "type": "object",
+      "properties": {
+        "integration": { "enum": ["slack", "microsoft_teams", "pagerduty", "jira", "generic_webhook"] },
+        "channel": { "type": "string" },
+        "escalation_after_ms": { "type": "integer" },
+        "resolution_endpoint": { "type": "string", "format": "uri" },
+        "block_ttl_seconds": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "telemetry": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "endpoint": { "type": "string", "format": "uri" },
+        "required_fields": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "type": "object",
+      "required": ["id", "then"],
+      "properties": {
+        "id": { "type": "string" },
+        "priority": { "type": "integer", "minimum": 1 },
+        "match": {
+          "type": "object",
+          "properties": {
+            "action_pattern": { "type": "string" },
+            "amount_usd": { "type": "object", "properties": { "min": { "type": "number" }, "max": { "type": "number" } } },
+            "counterparty_verified": { "type": ["boolean", "null"] },
+            "persona_preset": { "enum": ["financial_compliance", "clinical_safety", "legal_citation", "cybersecurity_auditor", "general_adversarial", "*"] }
+          }
+        },
+        "conditions": {
+          "type": "object",
+          "properties": {
+            "all": { "type": "array", "items": { "$ref": "#/$defs/condition" } },
+            "any": { "type": "array", "items": { "$ref": "#/$defs/condition" } }
+          }
+        },
+        "then": {
+          "type": "object",
+          "required": ["decision"],
+          "properties": {
+            "decision": { "enum": ["approve", "flag", "reject"] },
+            "reason_template": { "type": "string" },
+            "override_node_count": { "type": "integer", "minimum": 2, "maximum": 7 },
+            "override_persona": { "enum": ["financial_compliance", "clinical_safety", "legal_citation", "cybersecurity_auditor", "general_adversarial"] }
+          }
+        }
+      }
+    },
+    "condition": {
+      "type": "object",
+      "properties": {
+        "node_agreement": { "enum": ["unanimous_approval", "majority_approval", "split", "majority_flag", "unanimous_rejection"] },
+        "risk_index": { "type": "object", "properties": { "gte": { "type": "number" }, "lte": { "type": "number" } } },
+        "confidence": { "type": "object", "properties": { "gte": { "type": "number" }, "lte": { "type": "number" } } },
+        "consensus_score": { "type": "object", "properties": { "gte": { "type": "number" }, "lte": { "type": "number" } } }
+      }
+    }
+  }
+}

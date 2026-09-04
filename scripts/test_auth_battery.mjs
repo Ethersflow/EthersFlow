@@ -169,7 +169,7 @@ async function runAuthBattery() {
       method: "GET"
     });
 
-    const isPass = res.status === 200 && res.body?.status === "PASS" && res.body?.passed_scenarios === 11;
+    const isPass = res.status === 200 && res.body?.status === "PASS" && res.body?.passed_scenarios >= 11;
     if (isPass) {
       console.log(`[PASS] Case 6 (Regression Endpoint S01-S11): Status ${res.body?.status}, passed ${res.body?.passed_scenarios}/${res.body?.total_scenarios}`);
       passed++;
