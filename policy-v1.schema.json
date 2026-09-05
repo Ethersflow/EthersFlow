@@ -26,6 +26,17 @@
         "grounding_enabled": { "type": "boolean" }
       }
     },
+    "approved_counterparties": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "fast_path_velocity_caps": {
+      "type": "object",
+      "properties": {
+        "max_approvals_per_ticket": { "type": "integer", "minimum": 1 },
+        "window_seconds": { "type": "integer", "minimum": 1 }
+      }
+    },
     "rules": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/rule" } },
     "human_review": {
       "type": "object",
@@ -59,6 +70,7 @@
             "action_pattern": { "type": "string" },
             "amount_usd": { "type": "object", "properties": { "min": { "type": "number" }, "max": { "type": "number" } } },
             "counterparty_verified": { "type": ["boolean", "null"] },
+            "approved_counterparties": { "type": "array", "items": { "type": "string" } },
             "persona_preset": { "enum": ["financial_compliance", "clinical_safety", "legal_citation", "cybersecurity_auditor", "general_adversarial", "*"] }
           }
         },

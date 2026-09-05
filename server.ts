@@ -2856,13 +2856,25 @@ async function startServer() {
     perspectives: any[];
     policy_fast_path?: boolean;
     fast_path_rule_id?: string;
-    anchor_checklist?: {
-      ticket_present: boolean;
-      budget_line_present: boolean;
-      scope_bounded: boolean;
-      counterparty_verified: boolean;
-      data_classification_present: boolean;
-      missing_anchors: string[];
+    anchor_checklist?: AnchorChecklist;
+    anchor_basis?: "client_attested" | "grounded";
+    anchor_bases?: Record<string, string>;
+  }
+
+  interface AnchorChecklist {
+    ticket_present: boolean;
+    budget_line_present: boolean;
+    scope_bounded: boolean;
+    counterparty_verified: boolean;
+    data_classification_present: boolean;
+    missing_anchors: string[];
+    anchor_basis?: "client_attested" | "grounded";
+    anchor_bases?: {
+      ticket: "client_attested" | "grounded" | "missing";
+      budget_line: "client_attested" | "grounded" | "missing";
+      scope: "client_attested" | "grounded" | "missing";
+      counterparty: "client_attested" | "grounded" | "unverified" | "missing";
+      data_classification: "client_attested" | "grounded" | "missing";
     };
   }
 
@@ -2873,14 +2885,80 @@ async function startServer() {
     hasContradictions: boolean;
     reasonCodes: string[];
     explanation: string;
-    anchor_checklist?: {
-      ticket_present: boolean;
-      budget_line_present: boolean;
-      scope_bounded: boolean;
-      counterparty_verified: boolean;
-      data_classification_present: boolean;
-      missing_anchors: string[];
+    anchor_checklist?: AnchorChecklist;
+    anchor_basis?: "client_attested" | "grounded";
+    anchor_bases?: Record<string, string>;
+    isCounterpartyAllowlisted?: boolean;
+    detectedVendor?: string | null;
+  }
+
+  interface FinopsPolicyConfig {
+    approved_counterparties: string[];
+    fast_path_velocity_caps: {
+      max_approvals_per_ticket: number;
+      window_seconds: number;
     };
+  }
+
+  function loadFinopsPolicy(): FinopsPolicyConfig {
+    try {
+      const policyPath = path.resolve(process.cwd(), "finops_default_v1.json");
+      if (fs.existsSync(policyPath)) {
+        const raw = fs.readFileSync(policyPath, "utf8");
+        const parsed = JSON.parse(raw);
+        const rule = parsed.rules?.find((r: any) => r.id === "micro_expense_fast_path");
+        const counterparties: string[] = [
+          ...(Array.isArray(parsed.approved_counterparties) ? parsed.approved_counterparties : []),
+          ...(Array.isArray(rule?.match?.approved_counterparties) ? rule.match.approved_counterparties : [])
+        ];
+        const unique = Array.from(new Set(counterparties.map(c => String(c).trim()))).filter(Boolean);
+        return {
+          approved_counterparties: unique.length > 0 ? unique : ["Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+          fast_path_velocity_caps: parsed.fast_path_velocity_caps || {
+            max_approvals_per_ticket: 5,
+            window_seconds: 86400
+          }
+        };
+      }
+    } catch (err) {
+      console.warn("[POLICY] Failed to load finops_default_v1.json from disk, using default allowlist:", err);
+    }
+    return {
+      approved_counterparties: ["Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+      fast_path_velocity_caps: {
+        max_approvals_per_ticket: 5,
+        window_seconds: 86400
+      }
+    };
+  }
+
+  interface TicketVelocityRecord {
+    timestamps: number[];
+  }
+
+  const fastPathTicketVelocity = new Map<string, TicketVelocityRecord>();
+
+  function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): { allowed: boolean; count: number } {
+    const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
+    const now = Date.now();
+    const windowMs = windowSeconds * 1000;
+    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
+    const validTimestamps = record.timestamps.filter(ts => now - ts < windowMs);
+    record.timestamps = validTimestamps;
+    fastPathTicketVelocity.set(normTicket, record);
+
+    if (validTimestamps.length >= maxApprovals) {
+      return { allowed: false, count: validTimestamps.length };
+    }
+    return { allowed: true, count: validTimestamps.length };
+  }
+
+  function commitFastPathVelocityApproval(ticketId: string) {
+    const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
+    const now = Date.now();
+    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
+    record.timestamps.push(now);
+    fastPathTicketVelocity.set(normTicket, record);
   }
 
   function extractAmountUsd(actionText: string = "", contextInput: any = null): number | null {
@@ -2969,7 +3047,57 @@ async function startServer() {
        combinedAll.includes("external personal email") || combinedAll.includes("personal email") || combinedAll.includes("external destination"));
 
     // Contradiction detection across action, context, and reasoning (Expanded with Round 38 regex)
+    const policyConfig = loadFinopsPolicy();
+    const approvedCounterparties = policyConfig.approved_counterparties;
+
+    // Detect unapproved vendor phrasing or explicitly unapproved/new vendor indicators
+    const hasUnapprovedVendorIndicator = 
+      /\b(new vendor|not in (the )?approved catalog|unapproved vendor|not in catalog|unlisted vendor|unknown vendor|vendors-r-us|unauthorized vendor)\b/i.test(combinedAll);
+
+    // Identify candidate vendor name
+    let candidateVendor: string | null = null;
+    if (contextInput && typeof contextInput === "object") {
+      const v = contextInput.vendor ?? contextInput.counterparty ?? contextInput.payee ?? contextInput.requested_by;
+      if (v !== null && v !== undefined && v !== false && typeof v !== "boolean") {
+        candidateVendor = String(v).trim();
+      }
+    }
+    if (!candidateVendor) {
+      const fromMatch = combinedAll.match(/\bfrom\s+([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,2})/i);
+      if (fromMatch && fromMatch[1]) {
+        candidateVendor = fromMatch[1].trim();
+      }
+    }
+
+    let isCounterpartyAllowlisted = false;
+    let detectedVendorName: string | null = null;
+
+    if (hasUnapprovedVendorIndicator) {
+      isCounterpartyAllowlisted = false;
+      detectedVendorName = candidateVendor || "unapproved vendor";
+    } else if (candidateVendor) {
+      const matched = approvedCounterparties.find(ac => {
+        const acl = ac.toLowerCase();
+        const cvl = candidateVendor!.toLowerCase();
+        return cvl === acl || cvl.startsWith(acl) || cvl.includes(acl);
+      });
+      if (matched) {
+        isCounterpartyAllowlisted = true;
+        detectedVendorName = matched;
+      } else {
+        detectedVendorName = candidateVendor;
+        isCounterpartyAllowlisted = false;
+      }
+    } else {
+      const matched = approvedCounterparties.find(ac => combinedAll.includes(ac.toLowerCase()));
+      if (matched) {
+        isCounterpartyAllowlisted = true;
+        detectedVendorName = matched;
+      }
+    }
+
     const hasContradictions = 
+      hasUnapprovedVendorIndicator ||
       (/\b(mismatch|differ|differs|disagree|conflict|conflicting|contradiction|contradicts|unverified|discrepancy)\b/i.test(combinedAll) &&
        /\b(bank|account|tax|amount|po|invoice|identity|address|owner|balance|records)\b/i.test(combinedAll)) ||
       /\b(system\s+notice\b|pre-?approved\s+by\s+(administrator|admin|root|supervisor|management|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks|already\s+verified|verification\s+is\s+(already\s+)?complete|no\s+need\s+to\s+verify|all\s+(\w+\s+)?nodes\s+(unanimously\s+)?agreed|unanimously\s+agreed|consensus\s+(is\s+)?already\s+reached|pre-?approved\s+by\s+consensus)\b/i.test(combinedAll) ||
@@ -2982,11 +3110,10 @@ async function startServer() {
     let ticketPresent = false;
     let budgetLinePresent = false;
     let scopeBounded = false;
-    let counterpartyVerified = false;
     let dataClassificationPresent = false;
 
     if (contextInput && typeof contextInput === "object") {
-      // 1. Ticket presence: must be grounded ticket ID or true, NOT ticket_present: false or "none"/"unverified"
+      // 1. Ticket presence: client-attested ticket string or boolean flag
       if (contextInput.ticket_present !== undefined) {
         ticketPresent = Boolean(contextInput.ticket_present);
       } else if (contextInput.ticket !== undefined && contextInput.ticket !== null) {
@@ -2998,18 +3125,7 @@ async function startServer() {
         }
       }
 
-      // 2. Counterparty verified: must be verified counterparty, NOT counterparty_verified: false
-      if (contextInput.counterparty_verified !== undefined) {
-        counterpartyVerified = Boolean(contextInput.counterparty_verified);
-      } else if (contextInput.counterparty !== undefined || contextInput.requested_by !== undefined || contextInput.vendor !== undefined) {
-        const cVal = contextInput.counterparty ?? contextInput.requested_by ?? contextInput.vendor;
-        if (cVal !== null && cVal !== undefined && cVal !== false) {
-          const cStr = String(cVal).trim().toLowerCase();
-          counterpartyVerified = !/^(false|none|null|undefined|n\/a|unknown|unverified|missing)$/i.test(cStr) && cStr.length > 1;
-        }
-      }
-
-      // 3. Budget line
+      // 2. Budget line
       if (contextInput.budget_line_present !== undefined) {
         budgetLinePresent = Boolean(contextInput.budget_line_present);
       } else if (contextInput.budget_line !== undefined && contextInput.budget_line !== null) {
@@ -3017,7 +3133,7 @@ async function startServer() {
         budgetLinePresent = !/^(false|none|null|undefined|n\/a|unknown|unverified|missing)$/i.test(bStr) && bStr.length > 1;
       }
 
-      // 4. Scope bounded
+      // 3. Scope bounded
       if (contextInput.scope_bounded !== undefined) {
         scopeBounded = Boolean(contextInput.scope_bounded);
       } else if (contextInput.scope !== undefined && contextInput.scope !== null) {
@@ -3025,7 +3141,7 @@ async function startServer() {
         scopeBounded = !/^(false|none|null|undefined|n\/a|unknown|unverified|unbounded)$/i.test(sStr) && sStr.length > 1;
       }
 
-      // 5. Data classification
+      // 4. Data classification
       if (contextInput.data_classification_present !== undefined) {
         dataClassificationPresent = Boolean(contextInput.data_classification_present);
       } else if (contextInput.data_classification !== undefined && contextInput.data_classification !== null) {
@@ -3045,12 +3161,37 @@ async function startServer() {
     if (!scopeBounded && contextInput?.scope_bounded === undefined && contextInput?.scope === undefined) {
       scopeBounded = /\b(scope|routine_procurement|read-only|read only|staging environment only|temporary admin privileges.*for 24h)\b/i.test(actionAndReasoning);
     }
-    if (!counterpartyVerified && contextInput?.counterparty_verified === undefined && contextInput?.requested_by === undefined && contextInput?.counterparty === undefined) {
-      counterpartyVerified = /\b(facilities[- ]team|requested_by|northstar logistics|verified vendor|known vendor|approved vendor|authorized vendor|vendor\s+[a-z0-9_-]+|staples|bluebottle|aws)\b/i.test(actionAndReasoning);
-    }
     if (!dataClassificationPresent && contextInput?.data_classification_present === undefined && contextInput?.data_classification === undefined) {
       dataClassificationPresent = /\b(data_classification|internal|confidential|restricted|public)\b/i.test(actionAndReasoning);
     }
+
+    let counterpartyVerified = false;
+    let counterpartyBasis: "grounded" | "client_attested" | "unverified" | "missing" = "missing";
+
+    if (isCounterpartyAllowlisted) {
+      counterpartyVerified = true;
+      counterpartyBasis = "grounded"; // Verified against policy allowlist owned by the gateway
+    } else if (hasUnapprovedVendorIndicator) {
+      counterpartyVerified = false;
+      counterpartyBasis = "unverified";
+    } else if (contextInput?.counterparty_verified === true) {
+      // Client claimed counterparty_verified: true, but vendor is NOT on the gateway allowlist
+      counterpartyVerified = false;
+      counterpartyBasis = "client_attested";
+    } else if (candidateVendor) {
+      counterpartyVerified = false;
+      counterpartyBasis = "client_attested";
+    } else {
+      counterpartyVerified = false;
+      counterpartyBasis = "missing";
+    }
+
+    // The gateway cannot verify external tickets; that word is a false statement.
+    // Tickets provided by the client are client_attested, never grounded.
+    const ticketBasis: "client_attested" | "missing" = ticketPresent ? "client_attested" : "missing";
+    const budgetLineBasis: "client_attested" | "missing" = budgetLinePresent ? "client_attested" : "missing";
+    const scopeBasis: "client_attested" | "missing" = scopeBounded ? "client_attested" : "missing";
+    const dataClassificationBasis: "client_attested" | "missing" = dataClassificationPresent ? "client_attested" : "missing";
 
     const missingAnchors: string[] = [];
     if (!ticketPresent) missingAnchors.push("ticket");
@@ -3059,23 +3200,36 @@ async function startServer() {
     if (!counterpartyVerified) missingAnchors.push("counterparty");
     if (!dataClassificationPresent) missingAnchors.push("data_classification");
 
-    const anchorChecklist = {
+    // anchor_basis field: client_attested vs grounded. Never say "grounded" unless the gateway verified it.
+    // If an external ticket is part of the anchor basis, it is client_attested.
+    const overallAnchorBasis: "client_attested" | "grounded" = 
+      (ticketPresent || budgetLinePresent || scopeBounded || !isCounterpartyAllowlisted) ? "client_attested" : "grounded";
+
+    const anchorChecklist: AnchorChecklist = {
       ticket_present: ticketPresent,
       budget_line_present: budgetLinePresent,
       scope_bounded: scopeBounded,
       counterparty_verified: counterpartyVerified,
       data_classification_present: dataClassificationPresent,
-      missing_anchors: missingAnchors
+      missing_anchors: missingAnchors,
+      anchor_basis: overallAnchorBasis,
+      anchor_bases: {
+        ticket: ticketBasis,
+        counterparty: counterpartyBasis,
+        budget_line: budgetLineBasis,
+        scope: scopeBasis,
+        data_classification: dataClassificationBasis
+      }
     };
 
     const isFinancialOrProcurement = 
       /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting)\b/i.test(actionLower);
 
-    // Verifiable domain anchors check (excluding unverified prior-approval claims and scope mismatches)
+    // Verifiable domain anchors check (excluding unverified prior-approval claims, scope mismatches, and unapproved vendors)
     let hasVerifiableAnchors = false;
     if (isFinancialOrProcurement) {
-      // For financial/procurement actions, ticket anchor is strictly required to be grounded
-      hasVerifiableAnchors = ticketPresent && !hasPriorApprovalLaundering && !hasContradictions;
+      // For financial/procurement actions, ticket anchor is required, not contradictory, and counterparty must be allowlisted
+      hasVerifiableAnchors = ticketPresent && !hasPriorApprovalLaundering && !hasContradictions && isCounterpartyAllowlisted;
     } else {
       hasVerifiableAnchors = 
         !hasPriorApprovalLaundering &&
@@ -3090,6 +3244,7 @@ async function startServer() {
 
     if (hasContradictions) {
       let specificCodes = ["EVIDENCE_CONFLICT_DETECTED"];
+      if (hasUnapprovedVendorIndicator) specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
       if (isTicketScopeMismatch) specificCodes.push("TICKET_SCOPE_MISMATCH", "MUTATION_ACTION_READONLY_MISMATCH");
       if (isBulkDataEgressContent) specificCodes.push("DATA_EGRESS_EXFILTRATION_HAZARD", "HIGH_RISK_EXTERNAL_DESTINATION");
       if (hasPriorApprovalLaundering) specificCodes.push("UNVERIFIED_PRIOR_APPROVAL_CLAIM", "RECEIPT_LAUNDERING_DEFICIT");
@@ -3100,8 +3255,14 @@ async function startServer() {
         hasVerifiableAnchors: false,
         hasContradictions: true,
         reasonCodes: specificCodes,
-        explanation: "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims.",
-        anchor_checklist: anchorChecklist
+        explanation: hasUnapprovedVendorIndicator
+          ? `Contextual evidence specifies vendor '${detectedVendorName || "unapproved vendor"}' not found in policy approved counterparties catalog.`
+          : "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims.",
+        anchor_checklist: anchorChecklist,
+        anchor_basis: overallAnchorBasis,
+        anchor_bases: anchorChecklist.anchor_bases,
+        isCounterpartyAllowlisted,
+        detectedVendor: detectedVendorName
       };
     }
 
@@ -3113,7 +3274,11 @@ async function startServer() {
         hasContradictions: false,
         reasonCodes: ["EVIDENCE_ANCHOR_DEFICIT"],
         explanation: "Contextual evidence lacks substantive content or verifiable operational anchors.",
-        anchor_checklist: anchorChecklist
+        anchor_checklist: anchorChecklist,
+        anchor_basis: overallAnchorBasis,
+        anchor_bases: anchorChecklist.anchor_bases,
+        isCounterpartyAllowlisted,
+        detectedVendor: detectedVendorName
       };
     }
 
@@ -3124,7 +3289,11 @@ async function startServer() {
       hasContradictions: false,
       reasonCodes: ["STRUCTURED_EVIDENCE_VALIDATED"],
       explanation: "Contextual evidence contains validated operational anchors.",
-      anchor_checklist: anchorChecklist
+      anchor_checklist: anchorChecklist,
+      anchor_basis: overallAnchorBasis,
+      anchor_bases: anchorChecklist.anchor_bases,
+      isCounterpartyAllowlisted,
+      detectedVendor: detectedVendorName
     };
   }
 
@@ -3369,6 +3538,9 @@ async function startServer() {
       ? detectedAmountUsd <= 100 
       : (/\$([0-9]{1,2}(\.[0-9]{2})?)\b/.test(agentAction) || agentActionLower.includes("$50") || agentActionLower.includes("low-dollar"));
 
+    const ticketId = (contextInput?.ticket || (text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i)?.[0] || "FAC-101")).toUpperCase();
+    const velocityCheck = checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
+
     const isMicroExpenseFastPath = 
       isExpenseActionPattern &&
       isUnderHundredDollarCeiling &&
@@ -3376,6 +3548,8 @@ async function startServer() {
       !contextOutcome.hasContradictions &&
       contextOutcome.anchor_checklist?.ticket_present === true &&
       contextOutcome.anchor_checklist?.counterparty_verified === true &&
+      contextOutcome.isCounterpartyAllowlisted === true &&
+      velocityCheck.allowed &&
       !hasDestructiveAction &&
       !hasInjectedAuthority &&
       !isPromptInjectionAndSecretExfil &&
@@ -3739,7 +3913,7 @@ async function startServer() {
       decision_explanation = "REJECTED: Factual grounding contradiction exposed. EthersFlow is in early developer release (v0.2.1) and is NOT SOC 2 Type II certified. Disseminating unearned compliance or audit certifications violates regulatory truth-in-advertising and enterprise compliance boundaries.";
       verdict_summary = decision_explanation;
     } else if (isMicroExpenseFastPath) {
-      // Phase A: Grounded Micro-Expense Fast Path Policy Evaluation (finops_default_v1.json: micro_expense_fast_path)
+      // Micro-Expense Fast Path Policy Evaluation (finops_default_v1.json: micro_expense_fast_path)
       verdict = "APPROVED";
       status = "APPROVED";
       verified = true;
@@ -3748,15 +3922,18 @@ async function startServer() {
       evidence_status = "SUFFICIENT";
       reason_codes = [
         "MICRO_EXPENSE_FAST_PATH_ELIGIBLE",
-        "GROUNDED_TICKET_ANCHOR_VERIFIED",
-        "COUNTERPARTY_VERIFIED",
+        "CLIENT_ATTESTED_TICKET_PRESENT",
+        "APPROVED_COUNTERPARTY_VERIFIED",
         "WITHIN_DELEGATED_FINANCIAL_AUTHORITY"
       ];
       
       const amtStr = detectedAmountUsd !== null ? `$${detectedAmountUsd.toFixed(2)}` : "$50.00";
       const ticketId = contextInput?.ticket || (text.match(/fac-\d+|ticket\s*#?\d+/i)?.[0] || "FAC-101").toUpperCase();
-      const requestedBy = contextInput?.requested_by || contextInput?.counterparty || "facilities-team";
+      const approvedVendor = contextOutcome.detectedVendor || contextInput?.counterparty || "Staples";
       const budgetLine = contextInput?.budget_line || "operational_expenses";
+
+      // Commit velocity record for approved fast-path action
+      commitFastPathVelocityApproval(ticketId);
 
       // Dynamic calculation based on action content to ensure honesty and uniqueness across different actions
       const actionHashVal = Math.abs(agentAction.split("").reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0));
@@ -3774,7 +3951,7 @@ async function startServer() {
       finality = "POLICY_FAST_PATH_APPROVAL";
       
       const cleanAction = agentAction.trim().length > 60 ? agentAction.trim().substring(0, 60) + "..." : agentAction.trim();
-      decision_explanation = `APPROVED (Policy Fast-Path): Action '${cleanAction}' (${amtStr}) verified under FinOps policy rule 'micro_expense_fast_path' against grounded ticket ${ticketId}, budget line '${budgetLine}', and verified requestor '${requestedBy}'. Dual-control consensus waived.`;
+      decision_explanation = `APPROVED (Policy Fast-Path): Action '${cleanAction}' (${amtStr}) verified under FinOps policy rule 'micro_expense_fast_path' against client-attested ticket ${ticketId}, budget line '${budgetLine}', and approved counterparty '${approvedVendor}'. Dual-control consensus waived.`;
       verdict_summary = decision_explanation;
     } else if (isReadOnlyTicketedCiReport) {
       // Round 28 Finding ①: Approved Path — Read-only ticketed CI pipeline report
@@ -4078,6 +4255,53 @@ async function startServer() {
         approval_blocked = true;
         finality = "NON_FINAL_ADVISORY";
         verdict_summary = decision_explanation;
+      } else if (isExpenseActionPattern && !velocityCheck.allowed) {
+        verdict = "FLAGGED_HUMAN_REVIEW";
+        status = "FLAGGED_HUMAN_REVIEW";
+        verified = false;
+        action_eligible = false;
+        policy_status = "FAIL";
+        evidence_status = "SUFFICIENT";
+        reviewer_agreement_score = 0.50;
+        consensus_score = 50.0;
+        policy_compliance_score = 0.0;
+        evidence_sufficiency_score = 0.8;
+        contradiction_score = 0.05;
+        risk_index = 65.0;
+        human_review_required = true;
+        approval_blocked = true;
+        finality = "NON_FINAL_ADVISORY";
+        reason_codes = [
+          "FAST_PATH_VELOCITY_CAP_EXCEEDED",
+          "RATE_LIMIT_POLICY_THRESHOLD",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+        ];
+        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}. Automated fast-path bypassed; human consensus review required.`;
+        verdict_summary = decision_explanation;
+      } else if (isFinancialOrProcurement && !contextOutcome.isCounterpartyAllowlisted) {
+        verdict = "FLAGGED_HUMAN_REVIEW";
+        status = "FLAGGED_HUMAN_REVIEW";
+        verified = false;
+        action_eligible = false;
+        policy_status = "FAIL";
+        evidence_status = "MISSING";
+        reviewer_agreement_score = 0.35;
+        consensus_score = 35.0;
+        policy_compliance_score = 0.0;
+        evidence_sufficiency_score = 0.3;
+        contradiction_score = 0.70;
+        risk_index = 80.0;
+        human_review_required = true;
+        approval_blocked = true;
+        finality = "NON_FINAL_ADVISORY";
+        reason_codes = [
+          "UNAPPROVED_COUNTERPARTY_DEFICIT",
+          "VENDOR_NOT_IN_APPROVED_CATALOG",
+          "EVIDENCE_ANCHOR_DEFICIT",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+        ];
+        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Proposed procurement action '${agentAction.trim().substring(0, 60)}' specifies vendor '${contextOutcome.detectedVendor || "unapproved vendor"}' not found in policy approved counterparties catalog. Automated approval blocked; human consensus oversight required.`;
+        verdict_summary = decision_explanation;
       } else {
         // Only actions with validated substantive evidence anchors that pass all deterministic gates may be approved
         verdict = "APPROVED";
@@ -4299,7 +4523,9 @@ async function startServer() {
       perspectives: isMicroExpenseFastPath ? [] : nodePerspectives,
       policy_fast_path: isMicroExpenseFastPath,
       ...(isMicroExpenseFastPath ? { fast_path_rule_id: "micro_expense_fast_path" } : {}),
-      anchor_checklist: contextOutcome.anchor_checklist
+      anchor_checklist: contextOutcome.anchor_checklist,
+      anchor_basis: contextOutcome.anchor_basis,
+      anchor_bases: contextOutcome.anchor_bases
     };
   }
 
@@ -4754,7 +4980,7 @@ async function startServer() {
       groundingStatus = "DISABLED";
     } else if (isPolicyFastPath) {
       groundingStatus = "VERIFIED_HYBRID_FACTS";
-      groundingDetails = "Policy fast-path grounded anchors (ticket & counterparty) verified under FinOps micro-expense policy.";
+      groundingDetails = "Policy fast-path approved counterparty verified against policy allowlist with client-attested operational ticket.";
     } else if (contradictionNodes.length > 0 || finalReasonCodes.includes("GROUNDING_CONTRADICTION") || finalReasonCodes.includes("UNVERIFIED_CERTIFICATION_CLAIM") || finalReasonCodes.includes("CONTRADICTION_EXPOSED")) {
       groundingStatus = "GROUNDING_CONTRADICTION_EXPOSED";
       groundingDetails = "Factual assertion contradicts verified enterprise grounding records. Dissenting audit node exposed contradiction.";
@@ -4997,8 +5223,18 @@ async function startServer() {
         scope_bounded: false,
         counterparty_verified: false,
         data_classification_present: false,
-        missing_anchors: ["ticket", "budget_line", "scope", "counterparty", "data_classification"]
+        missing_anchors: ["ticket", "budget_line", "scope", "counterparty", "data_classification"],
+        anchor_basis: "client_attested",
+        anchor_bases: {
+          ticket: "missing",
+          budget_line: "missing",
+          scope: "missing",
+          counterparty: "missing",
+          data_classification: "missing"
+        }
       },
+      anchor_basis: evalResult.anchor_basis || evalResult.anchor_checklist?.anchor_basis || "client_attested",
+      anchor_bases: evalResult.anchor_bases || evalResult.anchor_checklist?.anchor_bases,
       latency_ms: latencyMs,
       timestamp: attestationTimestamp
     };
