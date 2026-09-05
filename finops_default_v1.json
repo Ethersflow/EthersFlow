@@ -13,6 +13,18 @@
     "agent_count": 3,
     "zero_retention": true
   },
+  "approved_counterparties": [
+    "Staples",
+    "BlueBottle",
+    "Blue Bottle",
+    "AWS",
+    "Amazon Web Services",
+    "Northstar Logistics"
+  ],
+  "fast_path_velocity_caps": {
+    "max_approvals_per_ticket": 5,
+    "window_seconds": 86400
+  },
   "rules": [
     {
       "id": "micro_expense_fast_path",
@@ -21,7 +33,16 @@
         "action_pattern": "(expense|purchase|supplies|coffee|snack)",
         "amount_usd": {
           "max": 100
-        }
+        },
+        "counterparty_verified": true,
+        "approved_counterparties": [
+          "Staples",
+          "BlueBottle",
+          "Blue Bottle",
+          "AWS",
+          "Amazon Web Services",
+          "Northstar Logistics"
+        ]
       },
       "conditions": {
         "all": [
@@ -32,7 +53,7 @@
       },
       "then": {
         "decision": "approve",
-        "reason_template": "Micro-expense under $100 with unanimous approval."
+        "reason_template": "Micro-expense under $100 with unanimous approval and verified counterparty on approved catalog allowlist."
       }
     },
     {

@@ -183,6 +183,20 @@ export function evaluateRubric(policy, verdict, actionContext = {}) {
         }
       }
 
+      const approvedList = rule.match.approved_counterparties || policy.approved_counterparties;
+      if (approvedList && Array.isArray(approvedList) && (rule.match.approved_counterparties || rule.id === 'micro_expense_fast_path')) {
+        const cp = (actionContext.counterparty || actionContext.vendor || '').toLowerCase();
+        const actText = (actionText || '').toLowerCase();
+        const matched = approvedList.some(ac => {
+          const acl = ac.toLowerCase();
+          return (cp && (cp === acl || cp.includes(acl))) || (actText && actText.includes(acl));
+        });
+        if (!matched) {
+          ruleTrace.match_passed = false;
+          ruleTrace.match_reasons.push(`counterparty not in approved_counterparties allowlist`);
+        }
+      }
+
       if (rule.match.persona_preset && rule.match.persona_preset !== '*') {
         if (personaPreset !== rule.match.persona_preset) {
           ruleTrace.match_passed = false;
@@ -303,8 +317,8 @@ function runCli() {
   const demoCases = [
     {
       label: 'Demo 1: Micro-expense $50 office supplies (unanimous approval)',
-      action: '$50 office supplies',
-      context: { amount_usd: 50 },
+      action: '$50 office supplies from Staples',
+      context: { amount_usd: 50, counterparty: 'Staples', counterparty_verified: true },
       verdict: {
         action_id: 'ef_act_001',
         decision: 'APPROVED',
@@ -347,6 +361,18 @@ function runCli() {
         node_agreement: 'unanimous_rejection',
         consensus_score: 12,
         risk_index: 98
+      }
+    },
+    {
+      label: 'Demo 5: Unapproved vendor Vendors-R-Us LLC with client-claimed counterparty_verified:true (fast-path blocked)',
+      action: 'Order $50 of office supplies from Vendors-R-Us LLC, a new vendor NOT in the approved catalog',
+      context: { amount_usd: 50, counterparty: 'Vendors-R-Us LLC', counterparty_verified: true, ticket: 'FAC-102' },
+      verdict: {
+        action_id: 'ef_act_005',
+        decision: 'APPROVED',
+        node_agreement: 'unanimous_approval',
+        consensus_score: 97,
+        risk_index: 3
       }
     }
   ];
