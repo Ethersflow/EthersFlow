@@ -180,6 +180,216 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 6 (Regression Endpoint): Network error`, err);
   }
 
+  // Test 7: MCP tools/list Missing Auth Check -> -32000 MISSING_AUTHORIZATION
+  total++;
+  try {
+    const res = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    }, { jsonrpc: "2.0", id: "mcp-test-7", method: "tools/list" });
+
+    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "MISSING_AUTHORIZATION";
+    if (isErr) {
+      console.log(`[PASS] Case 7 (MCP tools/list Missing Auth): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 7 (MCP tools/list Missing Auth):`, res.body);
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 7 (MCP tools/list Missing Auth): Network error`, err);
+  }
+
+  // Test 8: MCP tools/call Missing Auth Check -> -32000 MISSING_AUTHORIZATION
+  total++;
+  try {
+    const res = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    }, {
+      jsonrpc: "2.0",
+      id: "mcp-test-8",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: { agent_action: "Execute test transaction" }
+      }
+    });
+
+    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "MISSING_AUTHORIZATION";
+    if (isErr) {
+      console.log(`[PASS] Case 8 (MCP tools/call Missing Auth): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 8 (MCP tools/call Missing Auth):`, res.body);
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 8 (MCP tools/call Missing Auth): Network error`, err);
+  }
+
+  // Test 9: MCP tools/list Fabricated Key -> -32000 INVALID_API_KEY
+  total++;
+  try {
+    const res = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ef_live_INVALIDKEY0000000000000000"
+      }
+    }, { jsonrpc: "2.0", id: "mcp-test-9", method: "tools/list" });
+
+    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "INVALID_API_KEY";
+    if (isErr) {
+      console.log(`[PASS] Case 9 (MCP tools/list Fabricated Key): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 9 (MCP tools/list Fabricated Key):`, res.body);
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 9 (MCP tools/list Fabricated Key): Network error`, err);
+  }
+
+  // Test 10: MCP tools/call Fabricated Key -> -32000 INVALID_API_KEY
+  total++;
+  try {
+    const res = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer ef_live_INVALIDKEY0000000000000000"
+      }
+    }, {
+      jsonrpc: "2.0",
+      id: "mcp-test-10",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: { agent_action: "Execute test transaction" }
+      }
+    });
+
+    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "INVALID_API_KEY";
+    if (isErr) {
+      console.log(`[PASS] Case 10 (MCP tools/call Fabricated Key): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 10 (MCP tools/call Fabricated Key):`, res.body);
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 10 (MCP tools/call Fabricated Key): Network error`, err);
+  }
+
+  // Test 11: MCP Auth Battery (SAME KEY ef_live_demo MUST PASS tools/list AND tools/call)
+  total++;
+  try {
+    const key = "ef_live_demo";
+    // Part A: tools/list
+    const listRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      }
+    }, { jsonrpc: "2.0", id: "mcp-test-11a", method: "tools/list" });
+
+    const listValid = Array.isArray(listRes.body?.result?.tools) && listRes.body?.result?.tools.length > 0;
+
+    // Part B: tools/call
+    const callRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${key}`
+      }
+    }, {
+      jsonrpc: "2.0",
+      id: "mcp-test-11b",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: { agent_action: "$50 office supplies" }
+      }
+    });
+
+    const callValid = Array.isArray(callRes.body?.result?.content) && callRes.body?.result?.content.length > 0;
+
+    if (listValid && callValid) {
+      console.log(`[PASS] Case 11 (MCP Auth Battery: SAME key passes tools/list AND tools/call): toolsCount=${listRes.body?.result?.tools.length}, callContentItems=${callRes.body?.result?.content.length}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 11 (MCP Auth Battery): listValid=${listValid}, callValid=${callValid}`, { listRes: listRes.body, callRes: callRes.body });
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 11 (MCP Auth Battery): Network error`, err);
+  }
+
+  // Test 12: MCP Auth Battery (SAME PRESERVED LEGACY KEY MUST PASS tools/list AND tools/call - Zero Migration Loss)
+  total++;
+  try {
+    const legacyKey = "ef_live_legacy_integrator_key_01";
+    // Part A: tools/list
+    const listRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${legacyKey}`
+      }
+    }, { jsonrpc: "2.0", id: "mcp-test-12a", method: "tools/list" });
+
+    const listValid = Array.isArray(listRes.body?.result?.tools) && listRes.body?.result?.tools.length > 0;
+
+    // Part B: tools/call
+    const callRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${legacyKey}`
+      }
+    }, {
+      jsonrpc: "2.0",
+      id: "mcp-test-12b",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: { agent_action: "$50 office supplies" }
+      }
+    });
+
+    const callValid = Array.isArray(callRes.body?.result?.content) && callRes.body?.result?.content.length > 0;
+
+    if (listValid && callValid) {
+      console.log(`[PASS] Case 12 (MCP Auth Battery: SAME legacy key passes tools/list AND tools/call - Zero Migration Loss): toolsCount=${listRes.body?.result?.tools.length}, callContentItems=${callRes.body?.result?.content.length}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 12 (MCP Auth Battery Legacy): listValid=${listValid}, callValid=${callValid}`, { listRes: listRes.body, callRes: callRes.body });
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 12 (MCP Auth Battery Legacy): Network error`, err);
+  }
+
   console.log("================================================================================");
   console.log(`SUMMARY: ${passed}/${total} tests passed (${Math.round((passed / total) * 100)}%)`);
   console.log("================================================================================");
