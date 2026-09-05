@@ -11,9 +11,10 @@
     "publish:mcp": "cd mcp-server && npm publish --access public",
     "build:sdk:ts": "tsc -p sdk/typescript/tsconfig.json",
     "publish:sdk:ts": "cd sdk/typescript && npm run build && npm publish --access public",
-    "test": "node scripts/test_regression.mjs && node scripts/test_auth_battery.mjs",
+    "check:references": "tsc --noEmit --skipLibCheck --target es2022 --module esnext --moduleResolution node --esModuleInterop server.ts",
+    "test": "npm run check:references && node scripts/test_regression.mjs && node scripts/test_auth_battery.mjs",
     "test:auth": "node scripts/test_auth_battery.mjs",
-    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0 && npm run check:references",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -31,6 +32,7 @@
     "mammoth": "^1.12.0",
     "motion": "^11.18.2",
     "multer": "^1.4.5-lts.1",
+    "node-domexception": "",
     "pdf-parse": "^1.1.1",
     "pdfjs-dist": "^6.0.227",
     "react": "^18.3.1",
