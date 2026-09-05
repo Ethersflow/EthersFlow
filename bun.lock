@@ -19,6 +19,7 @@
         "mammoth": "^1.12.0",
         "motion": "^11.18.2",
         "multer": "^1.4.5-lts.1",
+        "node-domexception": "",
         "pdf-parse": "^1.1.1",
         "pdfjs-dist": "^6.0.227",
         "react": "^18.3.1",
@@ -1169,6 +1170,8 @@
     "natural-compare": ["natural-compare@1.4.0", "", {}, "sha512-OWND8ei3VtNC9h7V60qff3SVobHr996CTwgxubgyQYEpg290h9J0buyECNNJexkFm5sOajh5G116RYA1c8ZMSw=="],
 
     "negotiator": ["negotiator@0.6.3", "", {}, "sha512-+EUsqGPLsM+j/zdChZjsnX51g4XrHFOIXwfnCVPGlQk/k5giakcKsuxCObBRu6DSm9opw/O6slWbJdghQM4bBg=="],
+
+    "node-domexception": ["node-domexception@file:shims/node-domexception", {}],
 
     "node-ensure": ["node-ensure@0.0.0", "", {}, "sha512-DRI60hzo2oKN1ma0ckc6nQWlHU69RH6xN0sjQTjMpChPfTYvKZdcQFfdYK2RWbJcKyUizSIy/l8OTGxMAM1QDw=="],
 

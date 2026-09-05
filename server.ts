@@ -1968,7 +1968,7 @@ async function startServer() {
 
     const geminiAI = getGeminiAIClient();
     let synthesisText = "";
-    let analystDrafts: Array<{ name: string; content: string }> = [];
+    let analystDrafts: Array<{ name: string; content: string; provider?: string; model?: string }> = [];
 
     // Phase 1: Multi-Analyst Parallel Drafting (Live Groq/Llama or Gemini execution)
     try {
@@ -2118,9 +2118,9 @@ async function startServer() {
     if (!synthesisText) {
       if (analystDrafts && analystDrafts.length > 0) {
         const summaryText = finalVerdict === "REJECTED"
-          ? (evalResult.verdictSummary || "REJECTED: Audit node consensus rejected proposed directive as non-compliant.")
+          ? (evalResult.verdict_summary || "REJECTED: Audit node consensus rejected proposed directive as non-compliant.")
           : finalVerdict === "FLAGGED_HUMAN_REVIEW"
-          ? (evalResult.verdictSummary || "FLAGGED FOR HUMAN REVIEW: Audit node analysis identified unverified risk factors or compliance concerns. Manual operator sign-off required prior to execution.")
+          ? (evalResult.verdict_summary || "FLAGGED FOR HUMAN REVIEW: Audit node analysis identified unverified risk factors or compliance concerns. Manual operator sign-off required prior to execution.")
           : "Verified multi-agent alignment achieved with zero compliance anomalies detected.";
 
         synthesisText = `### Verified EthersFlow Multi-Agent Consensus Response\n\nCross-examination across ${defaultRoster.length} specialized audit nodes (${defaultRoster.join(", ")}):\n\n` +
@@ -2936,7 +2936,43 @@ async function startServer() {
     timestamps: number[];
   }
 
-  const fastPathTicketVelocity = new Map<string, TicketVelocityRecord>();
+  const VELOCITY_PERSISTENCE_PATH = path.resolve(process.cwd(), "data", "fast_path_velocity.json");
+
+  function loadDurableVelocity(): Map<string, TicketVelocityRecord> {
+    const map = new Map<string, TicketVelocityRecord>();
+    try {
+      if (fs.existsSync(VELOCITY_PERSISTENCE_PATH)) {
+        const raw = fs.readFileSync(VELOCITY_PERSISTENCE_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && Array.isArray((v as any).timestamps)) {
+            map.set(k, { timestamps: (v as any).timestamps });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[VELOCITY] Could not load durable velocity store from disk:", e);
+    }
+    return map;
+  }
+
+  function saveDurableVelocity(map: Map<string, TicketVelocityRecord>) {
+    try {
+      const dataDir = path.dirname(VELOCITY_PERSISTENCE_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      const obj: Record<string, TicketVelocityRecord> = {};
+      for (const [k, v] of map.entries()) {
+        obj[k] = v;
+      }
+      fs.writeFileSync(VELOCITY_PERSISTENCE_PATH, JSON.stringify(obj, null, 2), "utf8");
+    } catch (e) {
+      console.warn("[VELOCITY] Failed to persist velocity counters to disk:", e);
+    }
+  }
+
+  const fastPathTicketVelocity = loadDurableVelocity();
 
   function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): { allowed: boolean; count: number } {
     const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
@@ -2944,8 +2980,11 @@ async function startServer() {
     const windowMs = windowSeconds * 1000;
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
     const validTimestamps = record.timestamps.filter(ts => now - ts < windowMs);
-    record.timestamps = validTimestamps;
-    fastPathTicketVelocity.set(normTicket, record);
+    if (validTimestamps.length !== record.timestamps.length) {
+      record.timestamps = validTimestamps;
+      fastPathTicketVelocity.set(normTicket, record);
+      saveDurableVelocity(fastPathTicketVelocity);
+    }
 
     if (validTimestamps.length >= maxApprovals) {
       return { allowed: false, count: validTimestamps.length };
@@ -2959,6 +2998,18 @@ async function startServer() {
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
     record.timestamps.push(now);
     fastPathTicketVelocity.set(normTicket, record);
+    saveDurableVelocity(fastPathTicketVelocity);
+
+    // Sync durably to Firestore if cloud database is active
+    if (db) {
+      db.collection("velocity_caps").doc(normTicket).set({
+        ticket_id: normTicket,
+        timestamps: record.timestamps,
+        last_approval_at: now
+      }, { merge: true }).catch((err: any) => {
+        console.warn(`[VELOCITY] Firestore sync warning for ticket ${normTicket}:`, err?.message);
+      });
+    }
   }
 
   function extractAmountUsd(actionText: string = "", contextInput: any = null): number | null {
@@ -3321,6 +3372,7 @@ async function startServer() {
 
     // Context Content Validation (Round 28 Mandate: Validate context content substance, not mere presence)
     const contextOutcome = validateContextEvidenceContent(agentAction, reasoningChain, contextInput);
+    const policyConfig = loadFinopsPolicy();
 
     // -------------------------------------------------------------------------
     // 1. DETERMINISTIC HARD POLICY GATES (Executed BEFORE model consensus)
@@ -3582,7 +3634,7 @@ async function startServer() {
     let reason_codes: string[] = [];
     let human_review_required = false;
     let approval_blocked = false;
-    let finality: "NON_FINAL_ADVISORY" | "POLICY_FINAL_BLOCK" | "POLICY_FINAL_APPROVAL" = "POLICY_FINAL_APPROVAL";
+    let finality: DecisionContract["finality"] = "POLICY_FINAL_APPROVAL";
     let decision_explanation = "";
     let verdict_summary = "";
 
