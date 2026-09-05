@@ -11,7 +11,8 @@
     "publish:mcp": "cd mcp-server && npm publish --access public",
     "build:sdk:ts": "tsc -p sdk/typescript/tsconfig.json",
     "publish:sdk:ts": "cd sdk/typescript && npm run build && npm publish --access public",
-    "test": "node scripts/test_regression.mjs",
+    "test": "node scripts/test_regression.mjs && node scripts/test_auth_battery.mjs",
+    "test:auth": "node scripts/test_auth_battery.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
