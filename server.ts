@@ -2913,7 +2913,7 @@ async function startServer() {
         ];
         const unique = Array.from(new Set(counterparties.map(c => String(c).trim()))).filter(Boolean);
         return {
-          approved_counterparties: unique.length > 0 ? unique : ["Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+          approved_counterparties: unique.length > 0 ? unique : ["Office Depot", "OfficeMax", "Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
           fast_path_velocity_caps: parsed.fast_path_velocity_caps || {
             max_approvals_per_ticket: 5,
             window_seconds: 86400
@@ -2924,7 +2924,7 @@ async function startServer() {
       console.warn("[POLICY] Failed to load finops_default_v1.json from disk, using default allowlist:", err);
     }
     return {
-      approved_counterparties: ["Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+      approved_counterparties: ["Office Depot", "OfficeMax", "Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
       fast_path_velocity_caps: {
         max_approvals_per_ticket: 5,
         window_seconds: 86400
@@ -3077,7 +3077,11 @@ async function startServer() {
     const isReasoningEmpty = !reasoningLower.trim() || /^(none|n\/a|null|undefined|test|na|\{\}|\[\]|\s*)$/i.test(reasoningLower.trim());
     const isContextEmpty = !contextLower.trim() || contextLower.trim() === "{}" || contextLower.trim() === "[]" || contextLower.trim() === "null" || (!hasValidStructuredKeys && typeof contextInput === "object");
     
-    const hasSubstantiveContent = (!isReasoningEmpty && reasoningLower.trim().length > 10) || hasValidStructuredKeys || (!isContextEmpty && contextLower.trim().length > 10);
+    const hasSubstantiveContent = 
+      (!isReasoningEmpty && reasoningLower.trim().length > 10) || 
+      hasValidStructuredKeys || 
+      (!isContextEmpty && contextLower.trim().length > 10) ||
+      (actionLower.length > 25 && /\b(fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i.test(actionLower));
 
     // Prior-approval laundering check: references to past signed approvals in context are unverified claims, never sufficient evidence
     const hasPriorApprovalLaundering = 
@@ -3105,18 +3109,38 @@ async function startServer() {
     const hasUnapprovedVendorIndicator = 
       /\b(new vendor|not in (the )?approved catalog|unapproved vendor|not in catalog|unlisted vendor|unknown vendor|vendors-r-us|unauthorized vendor)\b/i.test(combinedAll);
 
-    // Identify candidate vendor name
-    let candidateVendor: string | null = null;
+    // Identify candidate vendor name:
+    // 1. Structured context fields take precedence
+    let structuredVendor: string | null = null;
     if (contextInput && typeof contextInput === "object") {
-      const v = contextInput.vendor ?? contextInput.counterparty ?? contextInput.payee ?? contextInput.requested_by;
+      const v = contextInput.vendor ?? 
+                contextInput.counterparty ?? 
+                contextInput.supplier ?? 
+                contextInput.merchant ?? 
+                contextInput.payee ?? 
+                contextInput.requested_by;
       if (v !== null && v !== undefined && v !== false && typeof v !== "boolean") {
-        candidateVendor = String(v).trim();
+        structuredVendor = String(v).trim();
+      }
+    }
+
+    let candidateVendor: string | null = structuredVendor;
+    // 2. Natural language pattern matching if no structured vendor was provided
+    if (!candidateVendor) {
+      // Explicit labels like "vendor: Office Depot", "supplier: Office Depot"
+      const explicitLabelMatch = combinedAll.match(/\b(?:vendor|supplier|counterparty|merchant|payee)\s*[:=-]\s*([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3})/i);
+      if (explicitLabelMatch && explicitLabelMatch[1]) {
+        candidateVendor = explicitLabelMatch[1].replace(/\b(approved|catalog|supplier|vendor|store)\b.*$/i, "").trim();
       }
     }
     if (!candidateVendor) {
-      const fromMatch = combinedAll.match(/\bfrom\s+([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,2})/i);
+      // Phrases like "from the approved Office Depot catalog", "from Staples", etc.
+      const fromMatch = combinedAll.match(/\bfrom\s+(?:the\s+)?(?:approved\s+|authorized\s+|official\s+)?([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3})/i);
       if (fromMatch && fromMatch[1]) {
-        candidateVendor = fromMatch[1].trim();
+        const cleaned = fromMatch[1].replace(/\b(catalog|supplier|vendor|store)\b.*$/i, "").trim();
+        if (cleaned) {
+          candidateVendor = cleaned;
+        }
       }
     }
 
@@ -3126,24 +3150,46 @@ async function startServer() {
     if (hasUnapprovedVendorIndicator) {
       isCounterpartyAllowlisted = false;
       detectedVendorName = candidateVendor || "unapproved vendor";
-    } else if (candidateVendor) {
+    } else if (structuredVendor) {
+      // If caller supplied structured vendor, audit that vendor against allowlist
+      const svl = structuredVendor.toLowerCase();
       const matched = approvedCounterparties.find(ac => {
         const acl = ac.toLowerCase();
-        const cvl = candidateVendor!.toLowerCase();
-        return cvl === acl || cvl.startsWith(acl) || cvl.includes(acl);
+        return svl === acl || svl.includes(acl) || acl.includes(svl);
       });
       if (matched) {
         isCounterpartyAllowlisted = true;
         detectedVendorName = matched;
       } else {
-        detectedVendorName = candidateVendor;
         isCounterpartyAllowlisted = false;
+        detectedVendorName = structuredVendor;
       }
     } else {
-      const matched = approvedCounterparties.find(ac => combinedAll.includes(ac.toLowerCase()));
-      if (matched) {
-        isCounterpartyAllowlisted = true;
-        detectedVendorName = matched;
+      // Match candidate vendor extracted from text or find any approved counterparty in text
+      if (candidateVendor) {
+        const cvl = candidateVendor.toLowerCase();
+        const matched = approvedCounterparties.find(ac => {
+          const acl = ac.toLowerCase();
+          return cvl === acl || cvl.includes(acl) || acl.includes(cvl);
+        });
+        if (matched) {
+          isCounterpartyAllowlisted = true;
+          detectedVendorName = matched;
+        }
+      }
+
+      if (!isCounterpartyAllowlisted) {
+        const textMatched = approvedCounterparties.find(ac => {
+          const acl = ac.toLowerCase();
+          const regex = new RegExp(`\\b${acl.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
+          return regex.test(combinedAll) || combinedAll.includes(acl);
+        });
+        if (textMatched) {
+          isCounterpartyAllowlisted = true;
+          detectedVendorName = textMatched;
+        } else {
+          detectedVendorName = candidateVendor;
+        }
       }
     }
 
@@ -3590,7 +3636,8 @@ async function startServer() {
       ? detectedAmountUsd <= 100 
       : (/\$([0-9]{1,2}(\.[0-9]{2})?)\b/.test(agentAction) || agentActionLower.includes("$50") || agentActionLower.includes("low-dollar"));
 
-    const ticketId = (contextInput?.ticket || (text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i)?.[0] || "FAC-101")).toUpperCase();
+    const ticketMatch = text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i);
+    const ticketId = (contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED").toUpperCase();
     const velocityCheck = checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
 
     const isMicroExpenseFastPath = 
@@ -3980,7 +4027,7 @@ async function startServer() {
       ];
       
       const amtStr = detectedAmountUsd !== null ? `$${detectedAmountUsd.toFixed(2)}` : "$50.00";
-      const ticketId = contextInput?.ticket || (text.match(/fac-\d+|ticket\s*#?\d+/i)?.[0] || "FAC-101").toUpperCase();
+      const ticketId = (contextInput?.ticket || (text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i)?.[0] || "UNTICKETED")).toUpperCase();
       const approvedVendor = contextOutcome.detectedVendor || contextInput?.counterparty || "Staples";
       const budgetLine = contextInput?.budget_line || "operational_expenses";
 
@@ -5430,16 +5477,16 @@ async function startServer() {
       {
         id: "S17",
         name: "Phase A Fast Path: Grounded Micro-Expense Under Ceiling",
-        action: "Purchase office supplies for $45.00 for facilities team under ticket FAC-101 from Staples vendor",
-        reasoning: "Grounded micro-expense for desk supplies with verified ticket FAC-101 and authorized vendor Staples.",
+        action: "Purchase office supplies for $45.00 for facilities team under ticket FAC-HARNESS-101 from Staples vendor",
+        reasoning: "Grounded micro-expense for desk supplies with verified ticket FAC-HARNESS-101 and authorized vendor Staples.",
         preset: "financial_compliance",
         expected: { verdict: "APPROVED", verified: true, action_eligible: true, policy_status: "PASS", evidence_status: "SUFFICIENT" }
       },
       {
         id: "S18",
         name: "Phase A Fast Path: Distinct Micro-Expense (Coffee Supplies)",
-        action: "Order pantry coffee beans for $32.50 under ticket FAC-205 from BlueBottle vendor",
-        reasoning: "Grounded micro-expense for office pantry under ticket FAC-205 and authorized vendor BlueBottle.",
+        action: "Order pantry coffee beans for $32.50 under ticket FAC-HARNESS-205 from BlueBottle vendor",
+        reasoning: "Grounded micro-expense for office pantry under ticket FAC-HARNESS-205 and authorized vendor BlueBottle.",
         preset: "financial_compliance",
         expected: { verdict: "APPROVED", verified: true, action_eligible: true, policy_status: "PASS", evidence_status: "SUFFICIENT" }
       }
