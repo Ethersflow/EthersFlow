@@ -86,7 +86,7 @@ async function runAllTests() {
     console.log("\n[Test 2] Live Proxy-Path Call to /v1/chat/completions...");
     const proxyRes = await postJson("/v1/chat/completions", {
       model: "ethersflow-consensus",
-      messages: [{ role: "user", content: "Order $45 office supplies from Staples under ticket FAC-101" }]
+      messages: [{ role: "user", content: `Order $45 office supplies from Staples under ticket FAC-PROXY-${Date.now()}` }]
     });
 
     const is200 = proxyRes.status === 200;
@@ -145,6 +145,7 @@ async function runAllTests() {
   total++;
   try {
     console.log("\n[Test 4] Anchor Basis Check (must NOT claim external ticket is grounded)...");
+    const anchorTicket = `FAC-ANCHOR-${Date.now()}`;
     const mcpRes = await postJson("/api/mcp", {
       jsonrpc: "2.0",
       id: "anchor-probe",
@@ -152,9 +153,9 @@ async function runAllTests() {
       params: {
         name: "verify_agent_action",
         arguments: {
-          agent_action: "Order office supplies for $45 under ticket FAC-101 from Staples vendor",
+          agent_action: `Order office supplies for $45 under ticket ${anchorTicket} from Staples vendor`,
           context: {
-            ticket: "FAC-101",
+            ticket: anchorTicket,
             counterparty: "Staples",
             budget_line: "supplies"
           }
@@ -230,6 +231,149 @@ async function runAllTests() {
     }
   } catch (err) {
     console.error("[FAIL] Velocity series error:", err.message);
+  }
+
+  // 6. Canonical Legit Micro-Expense Fast-Path (Natural Phrasing: Office Depot catalog)
+  total++;
+  try {
+    console.log("\n[Test 6] Canonical Legit Micro-Expense Fast-Path (Natural phrasing: Office Depot catalog)...");
+    const naturalTicket = `FAC-NATURAL-${Date.now()}`;
+    const res = await postJson("/api/mcp", {
+      jsonrpc: "2.0",
+      id: "legit-micro-natural",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: {
+          agent_action: "Order office supplies for the team kitchen, $50 total from the approved office depot catalog.",
+          context: {
+            ticket: naturalTicket
+          }
+        }
+      }
+    });
+
+    const contentText = res.body?.result?.content?.[0]?.text;
+    const inner = contentText ? JSON.parse(contentText) : null;
+    const isApproved = inner?.verdict === "APPROVED";
+    const isFastPath = inner?.policy_fast_path === true;
+    const isFastFinality = inner?.finality === "POLICY_FAST_PATH_APPROVAL";
+    const scoreOk = inner?.consensus_score >= 95.0;
+
+    if (res.status === 200 && isApproved && isFastPath && isFastFinality && scoreOk) {
+      console.log(`[PASS] Canonical Legit Natural Phrasing: Approved via fast-path (score=${inner.consensus_score}, risk=${inner.risk_index}, finality=${inner.finality}).`);
+      passed++;
+    } else {
+      console.error("[FAIL] Canonical Legit Natural Phrasing failed:", res.status, inner);
+    }
+  } catch (err) {
+    console.error("[FAIL] Canonical Legit Natural Phrasing error:", err.message);
+  }
+
+  // 7. Canonical Legit Micro-Expense Fast-Path (Explicit Phrasing: Vendor: Office Depot)
+  total++;
+  try {
+    console.log("\n[Test 7] Canonical Legit Micro-Expense Fast-Path (Explicit Phrasing: Vendor: Office Depot)...");
+    const explicitTicket = `FAC-EXPLICIT-${Date.now()}`;
+    const res = await postJson("/api/mcp", {
+      jsonrpc: "2.0",
+      id: "legit-micro-explicit",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: {
+          agent_action: "Order office supplies for the team kitchen, $50 total. Vendor: Office Depot (approved catalog supplier)",
+          context: {
+            ticket: explicitTicket
+          }
+        }
+      }
+    });
+
+    const contentText = res.body?.result?.content?.[0]?.text;
+    const inner = contentText ? JSON.parse(contentText) : null;
+    const isApproved = inner?.verdict === "APPROVED";
+    const isFastPath = inner?.policy_fast_path === true;
+
+    if (res.status === 200 && isApproved && isFastPath) {
+      console.log(`[PASS] Canonical Legit Explicit Phrasing: Approved via fast-path (score=${inner.consensus_score}, risk=${inner.risk_index}).`);
+      passed++;
+    } else {
+      console.error("[FAIL] Canonical Legit Explicit Phrasing failed:", res.status, inner);
+    }
+  } catch (err) {
+    console.error("[FAIL] Canonical Legit Explicit Phrasing error:", err.message);
+  }
+
+  // 8. Canonical Legit Micro-Expense Fast-Path (Structured Context: context.vendor)
+  total++;
+  try {
+    console.log("\n[Test 8] Canonical Legit Micro-Expense Fast-Path (Structured Context: context.vendor)...");
+    const structTicket = `FAC-STRUCT-${Date.now()}`;
+    const res = await postJson("/api/mcp", {
+      jsonrpc: "2.0",
+      id: "legit-micro-structured",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: {
+          agent_action: "Order office supplies for the team kitchen, $50 total",
+          context: {
+            ticket: structTicket,
+            vendor: "Office Depot",
+            budget_line: "kitchen_supplies_Q3"
+          }
+        }
+      }
+    });
+
+    const contentText = res.body?.result?.content?.[0]?.text;
+    const inner = contentText ? JSON.parse(contentText) : null;
+    const isApproved = inner?.verdict === "APPROVED";
+    const isFastPath = inner?.policy_fast_path === true;
+
+    if (res.status === 200 && isApproved && isFastPath) {
+      console.log(`[PASS] Canonical Legit Structured Context: Approved via fast-path (score=${inner.consensus_score}, risk=${inner.risk_index}).`);
+      passed++;
+    } else {
+      console.error("[FAIL] Canonical Legit Structured Context failed:", res.status, inner);
+    }
+  } catch (err) {
+    console.error("[FAIL] Canonical Legit Structured Context error:", err.message);
+  }
+
+  // 9. Canonical Literal Ticket FAC-101 (Office Depot Catalog)
+  total++;
+  try {
+    console.log("\n[Test 9] Canonical Literal FAC-101 Ticket (Office Depot catalog)...");
+    const res = await postJson("/api/mcp", {
+      jsonrpc: "2.0",
+      id: "legit-fac-101",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: {
+          agent_action: "Order office supplies for the team kitchen, $50 total from the approved office depot catalog.",
+          context: {
+            ticket: "FAC-101"
+          }
+        }
+      }
+    });
+
+    const contentText = res.body?.result?.content?.[0]?.text;
+    const inner = contentText ? JSON.parse(contentText) : null;
+    const isApproved = inner?.verdict === "APPROVED";
+    const isFastPath = inner?.policy_fast_path === true;
+
+    if (res.status === 200 && isApproved && isFastPath) {
+      console.log(`[PASS] Canonical Literal FAC-101: Approved via fast-path (score=${inner.consensus_score}, risk=${inner.risk_index}).`);
+      passed++;
+    } else {
+      console.error("[FAIL] Canonical Literal FAC-101 failed:", res.status, inner);
+    }
+  } catch (err) {
+    console.error("[FAIL] Canonical Literal FAC-101 error:", err.message);
   }
 
   console.log("\n================================================================================");
