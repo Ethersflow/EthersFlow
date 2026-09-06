@@ -3117,8 +3117,7 @@ async function startServer() {
                 contextInput.counterparty ?? 
                 contextInput.supplier ?? 
                 contextInput.merchant ?? 
-                contextInput.payee ?? 
-                contextInput.requested_by;
+                contextInput.payee;
       if (v !== null && v !== undefined && v !== false && typeof v !== "boolean") {
         structuredVendor = String(v).trim();
       }

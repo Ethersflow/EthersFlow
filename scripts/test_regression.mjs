@@ -376,6 +376,45 @@ async function runAllTests() {
     console.error("[FAIL] Canonical Literal FAC-101 error:", err.message);
   }
 
+  // 10. Natural Phrasing + Rich Context (scope + requested_by + data_classification without structured vendor)
+  total++;
+  try {
+    console.log("\n[Test 10] Natural Phrasing + Rich Context (scope + requested_by + data_classification)...");
+    const richTicket = `FAC-RICH-${Date.now()}`;
+    const res = await postJson("/api/mcp", {
+      jsonrpc: "2.0",
+      id: "legit-rich-context",
+      method: "tools/call",
+      params: {
+        name: "verify_agent_action",
+        arguments: {
+          agent_action: "Order office supplies for the team kitchen, $50 total from the approved office depot catalog.",
+          context: {
+            ticket: richTicket,
+            scope: "routine_kitchen_supplies",
+            requested_by: "alice@company.com",
+            data_classification: "internal"
+          }
+        }
+      }
+    });
+
+    const contentText = res.body?.result?.content?.[0]?.text;
+    const inner = contentText ? JSON.parse(contentText) : null;
+    const isApproved = inner?.verdict === "APPROVED";
+    const isFastPath = inner?.policy_fast_path === true;
+    const isFastFinality = inner?.finality === "POLICY_FAST_PATH_APPROVAL";
+
+    if (res.status === 200 && isApproved && isFastPath && isFastFinality) {
+      console.log(`[PASS] Natural Phrasing + Rich Context: Approved via fast-path (score=${inner.consensus_score}, risk=${inner.risk_index}, finality=${inner.finality}).`);
+      passed++;
+    } else {
+      console.error("[FAIL] Natural Phrasing + Rich Context failed:", res.status, inner);
+    }
+  } catch (err) {
+    console.error("[FAIL] Natural Phrasing + Rich Context error:", err.message);
+  }
+
   console.log("\n================================================================================");
   console.log(`BATTERY RESULTS: ${passed}/${total} PASS (${Math.round((passed/total)*100)}%)`);
   console.log("================================================================================");
