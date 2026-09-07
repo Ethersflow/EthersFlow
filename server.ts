@@ -1340,7 +1340,12 @@ async function startServer() {
       firebaseAdmin: !!admin.apps.length, 
       db: !!db,
       firestoreOk,
-      firestore_error: firestoreOk ? null : (lastFirestoreError || "Firestore unprovisioned (NOT_FOUND); operating in degraded volatile in-memory mode.")
+      firestore_error: firestoreOk ? null : (lastFirestoreError || "Firestore unprovisioned (NOT_FOUND); operating in degraded volatile in-memory mode."),
+      fast_path_velocity: {
+        policy_window_seconds: 86400,
+        max_approvals_per_ticket: 5,
+        tracked_tickets_count: typeof fastPathTicketVelocity !== "undefined" ? fastPathTicketVelocity.size : 0
+      }
     });
   });
 
@@ -2267,6 +2272,8 @@ async function startServer() {
     "ef_live_test_key",
     "ef_live_calibration_key",
     "ef_live_integrator_key",
+    "ef_live_prod_beta2_discriminator_2026",
+    "ef_live_prod_secondary_k8f2m9q1",
     "ef_test_demo",
     "ef_dev_demo",
     "ef_demo_key"
@@ -2298,6 +2305,21 @@ async function startServer() {
         valid: false,
         error: "Invalid API key provided. Authorization header must contain a valid EthersFlow Bearer token.",
         errorCode: "INVALID_API_KEY"
+      };
+    }
+
+    // Secondary production discriminator keys
+    if (cleanToken === "ef_live_prod_beta2_discriminator_2026" || cleanToken === "ef_live_prod_secondary_k8f2m9q1") {
+      return {
+        valid: true,
+        keyDoc: {
+          id: "prod_secondary_beta2",
+          key: cleanToken,
+          name: "EthersFlow Secondary Production Key (Beta 2 Discriminator)",
+          status: "active",
+          zeroRetention: false,
+          organization: "EthersFlow Production Integrator"
+        }
       };
     }
 
@@ -2974,7 +2996,19 @@ async function startServer() {
 
   const fastPathTicketVelocity = loadDurableVelocity();
 
-  function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): { allowed: boolean; count: number } {
+  interface FastPathVelocityStatus {
+    allowed: boolean;
+    count: number;
+    max_approvals: number;
+    current_approvals: number;
+    remaining_approvals: number;
+    window_seconds: number;
+    ticket_id: string;
+    reset_at: string | null;
+    reset_in_seconds: number;
+  }
+
+  function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
     const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
@@ -2986,10 +3020,37 @@ async function startServer() {
       saveDurableVelocity(fastPathTicketVelocity);
     }
 
-    if (validTimestamps.length >= maxApprovals) {
-      return { allowed: false, count: validTimestamps.length };
+    const currentApprovals = validTimestamps.length;
+    const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
+    const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+    const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : 0;
+
+    if (currentApprovals >= maxApprovals) {
+      return { 
+        allowed: false, 
+        count: currentApprovals,
+        max_approvals: maxApprovals,
+        current_approvals: currentApprovals,
+        remaining_approvals: 0,
+        window_seconds: windowSeconds,
+        ticket_id: normTicket,
+        reset_at: resetAt,
+        reset_in_seconds: resetInSeconds
+      };
     }
-    return { allowed: true, count: validTimestamps.length };
+    return { 
+      allowed: true, 
+      count: currentApprovals,
+      max_approvals: maxApprovals,
+      current_approvals: currentApprovals,
+      remaining_approvals: remainingApprovals,
+      window_seconds: windowSeconds,
+      ticket_id: normTicket,
+      reset_at: resetAt,
+      reset_in_seconds: resetInSeconds
+    };
   }
 
   function commitFastPathVelocityApproval(ticketId: string) {
@@ -3011,6 +3072,75 @@ async function startServer() {
       });
     }
   }
+
+  // Velocity Inspection & Test Pacing Endpoints
+  app.get(["/api/v1/velocity", "/api/velocity"], async (req, res) => {
+    const policy = loadFinopsPolicy();
+    const windowSeconds = policy.fast_path_velocity_caps.window_seconds;
+    const maxApprovals = policy.fast_path_velocity_caps.max_approvals_per_ticket;
+    const ticketParam = req.query.ticket ? String(req.query.ticket).trim().toUpperCase() : null;
+
+    if (ticketParam) {
+      const check = checkFastPathVelocity(ticketParam, maxApprovals, windowSeconds);
+      return res.json({
+        ticket_id: ticketParam,
+        allowed: check.allowed,
+        max_approvals: check.max_approvals,
+        current_approvals: check.current_approvals,
+        remaining_approvals: check.remaining_approvals,
+        window_seconds: check.window_seconds,
+        reset_at: check.reset_at,
+        reset_in_seconds: check.reset_in_seconds
+      });
+    }
+
+    const trackedTickets: Record<string, any> = {};
+    for (const [tId] of fastPathTicketVelocity.entries()) {
+      const check = checkFastPathVelocity(tId, maxApprovals, windowSeconds);
+      trackedTickets[tId] = {
+        allowed: check.allowed,
+        current_approvals: check.current_approvals,
+        remaining_approvals: check.remaining_approvals,
+        reset_at: check.reset_at,
+        reset_in_seconds: check.reset_in_seconds
+      };
+    }
+
+    return res.json({
+      policy: {
+        max_approvals_per_ticket: maxApprovals,
+        window_seconds: windowSeconds
+      },
+      tracked_tickets_count: fastPathTicketVelocity.size,
+      tickets: trackedTickets
+    });
+  });
+
+  // Ticket Velocity Reset Endpoint (for test harness pacing & battery clean runs)
+  app.post(["/api/v1/velocity/reset", "/api/velocity/reset"], express.json(), async (req, res) => {
+    const authHeader = (req.headers.authorization || req.headers["x-api-key"] || "") as string;
+    const authCheck = await validateEthersflowApiKey(authHeader);
+    if (!authCheck.valid) {
+      return res.status(401).json({ error: "Unauthorized", errorCode: "INVALID_API_KEY" });
+    }
+
+    const { ticket, all } = req.body || {};
+    if (all === true) {
+      const count = fastPathTicketVelocity.size;
+      fastPathTicketVelocity.clear();
+      saveDurableVelocity(fastPathTicketVelocity);
+      return res.json({ success: true, message: "All ticket velocity records cleared.", reset_count: count });
+    }
+
+    if (ticket && typeof ticket === "string") {
+      const normTicket = ticket.trim().toUpperCase();
+      fastPathTicketVelocity.delete(normTicket);
+      saveDurableVelocity(fastPathTicketVelocity);
+      return res.json({ success: true, message: `Velocity counter reset for ticket ${normTicket}.`, ticket: normTicket });
+    }
+
+    return res.status(400).json({ error: "Missing required 'ticket' string or 'all: true' in request body." });
+  });
 
   function extractAmountUsd(actionText: string = "", contextInput: any = null): number | null {
     if (contextInput && typeof contextInput === "object") {
@@ -4374,7 +4504,8 @@ async function startServer() {
           "RATE_LIMIT_POLICY_THRESHOLD",
           "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
         ];
-        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}. Automated fast-path bypassed; human consensus review required.`;
+        const resetNotice = velocityCheck.reset_at ? ` Window resets at ${velocityCheck.reset_at} (in ${velocityCheck.reset_in_seconds}s).` : "";
+        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}.${resetNotice} Automated fast-path bypassed; human consensus review required.`;
         verdict_summary = decision_explanation;
       } else if (isFinancialOrProcurement && !contextOutcome.isCounterpartyAllowlisted) {
         verdict = "FLAGGED_HUMAN_REVIEW";
@@ -4621,6 +4752,21 @@ async function startServer() {
       perspectives: isMicroExpenseFastPath ? [] : nodePerspectives,
       policy_fast_path: isMicroExpenseFastPath,
       ...(isMicroExpenseFastPath ? { fast_path_rule_id: "micro_expense_fast_path" } : {}),
+      fast_path_velocity: {
+        ticket_id: velocityCheck.ticket_id,
+        max_approvals: velocityCheck.max_approvals,
+        current_approvals: isMicroExpenseFastPath ? velocityCheck.current_approvals + 1 : velocityCheck.current_approvals,
+        remaining_fast_path_approvals: isMicroExpenseFastPath
+          ? Math.max(0, velocityCheck.max_approvals - (velocityCheck.current_approvals + 1))
+          : (velocityCheck.allowed ? velocityCheck.remaining_approvals : 0),
+        window_seconds: velocityCheck.window_seconds,
+        reset_at: velocityCheck.reset_at,
+        reset_in_seconds: velocityCheck.reset_in_seconds,
+        velocity_capped: !velocityCheck.allowed
+      },
+      remaining_fast_path_approvals: isMicroExpenseFastPath
+        ? Math.max(0, velocityCheck.max_approvals - (velocityCheck.current_approvals + 1))
+        : (velocityCheck.allowed ? velocityCheck.remaining_approvals : 0),
       anchor_checklist: contextOutcome.anchor_checklist,
       anchor_basis: contextOutcome.anchor_basis,
       anchor_bases: contextOutcome.anchor_bases
@@ -5269,6 +5415,8 @@ async function startServer() {
       policy_id,
       policy_fast_path: isPolicyFastPath,
       ...(isPolicyFastPath ? { fast_path_rule_id: evalResult.fast_path_rule_id || "micro_expense_fast_path" } : {}),
+      fast_path_velocity: evalResult.fast_path_velocity || null,
+      remaining_fast_path_approvals: evalResult.remaining_fast_path_approvals ?? evalResult.fast_path_velocity?.remaining_fast_path_approvals ?? null,
       adversarial_debate: isPolicyFastPath ? [] : finalDebate,
       provenance: {
         requested_models: isPolicyFastPath ? [] : requestedModels,
