@@ -4862,7 +4862,8 @@ async function startServer() {
         window_seconds: velocityCheck.window_seconds,
         reset_at: velocityCheck.reset_at,
         reset_in_seconds: velocityCheck.reset_in_seconds,
-        velocity_capped: !velocityCheck.allowed
+        velocity_capped: !isMicroExpenseFastPath && !velocityCheck.allowed,
+        allowance_exhausted: velocityCheck.remaining_approvals === 0
       },
       remaining_fast_path_approvals: velocityCheck.remaining_approvals,
       anchor_checklist: contextOutcome.anchor_checklist,
