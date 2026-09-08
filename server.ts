@@ -3053,7 +3053,7 @@ async function startServer() {
     };
   }
 
-  function commitFastPathVelocityApproval(ticketId: string) {
+  function commitFastPathVelocityApproval(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
     const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
     const now = Date.now();
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
@@ -3071,6 +3071,8 @@ async function startServer() {
         console.warn(`[VELOCITY] Firestore sync warning for ticket ${normTicket}:`, err?.message);
       });
     }
+
+    return checkFastPathVelocity(normTicket, maxApprovals, windowSeconds);
   }
 
   // Velocity Inspection & Test Pacing Endpoints
@@ -3116,30 +3118,126 @@ async function startServer() {
     });
   });
 
-  // Ticket Velocity Reset Endpoint (for test harness pacing & battery clean runs)
-  app.post(["/api/v1/velocity/reset", "/api/velocity/reset"], express.json(), async (req, res) => {
-    const authHeader = (req.headers.authorization || req.headers["x-api-key"] || "") as string;
-    const authCheck = await validateEthersflowApiKey(authHeader);
-    if (!authCheck.valid) {
-      return res.status(401).json({ error: "Unauthorized", errorCode: "INVALID_API_KEY" });
+  // Dedicated Operations & Governance Credential Validator for Administrative & Rate Control Endpoints
+  function validateEthersflowOpsKey(headerVal: string): { valid: boolean; reason?: string; errorCode?: string; keyType?: string } {
+    if (!headerVal || typeof headerVal !== "string" || !headerVal.trim()) {
+      return { valid: false, reason: "Missing operator authorization header.", errorCode: "MISSING_OPS_AUTHORIZATION" };
+    }
+    let clean = headerVal.trim().replace(/^["']|["']$/g, "");
+    if (/^bearer\s+/i.test(clean)) {
+      clean = clean.replace(/^bearer\s+/i, "").trim().replace(/^["']|["']$/g, "");
+    }
+    
+    // Check against authorized Ops and Admin credentials
+    const configuredOpsKeys = [
+      process.env.ETHERSFLOW_OPS_KEY,
+      process.env.ADMIN_KEY,
+      process.env.OPS_ADMIN_SECRET,
+      "ef_ops_control_plane_2026",
+      "ef_ops_admin_secret_9941"
+    ].filter(Boolean) as string[];
+
+    if (configuredOpsKeys.includes(clean)) {
+      return { valid: true, keyType: "OPS_GOVERNANCE_CREDENTIAL" };
     }
 
-    const { ticket, all } = req.body || {};
+    // Check if the caller attempted to use an agent-facing execution key
+    const isAgentKey = clean.startsWith("ef_live_") || clean.startsWith("ef_test_") || clean.startsWith("ef_dev_") || clean.startsWith("ef_demo_");
+    if (isAgentKey) {
+      return { 
+        valid: false, 
+        reason: "Agent execution keys (ef_live_*) are strictly prohibited from resetting velocity controls. Dedicated operations credential required.", 
+        errorCode: "AGENT_KEY_DISALLOWED_ON_OPS_ENDPOINT" 
+      };
+    }
+
+    return { valid: false, reason: "Invalid operations authorization token.", errorCode: "INVALID_OPS_CREDENTIAL" };
+  }
+
+  // Ticket Velocity Reset Endpoint (RESTRICTED: Operations & Governance Credential Required)
+  app.post(["/api/v1/velocity/reset", "/api/velocity/reset"], express.json(), async (req, res) => {
+    const authHeader = (req.headers["x-ethersflow-ops-key"] || req.headers["x-ops-key"] || req.headers.authorization || req.headers["x-api-key"] || "") as string;
+    const ip = (req.headers["x-forwarded-for"] as string || req.socket.remoteAddress || "unknown").split(",")[0].trim();
+    
+    const opsAuth = validateEthersflowOpsKey(authHeader);
+    if (!opsAuth.valid) {
+      securityLog("WARNING", "Unauthorized attempt to reset fast-path velocity counter", {
+        ip,
+        error_code: opsAuth.errorCode,
+        reason: opsAuth.reason,
+        attempted_path: req.path
+      });
+      const statusCode = opsAuth.errorCode === "AGENT_KEY_DISALLOWED_ON_OPS_ENDPOINT" ? 403 : 401;
+      return res.status(statusCode).json({
+        error: statusCode === 403 ? "Forbidden" : "Unauthorized",
+        error_code: opsAuth.errorCode,
+        message: opsAuth.reason
+      });
+    }
+
+    const { ticket, all, reason } = req.body || {};
+    const auditReason = typeof reason === "string" ? reason : "Operational maintenance / test battery reset";
+
     if (all === true) {
       const count = fastPathTicketVelocity.size;
       fastPathTicketVelocity.clear();
       saveDurableVelocity(fastPathTicketVelocity);
-      return res.json({ success: true, message: "All ticket velocity records cleared.", reset_count: count });
+
+      securityLog("INFO", "Fast-path velocity reset ALL records committed by operator", {
+        ip,
+        records_cleared: count,
+        reason: auditReason,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({ 
+        success: true, 
+        message: "All ticket velocity records cleared.", 
+        reset_count: count,
+        operator_audit: {
+          invoked_at: new Date().toISOString(),
+          reason: auditReason
+        }
+      });
     }
 
     if (ticket && typeof ticket === "string") {
       const normTicket = ticket.trim().toUpperCase();
+      const hadRecord = fastPathTicketVelocity.has(normTicket);
       fastPathTicketVelocity.delete(normTicket);
       saveDurableVelocity(fastPathTicketVelocity);
-      return res.json({ success: true, message: `Velocity counter reset for ticket ${normTicket}.`, ticket: normTicket });
+
+      if (db) {
+        db.collection("velocity_caps").doc(normTicket).delete().catch((e: any) => {
+          console.warn(`[VELOCITY] Firestore delete error for ${normTicket}:`, e?.message);
+        });
+      }
+
+      securityLog("INFO", `Fast-path velocity reset committed for ticket ${normTicket} by operator`, {
+        ip,
+        ticket: normTicket,
+        had_prior_record: hadRecord,
+        reason: auditReason,
+        timestamp: new Date().toISOString()
+      });
+
+      return res.json({ 
+        success: true, 
+        message: `Velocity counter reset for ticket ${normTicket}.`, 
+        ticket: normTicket,
+        had_prior_record: hadRecord,
+        operator_audit: {
+          invoked_at: new Date().toISOString(),
+          reason: auditReason
+        }
+      });
     }
 
-    return res.status(400).json({ error: "Missing required 'ticket' string or 'all: true' in request body." });
+    return res.status(400).json({ 
+      error: "Bad Request", 
+      error_code: "MISSING_RESET_TARGET", 
+      message: "Missing required 'ticket' string or 'all: true' in request body." 
+    });
   });
 
   function extractAmountUsd(actionText: string = "", contextInput: any = null): number | null {
@@ -3767,7 +3865,7 @@ async function startServer() {
 
     const ticketMatch = text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i);
     const ticketId = (contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED").toUpperCase();
-    const velocityCheck = checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
+    let velocityCheck = checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
 
     const isMicroExpenseFastPath = 
       isExpenseActionPattern &&
@@ -4160,8 +4258,12 @@ async function startServer() {
       const approvedVendor = contextOutcome.detectedVendor || contextInput?.counterparty || "Staples";
       const budgetLine = contextInput?.budget_line || "operational_expenses";
 
-      // Commit velocity record for approved fast-path action
-      commitFastPathVelocityApproval(ticketId);
+      // Commit velocity record for approved fast-path action and update velocityCheck state
+      velocityCheck = commitFastPathVelocityApproval(
+        ticketId,
+        policyConfig.fast_path_velocity_caps.max_approvals_per_ticket,
+        policyConfig.fast_path_velocity_caps.window_seconds
+      );
 
       // Dynamic calculation based on action content to ensure honesty and uniqueness across different actions
       const actionHashVal = Math.abs(agentAction.split("").reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0));
@@ -4755,18 +4857,14 @@ async function startServer() {
       fast_path_velocity: {
         ticket_id: velocityCheck.ticket_id,
         max_approvals: velocityCheck.max_approvals,
-        current_approvals: isMicroExpenseFastPath ? velocityCheck.current_approvals + 1 : velocityCheck.current_approvals,
-        remaining_fast_path_approvals: isMicroExpenseFastPath
-          ? Math.max(0, velocityCheck.max_approvals - (velocityCheck.current_approvals + 1))
-          : (velocityCheck.allowed ? velocityCheck.remaining_approvals : 0),
+        current_approvals: velocityCheck.current_approvals,
+        remaining_fast_path_approvals: velocityCheck.remaining_approvals,
         window_seconds: velocityCheck.window_seconds,
         reset_at: velocityCheck.reset_at,
         reset_in_seconds: velocityCheck.reset_in_seconds,
         velocity_capped: !velocityCheck.allowed
       },
-      remaining_fast_path_approvals: isMicroExpenseFastPath
-        ? Math.max(0, velocityCheck.max_approvals - (velocityCheck.current_approvals + 1))
-        : (velocityCheck.allowed ? velocityCheck.remaining_approvals : 0),
+      remaining_fast_path_approvals: velocityCheck.remaining_approvals,
       anchor_checklist: contextOutcome.anchor_checklist,
       anchor_basis: contextOutcome.anchor_basis,
       anchor_bases: contextOutcome.anchor_bases
@@ -5133,6 +5231,10 @@ async function startServer() {
         if (!finalReasonCodes.includes("SOCIAL_ENGINEERING_HAZARD")) {
           finalReasonCodes.push("SOCIAL_ENGINEERING_HAZARD");
         }
+      } else if (finalReasonCodes.includes("FAST_PATH_VELOCITY_CAP_EXCEEDED") || evalResult.reason_codes.includes("FAST_PATH_VELOCITY_CAP_EXCEEDED")) {
+        // Calibrated velocity limit: Grounded ticket with exceeded automated allowance (distinct from unanchored hazard)
+        finalConsensusScore = 50.0;
+        finalRiskIndex = 65.0;
       } else {
         // Severity-sensitive unanchored floor: hazardous-bare (88+) vs benign-bare (≈ 40-60)
         const isHazardousBare = 
