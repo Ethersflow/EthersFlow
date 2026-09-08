@@ -1,6 +1,6 @@
 {
   "name": "EthersFlow",
-  "description": "EthersFlow verifies AI agent actions before execution — multi-model adversarial consensus with signed attestations.",
+  "description": "EthersFlow enforces a bounded, evidence-backed purchase policy at the execution boundary, fails closed outside supported conditions, and produces versioned signed decision receipts.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

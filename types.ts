@@ -225,3 +225,53 @@ export interface ToolRequest {
 export interface SessionMemory {
   fingerprints: Map<string, string[]>;
 }
+
+// -----------------------------------------------------------------------------
+// §3 GAIS Restricted Launch Consensus Audit & Receipt v2
+// -----------------------------------------------------------------------------
+
+export interface StructuredAuditClaim {
+  claim_span: string;
+  required_evidence_type: string;
+}
+
+export interface StructuredAuditContradiction {
+  claim_span: string;
+  evidence_ref: string;
+  code: string;
+}
+
+export interface NodeStructuredAudit {
+  recommendation: 'APPROVE' | 'FLAG_HUMAN_REVIEW' | 'REJECT';
+  unsupported_claims: StructuredAuditClaim[];
+  contradictions: StructuredAuditContradiction[];
+  additional_operations: string[];
+  sensitive_data_flows: string[];
+}
+
+export interface ReceiptV2 {
+  receipt_version: '2.0';
+  request_id: string;
+  policy_hash: string;
+  scanner_hash: string;
+  catalog_hash: string;
+  template_hash: string;
+  prompt_hash: string;
+  packet_hash: string;
+  signing_key_id: string;
+  revision: string;
+  config_tuple: {
+    policy_id: string;
+    revision: string;
+    catalog_version: string;
+    aggregation_rule_version: string;
+  };
+  evidence_versions: Record<string, string>;
+  counter_before: number;
+  counter_after: number;
+  lane: 'FAST_PATH' | 'CONSENSUS';
+  aggregation_rule_version: string;
+  actual_models: Array<{ model_id: string; provider: string }>;
+  amount_cents: number | null;
+}
+
