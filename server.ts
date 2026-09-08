@@ -24,6 +24,19 @@ import { VertexAI } from '@google-cloud/vertexai';
 import { GoogleGenAI } from "@google/genai";
 import multer from "multer";
 import mammoth from "mammoth";
+import {
+  evaluateSafetyKernel,
+  validateStrictIngress,
+  aggregateConsensusAudits,
+  canonicalizeJson,
+  computePolicyHash,
+  computeCatalogHash,
+  computeScannerHash,
+  computeTemplateHash,
+  computePromptHash,
+  computePacketHash,
+  APPROVED_CATALOG_COUNTERPARTIES
+} from "./safetyKernel.js";
 import _pdf from "pdf-parse";
 let pdf: any = _pdf;
 try {
@@ -38,7 +51,7 @@ console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
 const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.1";
-const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || process.env.K_REVISION || "ethersflow-00123-gtr";
+const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
 
@@ -410,7 +423,12 @@ async function startServer() {
   });
 
   // 2. Body Parsers (MUST follow CORS but precede most routes)
-  app.use(express.json({ limit: '100mb' })); 
+  app.use(express.json({ 
+    limit: '100mb',
+    verify: (req: any, res, buf) => {
+      req.rawBody = buf.toString('utf8');
+    }
+  })); 
   app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
   // Neural Extraction Route - Robust Implementation (PRIORITY)
@@ -1326,6 +1344,13 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
+      policy_hash: computePolicyHash(),
+      config_tuple: {
+        policy_id: "finops_default_v1",
+        revision: ETHERSFLOW_BUILD_REVISION,
+        catalog_version: "2026.09.08",
+        aggregation_rule_version: "v2.0-restricted"
+      },
       service: "EthersFlow Agent Trust Gateway",
       fac_pipeline: "active",
       context_binding: true,
@@ -2894,6 +2919,7 @@ async function startServer() {
     anchor_checklist?: AnchorChecklist;
     anchor_basis?: "client_attested" | "grounded";
     anchor_bases?: Record<string, string>;
+    template_result?: any;
   }
 
   interface AnchorChecklist {
@@ -2937,6 +2963,20 @@ async function startServer() {
     };
   }
 
+  function validateStartupPolicyConfig() {
+    const policyPath = path.resolve(process.cwd(), "finops_default_v1.json");
+    if (!fs.existsSync(policyPath)) {
+      throw new Error("[FATAL] Incompatible mutable config: finops_default_v1.json not found on disk at startup.");
+    }
+    const raw = fs.readFileSync(policyPath, "utf8");
+    const parsed = JSON.parse(raw);
+    if (!parsed.policy_id || !Array.isArray(parsed.approved_counterparties) || !parsed.fast_path_velocity_caps) {
+      throw new Error("[FATAL] Incompatible mutable config: missing required policy fields in finops_default_v1.json");
+    }
+    console.log(`[STARTUP] Policy config loaded. Policy Hash: ${computePolicyHash().substring(0, 16)}... (Counterparties: ${parsed.approved_counterparties.length})`);
+  }
+  validateStartupPolicyConfig();
+
   function loadFinopsPolicy(): FinopsPolicyConfig {
     try {
       const policyPath = path.resolve(process.cwd(), "finops_default_v1.json");
@@ -2950,7 +2990,7 @@ async function startServer() {
         ];
         const unique = Array.from(new Set(counterparties.map(c => String(c).trim()))).filter(Boolean);
         return {
-          approved_counterparties: unique.length > 0 ? unique : ["Office Depot", "OfficeMax", "Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+          approved_counterparties: unique.length > 0 ? unique : APPROVED_CATALOG_COUNTERPARTIES,
           fast_path_velocity_caps: parsed.fast_path_velocity_caps || {
             max_approvals_per_ticket: 5,
             window_seconds: 86400
@@ -2961,7 +3001,7 @@ async function startServer() {
       console.warn("[POLICY] Failed to load finops_default_v1.json from disk, using default allowlist:", err);
     }
     return {
-      approved_counterparties: ["Office Depot", "OfficeMax", "Staples", "BlueBottle", "Blue Bottle", "AWS", "Amazon Web Services", "Northstar Logistics"],
+      approved_counterparties: APPROVED_CATALOG_COUNTERPARTIES,
       fast_path_velocity_caps: {
         max_approvals_per_ticket: 5,
         window_seconds: 86400
@@ -3933,6 +3973,92 @@ async function startServer() {
     // Context Content Validation (Round 28 Mandate: Validate context content substance, not mere presence)
     const contextOutcome = validateContextEvidenceContent(agentAction, reasoningChain, contextInput);
     const policyConfig = loadFinopsPolicy();
+    const kernelOutcome = evaluateSafetyKernel(agentAction, contextInput, reasoningChain);
+
+    // -------------------------------------------------------------------------
+    // 0. PRE-LANE SAFETY KERNEL GATES (Non-model-debatable, immediate fail-closed)
+    // -------------------------------------------------------------------------
+    if (kernelOutcome.disposition === "PROHIBITED") {
+      const prohibitedCodes = [...kernelOutcome.reason_codes];
+      return {
+        verdict: "REJECTED",
+        status: "REJECTED",
+        verified: false,
+        action_eligible: false,
+        policy_status: "FAIL",
+        evidence_status: "MISSING",
+        quorum_status: "MET",
+        reviewer_agreement: 0.985,
+        reviewer_agreement_score: 0.985,
+        consensus_score: 0.0,
+        policy_compliance_score: 0.0,
+        evidence_sufficiency_score: 0.0,
+        contradiction_score: 0.99,
+        risk_index: 99.0,
+        reason_codes: prohibitedCodes,
+        human_review_required: true,
+        approval_blocked: true,
+        finality: "POLICY_FINAL_BLOCK",
+        decision_explanation: kernelOutcome.explanation,
+        verdict_summary: kernelOutcome.explanation,
+        perspectives: council.map((role) => createSignedNodeAttestation(
+          role,
+          `REJECTED (${role}): Action violates safety kernel deterministic boundary. Execution blocked.`,
+          "REJECTED",
+          "openrouter/anthropic/claude-3.5-sonnet",
+          "openrouter"
+        )),
+        policy_fast_path: false,
+        fast_path_velocity: null,
+        remaining_fast_path_approvals: null,
+        counterparty_hint: null,
+        anchor_checklist: contextOutcome.anchor_checklist,
+        anchor_basis: contextOutcome.anchor_basis,
+        anchor_bases: contextOutcome.anchor_bases,
+        template_result: kernelOutcome.templateResult
+      };
+    }
+
+    if (kernelOutcome.disposition === "UNRESOLVED") {
+      const unresolvedCodes = [...kernelOutcome.reason_codes];
+      return {
+        verdict: "FLAGGED_HUMAN_REVIEW",
+        status: "FLAGGED_HUMAN_REVIEW",
+        verified: false,
+        action_eligible: false,
+        policy_status: "FAIL",
+        evidence_status: "CONFLICTING",
+        quorum_status: "NOT_MET",
+        reviewer_agreement: 0.48,
+        reviewer_agreement_score: 0.48,
+        consensus_score: 48.0,
+        policy_compliance_score: 0.48,
+        evidence_sufficiency_score: 0.48,
+        contradiction_score: 0.52,
+        risk_index: 52.0,
+        reason_codes: unresolvedCodes,
+        human_review_required: true,
+        approval_blocked: true,
+        finality: "NON_FINAL_ADVISORY",
+        decision_explanation: kernelOutcome.explanation,
+        verdict_summary: kernelOutcome.explanation,
+        perspectives: council.map((role) => createSignedNodeAttestation(
+          role,
+          `FLAGGED_HUMAN_REVIEW (${role}): Action contains unresolved risk flags (${unresolvedCodes.join(", ")}). Execution routed to manual review.`,
+          "FLAGGED_HUMAN_REVIEW",
+          "openrouter/anthropic/claude-3.5-sonnet",
+          "openrouter"
+        )),
+        policy_fast_path: false,
+        fast_path_velocity: null,
+        remaining_fast_path_approvals: null,
+        counterparty_hint: contextOutcome.counterparty_hint || null,
+        anchor_checklist: contextOutcome.anchor_checklist,
+        anchor_basis: contextOutcome.anchor_basis,
+        anchor_bases: contextOutcome.anchor_bases,
+        template_result: kernelOutcome.templateResult
+      };
+    }
 
     // -------------------------------------------------------------------------
     // 1. DETERMINISTIC HARD POLICY GATES (Executed BEFORE model consensus)
@@ -4155,6 +4281,7 @@ async function startServer() {
     let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
 
     const isMicroExpenseFastPath = 
+      kernelOutcome.disposition === "FAST_ELIGIBLE" &&
       isExpenseActionPattern &&
       isUnderHundredDollarCeiling &&
       contextOutcome.evidence_status === "SUFFICIENT" &&
@@ -4946,6 +5073,23 @@ async function startServer() {
           ? `FLAGGED FOR HUMAN REVIEW: Named counterparty required: Proposed procurement action specifies procurement/financial directive but omits an explicit approved catalog vendor name (e.g. Staples, Office Depot, Amazon Business). Generic claims like 'approved catalog' or 'counterparty_verified: true' are insufficient without an explicit vendor entity. Automated approval blocked; human consensus oversight required.`
           : `FLAGGED FOR HUMAN REVIEW: Proposed procurement action '${agentAction.trim().substring(0, 60)}' specifies vendor '${contextOutcome.detectedVendor || "unapproved vendor"}' not found in policy approved counterparties catalog. Automated approval blocked; human consensus oversight required.`;
         verdict_summary = decision_explanation;
+      } else if (isFinancialOrProcurement && !isLegitimateReconciledInvoice && !isMicroExpenseFastPath) {
+        // FAST-PATH ELIGIBILITY REVOCATION (The B1 kill): Any purchase/procurement action not satisfying full template consumption must NOT approve
+        verdict = "FLAGGED_HUMAN_REVIEW";
+        status = "FLAGGED_HUMAN_REVIEW";
+        verified = false;
+        action_eligible = false;
+        policy_status = "FAIL";
+        evidence_status = "CONFLICTING";
+        consensus_score = 42.0;
+        risk_index = 58.0;
+        human_review_required = true;
+        approval_blocked = true;
+        finality = "NON_FINAL_ADVISORY";
+        const kernelCodes = kernelOutcome.reason_codes.length > 0 ? kernelOutcome.reason_codes : ["UNMODELED_OPERATION"];
+        reason_codes = Array.from(new Set([...kernelCodes, "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"]));
+        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Proposed purchase action does not satisfy full-consumption template matching (${reason_codes.join(", ")}). Automated approval blocked.`;
+        verdict_summary = decision_explanation;
       } else {
         // Only actions with validated substantive evidence anchors that pass all deterministic gates may be approved
         verdict = "APPROVED";
@@ -5215,6 +5359,20 @@ async function startServer() {
         error_code: authCheck.errorCode || "INVALID_API_KEY",
         message: authCheck.error || "Invalid API key provided. Authorization header must contain a valid EthersFlow Bearer token.",
         status_code: 401,
+        request_id: requestId
+      });
+    }
+
+    // Strict Ingress Validation (§1)
+    const isMcpOrProxy = req.originalUrl === "/api/mcp" || req.path === "/mcp" || req.path === "/api/mcp" || req.path === "/v1/chat/completions";
+    const rawToValidate = isMcpOrProxy ? JSON.stringify(req.body) : (req as any).rawBody;
+    const ingressCheck = validateStrictIngress(req.body, rawToValidate);
+    if (!ingressCheck.valid) {
+      return res.status(400).json({
+        error: "Strict Ingress Rejected",
+        error_code: ingressCheck.errorCode || "INVALID_INPUT",
+        message: ingressCheck.errorDetail,
+        status_code: 400,
         request_id: requestId
       });
     }
@@ -5911,6 +6069,35 @@ async function startServer() {
         },
         raw_signing_bytes_encoding: "utf-8",
         timestamp: attestationTimestamp
+      },
+      receipt_v2: {
+        receipt_version: "2.0",
+        request_id: requestId,
+        policy_hash: computePolicyHash(),
+        scanner_hash: computeScannerHash(),
+        catalog_hash: computeCatalogHash(),
+        template_hash: computeTemplateHash(),
+        prompt_hash: computePromptHash(),
+        packet_hash: computePacketHash({ agent_action, context, reasoning_chain }),
+        signing_key_id: "ef_attest_v3",
+        revision: ETHERSFLOW_BUILD_REVISION,
+        config_tuple: {
+          policy_id: "finops_default_v1",
+          revision: ETHERSFLOW_BUILD_REVISION,
+          catalog_version: "2026.09.08",
+          aggregation_rule_version: "v2.0-restricted"
+        },
+        evidence_versions: {
+          finops_policy: "1.0",
+          catalog: "2026.09.08",
+          schema: "2.0"
+        },
+        counter_before: isPolicyFastPath ? Math.max(0, (evalResult.fast_path_velocity?.current_approvals ?? 1) - 1) : 0,
+        counter_after: isPolicyFastPath ? (evalResult.fast_path_velocity?.current_approvals ?? 0) : 0,
+        lane: isPolicyFastPath ? "FAST_PATH" : "CONSENSUS",
+        aggregation_rule_version: "v2.0-restricted",
+        actual_models: isPolicyFastPath ? [] : (resolvedModels || []).map((m: string) => ({ model_id: m, provider: "openrouter" })),
+        amount_cents: evalResult.template_result?.extractedAmountCents ?? null
       },
       storage_engine: storageEngine,
       storage_durability: storageDurability,
