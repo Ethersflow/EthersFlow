@@ -1,0 +1,42 @@
+{
+  "policy_id": "tripwire_circuit_breaker_v1",
+  "policy_version": "1.0.0",
+  "schema_version": "1.0",
+  "effective_date": "2026-09-08",
+  "signed_date": "2026-09-08T12:00:00Z",
+  "signing_authority": "EthersFlow Governance Council & Astra Safety Verification",
+  "signing_key_id": "ef_attest_v3",
+  "status": "ACTIVE_PRE_REGISTERED",
+  "description": "Pre-registered autonomous tripwire circuit breaker. If human-review rate exceeds 2x baseline for 5 consecutive days OR dissent-induced review queue breaches latency SLA for 5 consecutive days, consensus approvals flip to review-only for untested operation classes automatically with zero manual bypass.",
+  "invariants": {
+    "human_review_rate": {
+      "published_baseline_ratio": 0.08,
+      "multiplier_threshold": 2.0,
+      "tripwire_trigger_ratio": 0.16,
+      "consecutive_days_window": 5
+    },
+    "latency_sla": {
+      "complete_path_p95_threshold_ms": 1000,
+      "consecutive_days_window": 5
+    },
+    "action": {
+      "automatic_trigger": "FLIP_UNTESTED_CLASSES_TO_REVIEW_ONLY",
+      "bypass_allowed": false,
+      "rationale": "Enforce deterministic fail-closed safety without yielding to customer or external pressure during incident conditions.",
+      "untested_operation_classes": [
+        "unmodeled_procurement_variants",
+        "bulk_treasury_reallocations",
+        "cross_border_wire_transfers",
+        "automated_contractor_onboarding",
+        "synthetic_identity_credit_evaluations"
+      ]
+    }
+  },
+  "attestation": {
+    "key_id": "ef_attest_v3",
+    "algorithm": "Ed25519-EdDSA",
+    "spec_hash": "c839f2105be21cfa59d18e9c6a6f1993425fefdb856a4cfbe3618491764df751",
+    "signature": "3a7b61f891d4e0e58c9735d48259837a4e69b0fa60205842c385a497c36a445e412586bfa9e917d23d8c11e3895e6fbc6252989c9d784a921200fa447c21160a",
+    "verified_immutable": true
+  }
+}

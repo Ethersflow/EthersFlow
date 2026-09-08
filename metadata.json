@@ -1,6 +1,6 @@
 {
   "name": "EthersFlow",
-  "description": "EthersFlow enforces a bounded, evidence-backed purchase policy at the execution boundary, fails closed outside supported conditions, and produces versioned signed decision receipts.",
+  "description": "EthersFlow verifies and gates AI agent actions at the execution boundary, enforces bounded purchase policies with cryptographic execution binding (Dispatcher Shim), and produces versioned signed decision receipts.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

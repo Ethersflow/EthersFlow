@@ -2905,6 +2905,7 @@ async function startServer() {
     fast_path_rule_id?: string;
     fast_path_velocity?: {
       ticket_id: string;
+      tenant_id?: string;
       max_approvals: number;
       current_approvals: number;
       remaining_fast_path_approvals: number;
@@ -2912,12 +2913,16 @@ async function startServer() {
       reset_at: string | null;
       reset_in_seconds: number;
       velocity_capped: boolean;
+      spend_capped?: boolean;
+      current_spend_cents?: number;
+      max_spend_cents?: number;
+      remaining_spend_cents?: number;
       allowance_exhausted: boolean;
     } | null;
     remaining_fast_path_approvals?: number | null;
     counterparty_hint?: string | null;
     anchor_checklist?: AnchorChecklist;
-    anchor_basis?: "client_attested" | "grounded";
+    anchor_basis?: "client_attested" | "grounded" | "catalog_verified";
     anchor_bases?: Record<string, string>;
     template_result?: any;
   }
@@ -2930,12 +2935,12 @@ async function startServer() {
     data_classification_present: boolean;
     missing_anchors: string[];
     counterparty_hint?: string | null;
-    anchor_basis?: "client_attested" | "grounded";
+    anchor_basis?: "client_attested" | "grounded" | "catalog_verified";
     anchor_bases?: {
       ticket: "client_attested" | "grounded" | "missing";
       budget_line: "client_attested" | "grounded" | "missing";
       scope: "client_attested" | "grounded" | "missing";
-      counterparty: "client_attested" | "grounded" | "unverified" | "missing";
+      counterparty: "catalog_verified" | "client_attested" | "grounded" | "unverified" | "missing";
       data_classification: "client_attested" | "grounded" | "missing";
     };
   }
@@ -2949,7 +2954,7 @@ async function startServer() {
     explanation: string;
     counterparty_hint?: string | null;
     anchor_checklist?: AnchorChecklist;
-    anchor_basis?: "client_attested" | "grounded";
+    anchor_basis?: "client_attested" | "grounded" | "catalog_verified";
     anchor_bases?: Record<string, string>;
     isCounterpartyAllowlisted?: boolean;
     detectedVendor?: string | null;
@@ -2960,6 +2965,12 @@ async function startServer() {
     fast_path_velocity_caps: {
       max_approvals_per_ticket: number;
       window_seconds: number;
+    };
+    tenant_spend_caps?: {
+      default_spend_cap_cents?: number;
+      max_spend_per_ticket_cents?: number;
+      max_spend_per_tenant_window_cents?: number;
+      window_seconds?: number;
     };
   }
 
@@ -2994,6 +3005,11 @@ async function startServer() {
           fast_path_velocity_caps: parsed.fast_path_velocity_caps || {
             max_approvals_per_ticket: 5,
             window_seconds: 86400
+          },
+          tenant_spend_caps: parsed.tenant_spend_caps || {
+            max_spend_per_ticket_cents: 50000,
+            max_spend_per_tenant_window_cents: 250000,
+            window_seconds: 86400
           }
         };
       }
@@ -3005,15 +3021,114 @@ async function startServer() {
       fast_path_velocity_caps: {
         max_approvals_per_ticket: 5,
         window_seconds: 86400
+      },
+      tenant_spend_caps: {
+        max_spend_per_ticket_cents: 50000,
+        max_spend_per_tenant_window_cents: 250000,
+        window_seconds: 86400
       }
     };
   }
 
+  interface SpendRecord {
+    timestamp: number;
+    amount_cents: number;
+    tenant_id?: string;
+  }
+
   interface TicketVelocityRecord {
     timestamps: number[];
+    spend_records?: SpendRecord[];
+    total_spend_cents?: number;
+    tenant_id?: string;
   }
 
   const VELOCITY_PERSISTENCE_PATH = path.resolve(process.cwd(), "data", "fast_path_velocity.json");
+  const DISPATCHER_PERSISTENCE_PATH = path.resolve(process.cwd(), "data", "dispatcher_bindings.json");
+
+  interface DispatcherExecutionBinding {
+    receipt_id: string;
+    operation_hash: string;
+    action_preview: string;
+    verdict: string;
+    issued_at: string;
+    issued_at_ms: number;
+    expires_at: string;
+    expires_at_ms: number;
+    ttl_seconds: number;
+    idempotency_key: string;
+    status: "PENDING_EXECUTION" | "EXECUTED" | "EXPIRED" | "REVOKED";
+    executed: boolean;
+    executed_at?: string | null;
+    execution_id?: string | null;
+  }
+
+  function loadDurableDispatcherBindings(): Map<string, DispatcherExecutionBinding> {
+    const map = new Map<string, DispatcherExecutionBinding>();
+    try {
+      if (fs.existsSync(DISPATCHER_PERSISTENCE_PATH)) {
+        const raw = fs.readFileSync(DISPATCHER_PERSISTENCE_PATH, "utf8");
+        const parsed = JSON.parse(raw);
+        for (const [k, v] of Object.entries(parsed)) {
+          if (v && typeof v === "object") {
+            map.set(k, v as DispatcherExecutionBinding);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("[DISPATCHER] Could not load dispatcher bindings store from disk:", e);
+    }
+    return map;
+  }
+
+  function saveDurableDispatcherBindings(map: Map<string, DispatcherExecutionBinding>) {
+    try {
+      const dataDir = path.dirname(DISPATCHER_PERSISTENCE_PATH);
+      if (!fs.existsSync(dataDir)) {
+        fs.mkdirSync(dataDir, { recursive: true });
+      }
+      const obj: Record<string, DispatcherExecutionBinding> = {};
+      for (const [k, v] of map.entries()) {
+        obj[k] = v;
+      }
+      fs.writeFileSync(DISPATCHER_PERSISTENCE_PATH, JSON.stringify(obj, null, 2), "utf8");
+    } catch (e) {
+      console.warn("[DISPATCHER] Failed to persist dispatcher bindings to disk:", e);
+    }
+  }
+
+  const dispatcherBindings = loadDurableDispatcherBindings();
+
+  async function registerDispatcherBinding(binding: DispatcherExecutionBinding) {
+    dispatcherBindings.set(binding.receipt_id, binding);
+    saveDurableDispatcherBindings(dispatcherBindings);
+    if (db) {
+      try {
+        await db.collection("dispatcher_bindings").doc(binding.receipt_id).set(binding, { merge: true });
+      } catch (err: any) {
+        console.warn("[DISPATCHER] Firestore write error for binding:", err?.message);
+      }
+    }
+  }
+
+  async function getDispatcherBinding(receiptId: string): Promise<DispatcherExecutionBinding | null> {
+    if (dispatcherBindings.has(receiptId)) {
+      return dispatcherBindings.get(receiptId)!;
+    }
+    if (db) {
+      try {
+        const snap = await db.collection("dispatcher_bindings").doc(receiptId).get();
+        if (snap.exists) {
+          const data = snap.data() as DispatcherExecutionBinding;
+          dispatcherBindings.set(receiptId, data);
+          return data;
+        }
+      } catch (err: any) {
+        console.warn("[DISPATCHER] Firestore read error for binding:", err?.message);
+      }
+    }
+    return null;
+  }
 
   function normalizeTicketId(ticketId: string): string {
     let t = (ticketId || "UNKNOWN").trim().toUpperCase();
@@ -3028,10 +3143,21 @@ async function startServer() {
         const raw = fs.readFileSync(VELOCITY_PERSISTENCE_PATH, "utf8");
         const parsed = JSON.parse(raw);
         for (const [k, v] of Object.entries(parsed)) {
-          if (v && Array.isArray((v as any).timestamps)) {
+          if (v && typeof v === "object") {
             const cleanKey = normalizeTicketId(k);
-            const existing = map.get(cleanKey)?.timestamps || [];
-            map.set(cleanKey, { timestamps: Array.from(new Set([...existing, ...(v as any).timestamps])) });
+            const existing = map.get(cleanKey);
+            const existingTs = existing?.timestamps || [];
+            const newTs = Array.isArray((v as any).timestamps) ? (v as any).timestamps : [];
+            const mergedTs = Array.from(new Set([...existingTs, ...newTs]));
+            const existingSpend = existing?.spend_records || [];
+            const newSpend = Array.isArray((v as any).spend_records) ? (v as any).spend_records : [];
+            const mergedSpend = [...existingSpend, ...newSpend];
+            map.set(cleanKey, {
+              timestamps: mergedTs,
+              spend_records: mergedSpend,
+              total_spend_cents: (v as any).total_spend_cents || 0,
+              tenant_id: (v as any).tenant_id
+            });
           }
         }
       }
@@ -3071,6 +3197,11 @@ async function startServer() {
     reset_in_seconds: number;
     allowance_exhausted?: boolean;
     velocity_capped?: boolean;
+    spend_capped?: boolean;
+    current_spend_cents?: number;
+    max_spend_cents?: number;
+    remaining_spend_cents?: number;
+    tenant_id?: string;
   }
 
   async function syncVelocityJournalFromFirestore(): Promise<number> {
@@ -3083,10 +3214,20 @@ async function startServer() {
       snap.docs.forEach((doc: any) => {
         const data = doc.data();
         const ticketId = (data?.ticket_id || doc.id || "").trim().toUpperCase();
-        if (ticketId && Array.isArray(data?.timestamps)) {
-          const valid = data.timestamps.filter((ts: number) => typeof ts === "number" && now - ts < windowMs);
-          if (valid.length > 0) {
-            fastPathTicketVelocity.set(ticketId, { timestamps: valid });
+        if (ticketId) {
+          const timestamps = Array.isArray(data?.timestamps)
+            ? data.timestamps.filter((ts: number) => typeof ts === "number" && now - ts < windowMs)
+            : [];
+          const spendRecords = Array.isArray(data?.spend_records)
+            ? data.spend_records.filter((r: any) => typeof r?.timestamp === "number" && now - r.timestamp < windowMs)
+            : [];
+          if (timestamps.length > 0 || spendRecords.length > 0) {
+            fastPathTicketVelocity.set(ticketId, {
+              timestamps,
+              spend_records: spendRecords,
+              total_spend_cents: data.total_spend_cents || 0,
+              tenant_id: data.tenant_id
+            });
             loaded++;
           }
         }
@@ -3098,14 +3239,40 @@ async function startServer() {
     }
   }
 
-  function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
+  function checkFastPathVelocity(
+    ticketId: string, 
+    maxApprovals = 5, 
+    windowSeconds = 86400,
+    amountCents = 0,
+    tenantId = "default_tenant",
+    maxSpendCents = 50000
+  ): FastPathVelocityStatus {
     const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
-    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
+    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [], spend_records: [], total_spend_cents: 0 };
     const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
-    if (validTimestamps.length !== record.timestamps.length) {
+    const validSpendRecords = (record.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+    
+    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    let tenantSpendCents = 0;
+    if (tenantId && tenantId !== "default_tenant") {
+      for (const rec of fastPathTicketVelocity.values()) {
+        if (rec.tenant_id === tenantId) {
+          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+        }
+      }
+    }
+    const currentSpendCents = Math.max(
+      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
+      tenantSpendCents
+    );
+
+    if (validTimestamps.length !== record.timestamps.length || validSpendRecords.length !== (record.spend_records?.length || 0)) {
       record.timestamps = validTimestamps;
+      record.spend_records = validSpendRecords;
+      record.total_spend_cents = currentSpendCents;
       fastPathTicketVelocity.set(normTicket, record);
       saveDurableVelocity(fastPathTicketVelocity);
     }
@@ -3117,7 +3284,10 @@ async function startServer() {
     const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
-    const allowed = currentApprovals < maxApprovals;
+    const isVelocityCapped = currentApprovals >= maxApprovals;
+    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+    const allowed = !isVelocityCapped && !isSpendCapped;
+
     return { 
       allowed, 
       count: currentApprovals,
@@ -3129,16 +3299,29 @@ async function startServer() {
       reset_at: resetAt,
       reset_in_seconds: resetInSeconds,
       allowance_exhausted: remainingApprovals === 0,
-      velocity_capped: !allowed
+      velocity_capped: isVelocityCapped,
+      spend_capped: isSpendCapped,
+      current_spend_cents: currentSpendCents,
+      max_spend_cents: maxSpendCents,
+      remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
+      tenant_id: tenantId
     };
   }
 
-  async function checkFastPathVelocityAsync(ticketId: string, maxApprovals = 5, windowSeconds = 86400): Promise<FastPathVelocityStatus> {
+  async function checkFastPathVelocityAsync(
+    ticketId: string, 
+    maxApprovals = 5, 
+    windowSeconds = 86400,
+    amountCents = 0,
+    tenantId = "default_tenant",
+    maxSpendCents = 50000
+  ): Promise<FastPathVelocityStatus> {
     const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
 
     let timestamps: number[] = [];
+    let spendRecords: SpendRecord[] = [];
 
     if (db) {
       try {
@@ -3146,25 +3329,55 @@ async function startServer() {
         const docSnap = await docRef.get();
         if (docSnap.exists) {
           const data = docSnap.data();
-          if (Array.isArray(data?.timestamps)) {
-            timestamps = data.timestamps;
-          }
+          if (Array.isArray(data?.timestamps)) timestamps = data.timestamps;
+          if (Array.isArray(data?.spend_records)) spendRecords = data.spend_records;
         }
       } catch (e: any) {
         console.warn(`[VELOCITY] Firestore read error for ticket ${normTicket}:`, e?.message);
       }
     }
 
-    // Merge with local memory timestamps (union to prevent split-brain across instances)
+    // Merge with local memory timestamps and spend records
     const localRecord = fastPathTicketVelocity.get(normTicket);
     if (localRecord && Array.isArray(localRecord.timestamps)) {
       timestamps = Array.from(new Set([...timestamps, ...localRecord.timestamps]));
     }
+    if (localRecord && Array.isArray(localRecord.spend_records)) {
+      const combined = [...spendRecords, ...localRecord.spend_records];
+      const seen = new Set<string>();
+      spendRecords = combined.filter(r => {
+        const key = `${r.timestamp}:${r.amount_cents}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    }
 
     const validTimestamps = timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
     validTimestamps.sort((a, b) => a - b);
+    const validSpendRecords = spendRecords.filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+    
+    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    let tenantSpendCents = 0;
+    if (tenantId && tenantId !== "default_tenant") {
+      for (const rec of fastPathTicketVelocity.values()) {
+        if (rec.tenant_id === tenantId) {
+          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+        }
+      }
+    }
+    const currentSpendCents = Math.max(
+      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
+      tenantSpendCents
+    );
 
-    fastPathTicketVelocity.set(normTicket, { timestamps: validTimestamps });
+    fastPathTicketVelocity.set(normTicket, {
+      timestamps: validTimestamps,
+      spend_records: validSpendRecords,
+      total_spend_cents: currentSpendCents,
+      tenant_id: tenantId
+    });
     saveDurableVelocity(fastPathTicketVelocity);
 
     const currentApprovals = validTimestamps.length;
@@ -3174,7 +3387,10 @@ async function startServer() {
     const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
-    const allowed = currentApprovals < maxApprovals;
+    const isVelocityCapped = currentApprovals >= maxApprovals;
+    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+    const allowed = !isVelocityCapped && !isSpendCapped;
+
     return {
       allowed,
       count: currentApprovals,
@@ -3186,40 +3402,86 @@ async function startServer() {
       reset_at: resetAt,
       reset_in_seconds: resetInSeconds,
       allowance_exhausted: remainingApprovals === 0,
-      velocity_capped: !allowed
+      velocity_capped: isVelocityCapped,
+      spend_capped: isSpendCapped,
+      current_spend_cents: currentSpendCents,
+      max_spend_cents: maxSpendCents,
+      remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
+      tenant_id: tenantId
     };
   }
 
-  function commitFastPathVelocityApproval(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
+  function commitFastPathVelocityApproval(
+    ticketId: string, 
+    maxApprovals = 5, 
+    windowSeconds = 86400,
+    amountCents = 0,
+    tenantId = "default_tenant",
+    maxSpendCents = 50000
+  ): FastPathVelocityStatus {
     const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
-    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
+    const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [], spend_records: [], total_spend_cents: 0 };
     const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
+    const validSpendRecords = (record.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+    
+    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    let tenantSpendCents = 0;
+    if (tenantId && tenantId !== "default_tenant") {
+      for (const rec of fastPathTicketVelocity.values()) {
+        if (rec.tenant_id === tenantId) {
+          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+        }
+      }
+    }
+    const currentSpendCents = Math.max(
+      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
+      tenantSpendCents
+    );
 
-    if (validTimestamps.length >= maxApprovals) {
-      const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
-      const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
-      const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
-      const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+    const isVelocityCapped = validTimestamps.length >= maxApprovals;
+    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+
+    const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+    const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+
+    if (isVelocityCapped || isSpendCapped) {
       return {
         allowed: false,
         count: validTimestamps.length,
         max_approvals: maxApprovals,
         current_approvals: validTimestamps.length,
-        remaining_approvals: 0,
+        remaining_approvals: Math.max(0, maxApprovals - validTimestamps.length),
         window_seconds: windowSeconds,
         ticket_id: normTicket,
         reset_at: resetAt,
         reset_in_seconds: resetInSeconds,
-        allowance_exhausted: true,
-        velocity_capped: true
+        allowance_exhausted: validTimestamps.length >= maxApprovals,
+        velocity_capped: isVelocityCapped,
+        spend_capped: isSpendCapped,
+        current_spend_cents: currentSpendCents,
+        max_spend_cents: maxSpendCents,
+        remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
+        tenant_id: tenantId
       };
     }
 
     validTimestamps.push(now);
     validTimestamps.sort((a, b) => a - b);
+    if (amountCents > 0) {
+      validSpendRecords.push({ timestamp: now, amount_cents: amountCents, tenant_id: tenantId });
+    }
+    const newTotalSpendCents = currentSpendCents + amountCents;
+
     record.timestamps = validTimestamps;
+    record.spend_records = validSpendRecords;
+    record.total_spend_cents = newTotalSpendCents;
+    record.tenant_id = tenantId;
+
     fastPathTicketVelocity.set(normTicket, record);
     saveDurableVelocity(fastPathTicketVelocity);
 
@@ -3227,7 +3489,10 @@ async function startServer() {
     if (db) {
       db.collection("velocity_caps").doc(normTicket).set({
         ticket_id: normTicket,
+        tenant_id: tenantId,
         timestamps: validTimestamps,
+        spend_records: validSpendRecords,
+        total_spend_cents: newTotalSpendCents,
         last_approval_at: now,
         current_approvals: validTimestamps.length,
         updated_at: new Date().toISOString()
@@ -3238,10 +3503,6 @@ async function startServer() {
 
     const currentApprovals = validTimestamps.length;
     const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
-    const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
-    const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
-    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
-    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
     return {
       allowed: true,
@@ -3254,11 +3515,23 @@ async function startServer() {
       reset_at: resetAt,
       reset_in_seconds: resetInSeconds,
       allowance_exhausted: remainingApprovals === 0,
-      velocity_capped: false
+      velocity_capped: false,
+      spend_capped: false,
+      current_spend_cents: newTotalSpendCents,
+      max_spend_cents: maxSpendCents,
+      remaining_spend_cents: Math.max(0, maxSpendCents - newTotalSpendCents),
+      tenant_id: tenantId
     };
   }
 
-  async function commitFastPathVelocityApprovalAsync(ticketId: string, maxApprovals = 5, windowSeconds = 86400): Promise<FastPathVelocityStatus> {
+  async function commitFastPathVelocityApprovalAsync(
+    ticketId: string, 
+    maxApprovals = 5, 
+    windowSeconds = 86400,
+    amountCents = 0,
+    tenantId = "default_tenant",
+    maxSpendCents = 50000
+  ): Promise<FastPathVelocityStatus> {
     const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
@@ -3269,60 +3542,108 @@ async function startServer() {
         const result = await db.runTransaction(async (transaction: any) => {
           const docSnap = await transaction.get(docRef);
           let timestamps: number[] = [];
+          let spendRecords: SpendRecord[] = [];
           if (docSnap.exists) {
             const data = docSnap.data();
             if (Array.isArray(data?.timestamps)) {
               timestamps = data.timestamps;
             }
+            if (Array.isArray(data?.spend_records)) {
+              spendRecords = data.spend_records;
+            }
           }
 
-          // Merge with any unsynced local memory timestamps
+          // Merge with any unsynced local memory timestamps & spend records
           const localRecord = fastPathTicketVelocity.get(normTicket);
           if (localRecord && Array.isArray(localRecord.timestamps)) {
             timestamps = Array.from(new Set([...timestamps, ...localRecord.timestamps]));
           }
+          if (localRecord && Array.isArray(localRecord.spend_records)) {
+            const combined = [...spendRecords, ...localRecord.spend_records];
+            const seen = new Set<string>();
+            spendRecords = combined.filter(r => {
+              const key = `${r.timestamp}:${r.amount_cents}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          }
 
           const validTimestamps = timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
-          if (validTimestamps.length >= maxApprovals) {
-            const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
-            const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
-            const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
-            const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+          const validSpendRecords = spendRecords.filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+          
+          // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+          let tenantSpendCents = 0;
+          if (tenantId && tenantId !== "default_tenant") {
+            for (const rec of fastPathTicketVelocity.values()) {
+              if (rec.tenant_id === tenantId) {
+                const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+                tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+              }
+            }
+          }
+          const currentSpendCents = Math.max(
+            validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
+            tenantSpendCents
+          );
+
+          const isVelocityCapped = validTimestamps.length >= maxApprovals;
+          const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+
+          const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+          const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+          const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+          const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+
+          if (isVelocityCapped || isSpendCapped) {
             return {
               allowed: false,
               count: validTimestamps.length,
               max_approvals: maxApprovals,
               current_approvals: validTimestamps.length,
-              remaining_approvals: 0,
+              remaining_approvals: Math.max(0, maxApprovals - validTimestamps.length),
               window_seconds: windowSeconds,
               ticket_id: normTicket,
               reset_at: resetAt,
               reset_in_seconds: resetInSeconds,
-              allowance_exhausted: true,
-              velocity_capped: true
+              allowance_exhausted: validTimestamps.length >= maxApprovals,
+              velocity_capped: isVelocityCapped,
+              spend_capped: isSpendCapped,
+              current_spend_cents: currentSpendCents,
+              max_spend_cents: maxSpendCents,
+              remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
+              tenant_id: tenantId
             };
           }
 
           validTimestamps.push(now);
           validTimestamps.sort((a, b) => a - b);
+          if (amountCents > 0) {
+            validSpendRecords.push({ timestamp: now, amount_cents: amountCents, tenant_id: tenantId });
+          }
+          const updatedTotalSpendCents = currentSpendCents + amountCents;
 
           transaction.set(docRef, {
             ticket_id: normTicket,
+            tenant_id: tenantId,
             timestamps: validTimestamps,
+            spend_records: validSpendRecords,
+            total_spend_cents: updatedTotalSpendCents,
             last_approval_at: now,
             current_approvals: validTimestamps.length,
             updated_at: new Date().toISOString()
           }, { merge: true });
 
-          fastPathTicketVelocity.set(normTicket, { timestamps: validTimestamps });
+          fastPathTicketVelocity.set(normTicket, {
+            timestamps: validTimestamps,
+            spend_records: validSpendRecords,
+            total_spend_cents: updatedTotalSpendCents,
+            tenant_id: tenantId
+          });
           saveDurableVelocity(fastPathTicketVelocity);
 
           const currentApprovals = validTimestamps.length;
           const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
-          const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
-          const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
-          const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
-          const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
           return {
             allowed: true,
@@ -3335,7 +3656,12 @@ async function startServer() {
             reset_at: resetAt,
             reset_in_seconds: resetInSeconds,
             allowance_exhausted: remainingApprovals === 0,
-            velocity_capped: false
+            velocity_capped: false,
+            spend_capped: false,
+            current_spend_cents: updatedTotalSpendCents,
+            max_spend_cents: maxSpendCents,
+            remaining_spend_cents: Math.max(0, maxSpendCents - updatedTotalSpendCents),
+            tenant_id: tenantId
           };
         });
 
@@ -3345,7 +3671,7 @@ async function startServer() {
       }
     }
 
-    return commitFastPathVelocityApproval(normTicket, maxApprovals, windowSeconds);
+    return commitFastPathVelocityApproval(normTicket, maxApprovals, windowSeconds, amountCents, tenantId, maxSpendCents);
   }
 
   // Velocity Inspection & Test Pacing Endpoints
@@ -3368,7 +3694,12 @@ async function startServer() {
         reset_at: check.reset_at,
         reset_in_seconds: check.reset_in_seconds,
         allowance_exhausted: check.remaining_approvals === 0,
-        velocity_capped: !check.allowed
+        velocity_capped: check.velocity_capped,
+        spend_capped: check.spend_capped,
+        current_spend_cents: check.current_spend_cents,
+        max_spend_cents: check.max_spend_cents,
+        remaining_spend_cents: check.remaining_spend_cents,
+        tenant_id: check.tenant_id
       });
     }
 
@@ -3387,14 +3718,19 @@ async function startServer() {
         reset_at: check.reset_at,
         reset_in_seconds: check.reset_in_seconds,
         allowance_exhausted: check.remaining_approvals === 0,
-        velocity_capped: !check.allowed
+        velocity_capped: check.velocity_capped,
+        spend_capped: check.spend_capped,
+        current_spend_cents: check.current_spend_cents,
+        max_spend_cents: check.max_spend_cents,
+        remaining_spend_cents: check.remaining_spend_cents
       };
     }
 
     return res.json({
       policy: {
         max_approvals_per_ticket: maxApprovals,
-        window_seconds: windowSeconds
+        window_seconds: windowSeconds,
+        tenant_spend_caps: policy.tenant_spend_caps
       },
       tracked_tickets_count: fastPathTicketVelocity.size,
       tickets: trackedTickets
@@ -3533,6 +3869,149 @@ async function startServer() {
       error: "Bad Request", 
       error_code: "MISSING_RESET_TARGET", 
       message: "Missing required 'ticket' string or 'all: true' in request body." 
+    });
+  });
+
+  // Dispatcher Shim: Execution Binding, Operation-Hash Verification, Expiry, Idempotency
+  app.post(["/api/v1/dispatch", "/api/dispatch", "/api/v1/execute"], express.json(), async (req, res) => {
+    const { receipt_id, agent_action, operation_hash, idempotency_key, execution_payload } = req.body || {};
+
+    if (!receipt_id) {
+      return res.status(400).json({
+        error: "MISSING_RECEIPT_ID",
+        message: "A valid approved receipt_id is required for execution dispatch."
+      });
+    }
+
+    const binding = await getDispatcherBinding(receipt_id);
+    if (!binding) {
+      return res.status(404).json({
+        error: "EXECUTION_BINDING_NOT_FOUND",
+        message: `No execution binding found for receipt ID '${receipt_id}'. Only approved actions produce dispatchable receipts.`
+      });
+    }
+
+    if (binding.verdict !== "APPROVED") {
+      return res.status(403).json({
+        error: "EXECUTION_BINDING_VERDICT_NOT_APPROVED",
+        message: `Execution dispatch prohibited. Receipt '${receipt_id}' has verdict '${binding.verdict}'.`
+      });
+    }
+
+    // 1. Operation-Hash Verification
+    let computedHash = "";
+    if (agent_action) {
+      computedHash = crypto.createHash("sha256").update(String(agent_action).trim()).digest("hex");
+    } else if (operation_hash) {
+      computedHash = String(operation_hash).trim();
+    } else {
+      return res.status(400).json({
+        error: "MISSING_OPERATION_PAYLOAD",
+        message: "Either agent_action or operation_hash must be supplied to verify execution binding."
+      });
+    }
+
+    if (computedHash !== binding.operation_hash) {
+      return res.status(422).json({
+        error: "OPERATION_HASH_MISMATCH",
+        message: "Execution rejected: operation hash does not match the approved receipt binding. The requested action differs from the consensus-approved action.",
+        expected_operation_hash: binding.operation_hash,
+        received_operation_hash: computedHash
+      });
+    }
+
+    // 2. Expiry Check (300s TTL)
+    const now = Date.now();
+    if (now > binding.expires_at_ms) {
+      binding.status = "EXPIRED";
+      await registerDispatcherBinding(binding);
+      return res.status(410).json({
+        error: "EXECUTION_RECEIPT_EXPIRED",
+        message: "Execution rejected: the 300-second execution window for this receipt has expired.",
+        issued_at: binding.issued_at,
+        expires_at: binding.expires_at,
+        current_time: new Date(now).toISOString()
+      });
+    }
+
+    // 3. Idempotency Check (Single-use execution binding)
+    const callerIdemKey = idempotency_key || null;
+    if (binding.executed) {
+      if (callerIdemKey && callerIdemKey === binding.idempotency_key) {
+        return res.status(200).json({
+          dispatch_status: "EXECUTED",
+          idempotent_replay: true,
+          execution_id: binding.execution_id,
+          receipt_id: binding.receipt_id,
+          operation_hash: binding.operation_hash,
+          operation_hash_verified: true,
+          issued_at: binding.issued_at,
+          expires_at: binding.expires_at,
+          executed_at: binding.executed_at,
+          message: "Idempotent replay: execution already completed under this idempotency key."
+        });
+      }
+
+      return res.status(409).json({
+        error: "IDEMPOTENCY_VIOLATION_ALREADY_EXECUTED",
+        message: "Execution rejected: this receipt has already been executed. Single-use execution binding prevents duplicate execution.",
+        execution_id: binding.execution_id,
+        executed_at: binding.executed_at
+      });
+    }
+
+    // 4. Mark executed atomically
+    const executionId = "exec_" + crypto.randomBytes(8).toString("hex");
+    const executedAt = new Date(now).toISOString();
+    binding.executed = true;
+    binding.status = "EXECUTED";
+    binding.execution_id = executionId;
+    binding.executed_at = executedAt;
+    if (callerIdemKey) {
+      binding.idempotency_key = callerIdemKey;
+    }
+
+    await registerDispatcherBinding(binding);
+
+    return res.status(200).json({
+      dispatch_status: "EXECUTED",
+      execution_id: executionId,
+      receipt_id: binding.receipt_id,
+      operation_hash_verified: true,
+      operation_hash: binding.operation_hash,
+      issued_at: binding.issued_at,
+      expires_at: binding.expires_at,
+      executed_at: executedAt,
+      idempotent_replay: false,
+      execution_binding: {
+        enforced: true,
+        operation_hash_verified: true,
+        ttl_seconds: binding.ttl_seconds,
+        idempotency_enforced: true,
+        shim_version: "1.0"
+      },
+      message: "Dispatcher Shim successfully verified operation hash, TTL window, and single-use idempotency. Action bound and dispatched to execution boundary."
+    });
+  });
+
+  app.get(["/api/v1/dispatch/:receipt_id", "/api/dispatch/:receipt_id"], async (req, res) => {
+    const receiptId = req.params.receipt_id;
+    const binding = await getDispatcherBinding(receiptId);
+    if (!binding) {
+      return res.status(404).json({ error: "EXECUTION_BINDING_NOT_FOUND" });
+    }
+    return res.json({
+      receipt_id: binding.receipt_id,
+      operation_hash: binding.operation_hash,
+      verdict: binding.verdict,
+      status: binding.status,
+      issued_at: binding.issued_at,
+      expires_at: binding.expires_at,
+      ttl_seconds: binding.ttl_seconds,
+      executed: binding.executed,
+      executed_at: binding.executed_at || null,
+      execution_id: binding.execution_id || null,
+      expired: Date.now() > binding.expires_at_ms
     });
   });
 
@@ -3786,11 +4265,11 @@ async function startServer() {
     }
 
     let counterpartyVerified = false;
-    let counterpartyBasis: "grounded" | "client_attested" | "unverified" | "missing" = "missing";
+    let counterpartyBasis: "catalog_verified" | "grounded" | "client_attested" | "unverified" | "missing" = "missing";
 
     if (isCounterpartyAllowlisted) {
       counterpartyVerified = true;
-      counterpartyBasis = "grounded"; // Verified against policy allowlist owned by the gateway
+      counterpartyBasis = "catalog_verified"; // Server-side match against gateway catalog
     } else if (hasUnapprovedVendorIndicator) {
       counterpartyVerified = false;
       counterpartyBasis = "unverified";
@@ -4278,7 +4757,17 @@ async function startServer() {
 
     const ticketMatch = text.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i);
     const ticketId = normalizeTicketId(contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED");
-    let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
+    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
+    const tenantId = String(contextInput?.tenant_id || contextInput?.tenant || "default_tenant").trim();
+    const maxSpendCents = policyConfig.tenant_spend_caps?.max_spend_per_tenant_window_cents || policyConfig.tenant_spend_caps?.default_spend_cap_cents || 50000;
+    let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(
+      ticketId, 
+      policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, 
+      policyConfig.fast_path_velocity_caps.window_seconds,
+      amountCents,
+      tenantId,
+      maxSpendCents
+    );
 
     const isMicroExpenseFastPath = 
       kernelOutcome.disposition === "FAST_ELIGIBLE" &&
@@ -4677,7 +5166,10 @@ async function startServer() {
         velocityCheck = commitFastPathVelocityApproval(
           ticketId,
           policyConfig.fast_path_velocity_caps.max_approvals_per_ticket,
-          policyConfig.fast_path_velocity_caps.window_seconds
+          policyConfig.fast_path_velocity_caps.window_seconds,
+          amountCents,
+          tenantId,
+          maxSpendCents
         );
       }
 
@@ -5031,13 +5523,22 @@ async function startServer() {
         human_review_required = true;
         approval_blocked = true;
         finality = "NON_FINAL_ADVISORY";
-        reason_codes = [
-          "FAST_PATH_VELOCITY_CAP_EXCEEDED",
-          "RATE_LIMIT_POLICY_THRESHOLD",
-          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
-        ];
-        const resetNotice = velocityCheck.reset_at ? ` Window resets at ${velocityCheck.reset_at} (in ${velocityCheck.reset_in_seconds}s).` : "";
-        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}.${resetNotice} Automated fast-path bypassed; human consensus review required.`;
+        if (velocityCheck.spend_capped) {
+          reason_codes = [
+            "TENANT_SPEND_CAP_EXCEEDED",
+            "FINOPS_BUDGET_THRESHOLD_BREACHED",
+            "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+          ];
+          decision_explanation = `FLAGGED FOR HUMAN REVIEW: Tenant fast-path spend cap ($${(maxSpendCents / 100).toFixed(2)}) exceeded for tenant '${tenantId}' (accumulated spend: $${((velocityCheck.current_spend_cents || 0) / 100).toFixed(2)}, requested: $${(amountCents / 100).toFixed(2)}). Automated fast-path bypassed; human consensus review required.`;
+        } else {
+          reason_codes = [
+            "FAST_PATH_VELOCITY_CAP_EXCEEDED",
+            "RATE_LIMIT_POLICY_THRESHOLD",
+            "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+          ];
+          const resetNotice = velocityCheck.reset_at ? ` Window resets at ${velocityCheck.reset_at} (in ${velocityCheck.reset_in_seconds}s).` : "";
+          decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}.${resetNotice} Automated fast-path bypassed; human consensus review required.`;
+        }
         verdict_summary = decision_explanation;
       } else if (isFinancialOrProcurement && !contextOutcome.isCounterpartyAllowlisted) {
         verdict = "FLAGGED_HUMAN_REVIEW";
@@ -5313,13 +5814,18 @@ async function startServer() {
       ...(isMicroExpenseFastPath ? { fast_path_rule_id: "micro_expense_fast_path" } : {}),
       fast_path_velocity: {
         ticket_id: velocityCheck.ticket_id,
+        tenant_id: velocityCheck.tenant_id,
         max_approvals: velocityCheck.max_approvals,
         current_approvals: velocityCheck.current_approvals,
         remaining_fast_path_approvals: velocityCheck.remaining_approvals,
         window_seconds: velocityCheck.window_seconds,
         reset_at: velocityCheck.reset_at,
         reset_in_seconds: velocityCheck.reset_in_seconds,
-        velocity_capped: !isMicroExpenseFastPath && !velocityCheck.allowed,
+        velocity_capped: !isMicroExpenseFastPath && Boolean(velocityCheck.velocity_capped),
+        spend_capped: Boolean(velocityCheck.spend_capped),
+        current_spend_cents: velocityCheck.current_spend_cents,
+        max_spend_cents: velocityCheck.max_spend_cents,
+        remaining_spend_cents: velocityCheck.remaining_spend_cents,
         allowance_exhausted: velocityCheck.remaining_approvals === 0
       },
       remaining_fast_path_approvals: velocityCheck.remaining_approvals,
@@ -5537,10 +6043,18 @@ async function startServer() {
 
     // Synchronize distributed velocity journal from Firestore to avoid Cloud Run multi-instance split-brain
     const finopsPolicy = loadFinopsPolicy();
+    const detectedAmountUsd = extractAmountUsd(String(agent_action), context);
+    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
+    const tenantId = String(context?.tenant_id || context?.tenant || "default_tenant").trim();
+    const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_tenant_window_cents || finopsPolicy.tenant_spend_caps?.default_spend_cap_cents || 50000;
+
     const liveVelocityCheck = await checkFastPathVelocityAsync(
       candidateTicketId,
       finopsPolicy.fast_path_velocity_caps.max_approvals_per_ticket,
-      finopsPolicy.fast_path_velocity_caps.window_seconds
+      finopsPolicy.fast_path_velocity_caps.window_seconds,
+      amountCents,
+      tenantId,
+      maxSpendCents
     );
 
     // Substantive Deterministic Safety & Risk Evaluation (using combined reasoning, context, and distributed velocity)
@@ -5575,18 +6089,26 @@ async function startServer() {
       const committedVelocity = await commitFastPathVelocityApprovalAsync(
         candidateTicketId,
         finopsPolicy.fast_path_velocity_caps.max_approvals_per_ticket,
-        finopsPolicy.fast_path_velocity_caps.window_seconds
+        finopsPolicy.fast_path_velocity_caps.window_seconds,
+        amountCents,
+        tenantId,
+        maxSpendCents
       );
 
       evalResult.fast_path_velocity = {
         ticket_id: committedVelocity.ticket_id,
+        tenant_id: committedVelocity.tenant_id,
         max_approvals: committedVelocity.max_approvals,
         current_approvals: committedVelocity.current_approvals,
         remaining_fast_path_approvals: committedVelocity.remaining_approvals,
         window_seconds: committedVelocity.window_seconds,
         reset_at: committedVelocity.reset_at,
         reset_in_seconds: committedVelocity.reset_in_seconds,
-        velocity_capped: !committedVelocity.allowed,
+        velocity_capped: Boolean(committedVelocity.velocity_capped),
+        spend_capped: Boolean(committedVelocity.spend_capped),
+        current_spend_cents: committedVelocity.current_spend_cents,
+        max_spend_cents: committedVelocity.max_spend_cents,
+        remaining_spend_cents: committedVelocity.remaining_spend_cents,
         allowance_exhausted: committedVelocity.remaining_approvals === 0
       };
       evalResult.remaining_fast_path_approvals = committedVelocity.remaining_approvals;
@@ -5988,6 +6510,27 @@ async function startServer() {
       recordVolatileWrite(requestId);
     }
 
+    const bindingExpiresAtMs = Date.now() + 300 * 1000;
+    const executionBinding: DispatcherExecutionBinding = {
+      receipt_id: requestId,
+      operation_hash: normalizedActionHash,
+      action_preview: String(agent_action || "").substring(0, 100),
+      verdict: finalVerdict,
+      issued_at: attestationTimestamp,
+      issued_at_ms: Date.now(),
+      expires_at: new Date(bindingExpiresAtMs).toISOString(),
+      expires_at_ms: bindingExpiresAtMs,
+      ttl_seconds: 300,
+      idempotency_key: idempotency_key || `idem_${requestId}`,
+      status: "PENDING_EXECUTION",
+      executed: false,
+      executed_at: null,
+      execution_id: null
+    };
+    if (finalVerdict === "APPROVED") {
+      registerDispatcherBinding(executionBinding);
+    }
+
     // Build the Versioned Multi-Dimensional Decision Object Contract
     const responsePayload = {
       verification_schema_version: 3,
@@ -5998,6 +6541,16 @@ async function startServer() {
       status: finalStatus,
       verified: finalVerified,
       action_eligible: finalActionEligible,
+      execution_binding: {
+        enforced: true,
+        dispatch_shim_version: "1.0",
+        operation_hash: normalizedActionHash,
+        issued_at: attestationTimestamp,
+        expires_at: new Date(bindingExpiresAtMs).toISOString(),
+        ttl_seconds: 300,
+        idempotency_key: idempotency_key || `idem_${requestId}`,
+        status: finalVerdict === "APPROVED" ? "PENDING_EXECUTION" : "NOT_APPROVED"
+      },
       policy_status: finalPolicyStatus,
       evidence_status: finalEvidenceStatus,
       quorum_status: evalResult.quorum_status,
