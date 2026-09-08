@@ -5465,8 +5465,11 @@ function NestedAgentLibraryUnused() { return null; }
               Choose reviewer roles and the LLM behind each perspective, inspect disagreement and evidence, and—if you are building an agent—extend the same review through API or MCP before a consequential action.
             </p>
 
-            <p className="text-sm sm:text-base text-gray-500 font-medium mb-8 sm:mb-10 leading-relaxed max-w-2xl">
-              EthersFlow is a verification layer for agentic systems.
+            <p className="text-sm sm:text-base text-gray-500 font-medium mb-2 leading-relaxed max-w-2xl">
+              EthersFlow verifies and gates AI agent purchase actions at the execution boundary, enforces bounded FinOps policies, and produces versioned signed decision receipts.*
+            </p>
+            <p className="text-xs text-gray-400 font-normal mb-8 sm:mb-10 leading-relaxed max-w-2xl">
+              * Execution binding enforced via EthersFlow Dispatcher Shim (operation-hash validation, 300s TTL expiry, and single-use idempotency journal). Live as of 2026-09-08.
             </p>
 
             {/* Primary and Secondary Hero CTAs */}

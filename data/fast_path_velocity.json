@@ -2,15 +2,22 @@
   "FAC-PROXY-1788847451937": {
     "timestamps": [
       1788847451950
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-102": {
-    "timestamps": []
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
   },
   "FAC-ANCHOR-1788847453942": {
     "timestamps": [
       1788847453945
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788847453947": {
     "timestamps": [
@@ -19,40 +26,57 @@
       1788847453964,
       1788847453969,
       1788847453973
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788847454283": {
     "timestamps": [
       1788847454286
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788847454289": {
     "timestamps": [
       1788847454291
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788847454294": {
     "timestamps": [
       1788847454296
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788847454304": {
     "timestamps": [
       1788847454306
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "UNTICKETED": {
-    "timestamps": []
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
   },
   "FAC-PROXY-1788849729034": {
     "timestamps": [
       1788849729048
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788849731014": {
     "timestamps": [
       1788849731017
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788849731019": {
     "timestamps": [
@@ -61,40 +85,56 @@
       1788849731029,
       1788849731033,
       1788849731037
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788849731318": {
     "timestamps": [
       1788849731320
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788849731323": {
     "timestamps": [
       1788849731325
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788849731328": {
     "timestamps": [
       1788849731330
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788849731337": {
     "timestamps": [
       1788849731339
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-999": {
-    "timestamps": []
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-PROXY-1788856178393": {
     "timestamps": [
       1788856178397
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788856179149": {
     "timestamps": [
       1788856179151
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788856179154": {
     "timestamps": [
@@ -103,32 +143,44 @@
       1788856179164,
       1788856179169,
       1788856179174
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788856179432": {
     "timestamps": [
       1788856179434
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788856179436": {
     "timestamps": [
       1788856179438
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788856179440": {
     "timestamps": [
       1788856179442
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788856179450": {
     "timestamps": [
       1788856179452
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788891761155": {
     "timestamps": [
       1788891761163
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788891761168": {
     "timestamps": [
@@ -137,30 +189,42 @@
       1788891761180,
       1788891761186,
       1788891761192
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788891761489": {
     "timestamps": [
       1788891761491
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788891761494": {
     "timestamps": [
       1788891761496
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788891761499": {
     "timestamps": [
       1788891761501
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788891761511": {
-    "timestamps": []
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788891820540": {
     "timestamps": [
       1788891820545
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788891820550": {
     "timestamps": [
@@ -169,32 +233,44 @@
       1788891820572,
       1788891820579,
       1788891820585
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788891820891": {
     "timestamps": [
       1788891820894
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788891820897": {
     "timestamps": [
       1788891820899
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788891820903": {
     "timestamps": [
       1788891820905
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788891820916": {
     "timestamps": [
       1788891820919
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788891924394": {
     "timestamps": [
       1788891924396
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788891924399": {
     "timestamps": [
@@ -203,32 +279,44 @@
       1788891924411,
       1788891924416,
       1788891924421
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788891924666": {
     "timestamps": [
       1788891924668
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788891924670": {
     "timestamps": [
       1788891924672
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788891924675": {
     "timestamps": [
       1788891924676
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788891924687": {
     "timestamps": [
       1788891924689
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-ANCHOR-1788891976053": {
     "timestamps": [
       1788891976057
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-VELOCITY-1788891976062": {
     "timestamps": [
@@ -237,41 +325,1092 @@
       1788891976075,
       1788891976079,
       1788891976086
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-NATURAL-1788891976346": {
     "timestamps": [
       1788891976349
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-EXPLICIT-1788891976354": {
     "timestamps": [
       1788891976356
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-STRUCT-1788891976359": {
     "timestamps": [
       1788891976361
-    ]
-  },
-  "FAC-101": {
-    "timestamps": [
-      1788891976368
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
   },
   "FAC-RICH-1788891976372": {
     "timestamps": [
       1788891976374
-    ]
+    ],
+    "spend_records": [],
+    "total_spend_cents": 0
+  },
+  "PO-8841": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-ANCHOR-1788894715939": {
+    "timestamps": [
+      1788894715942
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894715942,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-VELOCITY-1788894715947": {
+    "timestamps": [
+      1788894715949,
+      1788894715956,
+      1788894715964,
+      1788894715971,
+      1788894715978
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894715949,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788894715956,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788894715964,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788894715971,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788894715978,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 17500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-NATURAL-1788894716280": {
+    "timestamps": [
+      1788894716283
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894716283,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXPLICIT-1788894716288": {
+    "timestamps": [
+      1788894716290
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894716290,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-STRUCT-1788894716293": {
+    "timestamps": [
+      1788894716295
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894716295,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-RICH-1788894716306": {
+    "timestamps": [
+      1788894716308
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894716308,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-SPEND-1": {
+    "timestamps": [
+      1788894728667
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894728667,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_test_1788894728658"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_test_1788894728658"
+  },
+  "FAC-SPEND-2": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "tenant_test_1788894728658"
+  },
+  "FAC-SPEND-3": {
+    "timestamps": [
+      1788894730659
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894730659,
+        "amount_cents": 2000,
+        "tenant_id": "tenant_test_1788894728658"
+      }
+    ],
+    "total_spend_cents": 2000,
+    "tenant_id": "tenant_test_1788894728658"
+  },
+  "FAC-T1": {
+    "timestamps": [
+      1788894734811,
+      1788894875286,
+      1788894925667
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734811,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875286,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      },
+      {
+        "timestamp": 1788894925667,
+        "amount_cents": 4000,
+        "tenant_id": "test_tenant_debug"
+      }
+    ],
+    "total_spend_cents": 12000,
+    "tenant_id": "test_tenant_debug"
+  },
+  "FAC-T2": {
+    "timestamps": [
+      1788894734822,
+      1788894875310
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734822,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875310,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      }
+    ],
+    "total_spend_cents": 16000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T3": {
+    "timestamps": [
+      1788894734829,
+      1788894875319
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734829,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875319,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      }
+    ],
+    "total_spend_cents": 24000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T4": {
+    "timestamps": [
+      1788894734834,
+      1788894875325
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734834,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875325,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      }
+    ],
+    "total_spend_cents": 32000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T5": {
+    "timestamps": [
+      1788894734846,
+      1788894875331
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734846,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875331,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      }
+    ],
+    "total_spend_cents": 40000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T6": {
+    "timestamps": [
+      1788894734853,
+      1788894875342
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734853,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      },
+      {
+        "timestamp": 1788894875342,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894875241"
+      }
+    ],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T7": {
+    "timestamps": [
+      1788894734858
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734858,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_series_1788894875241"
+  },
+  "FAC-T8": {
+    "timestamps": [
+      1788894734864
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734864,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T9": {
+    "timestamps": [
+      1788894734871
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734871,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T10": {
+    "timestamps": [
+      1788894734880
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734880,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T11": {
+    "timestamps": [
+      1788894734887
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734887,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T12": {
+    "timestamps": [
+      1788894734894
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734894,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T13": {
+    "timestamps": [
+      1788894734899
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734899,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T14": {
+    "timestamps": [
+      1788894734904
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734904,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-T15": {
+    "timestamps": [
+      1788894734908
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894734908,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_series_1788894734802"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_series_1788894734802"
+  },
+  "FAC-NEW-1788894930456": {
+    "timestamps": [
+      1788894930470
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894930470,
+        "amount_cents": 4000,
+        "tenant_id": "test_tenant_fresh_1788894930456"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "test_tenant_fresh_1788894930456"
+  },
+  "FAC-EXACT-1788894934666-1": {
+    "timestamps": [
+      1788894934677
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934677,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934686-2": {
+    "timestamps": [
+      1788894934689
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934689,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 8000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934693-3": {
+    "timestamps": [
+      1788894934695
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934695,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 12000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934700-4": {
+    "timestamps": [
+      1788894934702
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934702,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 16000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934706-5": {
+    "timestamps": [
+      1788894934708
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934708,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 20000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934712-6": {
+    "timestamps": [
+      1788894934714
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934714,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 24000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934717-7": {
+    "timestamps": [
+      1788894934719
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934719,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 28000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934723-8": {
+    "timestamps": [
+      1788894934725
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934725,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 32000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934729-9": {
+    "timestamps": [
+      1788894934731
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934731,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 36000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934735-10": {
+    "timestamps": [
+      1788894934737
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934737,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 40000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934741-11": {
+    "timestamps": [
+      1788894934743
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934743,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 44000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934746-12": {
+    "timestamps": [
+      1788894934748
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788894934748,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788894934666"
+      }
+    ],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-EXACT-1788894934752-13": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_exact_1788894934666"
+  },
+  "FAC-ANCHOR-1788894946804": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-VELOCITY-1788894947054": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-NATURAL-1788894948691": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXPLICIT-1788894948992": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-STRUCT-1788894949281": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-RICH-1788894949579": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 47000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-ANCHOR-1788895033439": {
+    "timestamps": [
+      1788895033447
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033447,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-VELOCITY-1788895033452": {
+    "timestamps": [
+      1788895033455,
+      1788895033460,
+      1788895033466,
+      1788895033472,
+      1788895033479
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033455,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895033460,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895033466,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895033472,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895033479,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 17500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-NATURAL-1788895033703": {
+    "timestamps": [
+      1788895033706
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033706,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXPLICIT-1788895033710": {
+    "timestamps": [
+      1788895033712
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033712,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-STRUCT-1788895033715": {
+    "timestamps": [
+      1788895033717
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033717,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-RICH-1788895033734": {
+    "timestamps": [
+      1788895033736
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895033736,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXACT-1788895042868-1": {
+    "timestamps": [
+      1788895042877
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042877,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 4000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042886-2": {
+    "timestamps": [
+      1788895042891
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042891,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 8000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042896-3": {
+    "timestamps": [
+      1788895042899
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042899,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 12000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042902-4": {
+    "timestamps": [
+      1788895042904
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042904,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 16000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042907-5": {
+    "timestamps": [
+      1788895042909
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042909,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 20000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042912-6": {
+    "timestamps": [
+      1788895042914
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042914,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 24000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042925-7": {
+    "timestamps": [
+      1788895042927
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042927,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 28000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042930-8": {
+    "timestamps": [
+      1788895042932
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042932,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 32000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042935-9": {
+    "timestamps": [
+      1788895042937
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042937,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 36000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042941-10": {
+    "timestamps": [
+      1788895042943
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042943,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 40000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042947-11": {
+    "timestamps": [
+      1788895042949
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042949,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 44000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042953-12": {
+    "timestamps": [
+      1788895042955
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895042955,
+        "amount_cents": 4000,
+        "tenant_id": "tenant_exact_1788895042868"
+      }
+    ],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-EXACT-1788895042958-13": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 48000,
+    "tenant_id": "tenant_exact_1788895042868"
+  },
+  "FAC-ANCHOR-1788895161590": {
+    "timestamps": [
+      1788895161593
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161593,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-VELOCITY-1788895161597": {
+    "timestamps": [
+      1788895161600,
+      1788895161606,
+      1788895161619,
+      1788895161625,
+      1788895161635
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161600,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895161606,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895161619,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895161625,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1788895161635,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 17500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-NATURAL-1788895161838": {
+    "timestamps": [
+      1788895161841
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161841,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXPLICIT-1788895161844": {
+    "timestamps": [
+      1788895161847
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161847,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-STRUCT-1788895161851": {
+    "timestamps": [
+      1788895161853
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161853,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-101": {
+    "timestamps": [
+      1788895161862
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161862,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-RICH-1788895161865": {
+    "timestamps": [
+      1788895161867
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895161867,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
   },
   "FAC-HARNESS-101": {
     "timestamps": [
-      1788891976831
-    ]
+      1788895162299
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895162299,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
   },
   "FAC-HARNESS-205": {
     "timestamps": [
-      1788891976832
-    ]
+      1788895162299
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1788895162299,
+        "amount_cents": 3250,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 3250,
+    "tenant_id": "default_tenant"
   }
 }

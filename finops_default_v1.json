@@ -28,6 +28,11 @@
     "max_approvals_per_ticket": 5,
     "window_seconds": 86400
   },
+  "tenant_spend_caps": {
+    "max_spend_per_ticket_cents": 50000,
+    "max_spend_per_tenant_window_cents": 250000,
+    "window_seconds": 86400
+  },
   "rules": [
     {
       "id": "micro_expense_fast_path",
