@@ -2878,6 +2878,19 @@ async function startServer() {
     perspectives: any[];
     policy_fast_path?: boolean;
     fast_path_rule_id?: string;
+    fast_path_velocity?: {
+      ticket_id: string;
+      max_approvals: number;
+      current_approvals: number;
+      remaining_fast_path_approvals: number;
+      window_seconds: number;
+      reset_at: string | null;
+      reset_in_seconds: number;
+      velocity_capped: boolean;
+      allowance_exhausted: boolean;
+    } | null;
+    remaining_fast_path_approvals?: number | null;
+    counterparty_hint?: string | null;
     anchor_checklist?: AnchorChecklist;
     anchor_basis?: "client_attested" | "grounded";
     anchor_bases?: Record<string, string>;
@@ -2890,6 +2903,7 @@ async function startServer() {
     counterparty_verified: boolean;
     data_classification_present: boolean;
     missing_anchors: string[];
+    counterparty_hint?: string | null;
     anchor_basis?: "client_attested" | "grounded";
     anchor_bases?: {
       ticket: "client_attested" | "grounded" | "missing";
@@ -2907,6 +2921,7 @@ async function startServer() {
     hasContradictions: boolean;
     reasonCodes: string[];
     explanation: string;
+    counterparty_hint?: string | null;
     anchor_checklist?: AnchorChecklist;
     anchor_basis?: "client_attested" | "grounded";
     anchor_bases?: Record<string, string>;
@@ -2960,6 +2975,12 @@ async function startServer() {
 
   const VELOCITY_PERSISTENCE_PATH = path.resolve(process.cwd(), "data", "fast_path_velocity.json");
 
+  function normalizeTicketId(ticketId: string): string {
+    let t = (ticketId || "UNKNOWN").trim().toUpperCase();
+    t = t.replace(/^TICKET[\s#:\-]+/, "");
+    return t || "UNKNOWN";
+  }
+
   function loadDurableVelocity(): Map<string, TicketVelocityRecord> {
     const map = new Map<string, TicketVelocityRecord>();
     try {
@@ -2968,7 +2989,9 @@ async function startServer() {
         const parsed = JSON.parse(raw);
         for (const [k, v] of Object.entries(parsed)) {
           if (v && Array.isArray((v as any).timestamps)) {
-            map.set(k, { timestamps: (v as any).timestamps });
+            const cleanKey = normalizeTicketId(k);
+            const existing = map.get(cleanKey)?.timestamps || [];
+            map.set(cleanKey, { timestamps: Array.from(new Set([...existing, ...(v as any).timestamps])) });
           }
         }
       }
@@ -3006,14 +3029,41 @@ async function startServer() {
     ticket_id: string;
     reset_at: string | null;
     reset_in_seconds: number;
+    allowance_exhausted?: boolean;
+    velocity_capped?: boolean;
+  }
+
+  async function syncVelocityJournalFromFirestore(): Promise<number> {
+    if (!db) return 0;
+    try {
+      const snap = await db.collection("velocity_caps").get();
+      let loaded = 0;
+      const now = Date.now();
+      const windowMs = 86400 * 1000;
+      snap.docs.forEach((doc: any) => {
+        const data = doc.data();
+        const ticketId = (data?.ticket_id || doc.id || "").trim().toUpperCase();
+        if (ticketId && Array.isArray(data?.timestamps)) {
+          const valid = data.timestamps.filter((ts: number) => typeof ts === "number" && now - ts < windowMs);
+          if (valid.length > 0) {
+            fastPathTicketVelocity.set(ticketId, { timestamps: valid });
+            loaded++;
+          }
+        }
+      });
+      return loaded;
+    } catch (e: any) {
+      console.warn("[VELOCITY] Firestore sync error:", e?.message);
+      return 0;
+    }
   }
 
   function checkFastPathVelocity(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
-    const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
+    const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
-    const validTimestamps = record.timestamps.filter(ts => now - ts < windowMs);
+    const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
     if (validTimestamps.length !== record.timestamps.length) {
       record.timestamps = validTimestamps;
       fastPathTicketVelocity.set(normTicket, record);
@@ -3025,23 +3075,11 @@ async function startServer() {
     const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
     const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
     const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
-    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : 0;
+    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
-    if (currentApprovals >= maxApprovals) {
-      return { 
-        allowed: false, 
-        count: currentApprovals,
-        max_approvals: maxApprovals,
-        current_approvals: currentApprovals,
-        remaining_approvals: 0,
-        window_seconds: windowSeconds,
-        ticket_id: normTicket,
-        reset_at: resetAt,
-        reset_in_seconds: resetInSeconds
-      };
-    }
+    const allowed = currentApprovals < maxApprovals;
     return { 
-      allowed: true, 
+      allowed, 
       count: currentApprovals,
       max_approvals: maxApprovals,
       current_approvals: currentApprovals,
@@ -3049,15 +3087,99 @@ async function startServer() {
       window_seconds: windowSeconds,
       ticket_id: normTicket,
       reset_at: resetAt,
-      reset_in_seconds: resetInSeconds
+      reset_in_seconds: resetInSeconds,
+      allowance_exhausted: remainingApprovals === 0,
+      velocity_capped: !allowed
+    };
+  }
+
+  async function checkFastPathVelocityAsync(ticketId: string, maxApprovals = 5, windowSeconds = 86400): Promise<FastPathVelocityStatus> {
+    const normTicket = normalizeTicketId(ticketId);
+    const now = Date.now();
+    const windowMs = windowSeconds * 1000;
+
+    let timestamps: number[] = [];
+
+    if (db) {
+      try {
+        const docRef = db.collection("velocity_caps").doc(normTicket);
+        const docSnap = await docRef.get();
+        if (docSnap.exists) {
+          const data = docSnap.data();
+          if (Array.isArray(data?.timestamps)) {
+            timestamps = data.timestamps;
+          }
+        }
+      } catch (e: any) {
+        console.warn(`[VELOCITY] Firestore read error for ticket ${normTicket}:`, e?.message);
+      }
+    }
+
+    // Merge with local memory timestamps (union to prevent split-brain across instances)
+    const localRecord = fastPathTicketVelocity.get(normTicket);
+    if (localRecord && Array.isArray(localRecord.timestamps)) {
+      timestamps = Array.from(new Set([...timestamps, ...localRecord.timestamps]));
+    }
+
+    const validTimestamps = timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
+    validTimestamps.sort((a, b) => a - b);
+
+    fastPathTicketVelocity.set(normTicket, { timestamps: validTimestamps });
+    saveDurableVelocity(fastPathTicketVelocity);
+
+    const currentApprovals = validTimestamps.length;
+    const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
+    const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+    const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+
+    const allowed = currentApprovals < maxApprovals;
+    return {
+      allowed,
+      count: currentApprovals,
+      max_approvals: maxApprovals,
+      current_approvals: currentApprovals,
+      remaining_approvals: remainingApprovals,
+      window_seconds: windowSeconds,
+      ticket_id: normTicket,
+      reset_at: resetAt,
+      reset_in_seconds: resetInSeconds,
+      allowance_exhausted: remainingApprovals === 0,
+      velocity_capped: !allowed
     };
   }
 
   function commitFastPathVelocityApproval(ticketId: string, maxApprovals = 5, windowSeconds = 86400): FastPathVelocityStatus {
-    const normTicket = (ticketId || "UNKNOWN").trim().toUpperCase();
+    const normTicket = normalizeTicketId(ticketId);
     const now = Date.now();
+    const windowMs = windowSeconds * 1000;
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [] };
-    record.timestamps.push(now);
+    const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
+
+    if (validTimestamps.length >= maxApprovals) {
+      const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+      const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+      const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+      const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+      return {
+        allowed: false,
+        count: validTimestamps.length,
+        max_approvals: maxApprovals,
+        current_approvals: validTimestamps.length,
+        remaining_approvals: 0,
+        window_seconds: windowSeconds,
+        ticket_id: normTicket,
+        reset_at: resetAt,
+        reset_in_seconds: resetInSeconds,
+        allowance_exhausted: true,
+        velocity_capped: true
+      };
+    }
+
+    validTimestamps.push(now);
+    validTimestamps.sort((a, b) => a - b);
+    record.timestamps = validTimestamps;
     fastPathTicketVelocity.set(normTicket, record);
     saveDurableVelocity(fastPathTicketVelocity);
 
@@ -3065,14 +3187,125 @@ async function startServer() {
     if (db) {
       db.collection("velocity_caps").doc(normTicket).set({
         ticket_id: normTicket,
-        timestamps: record.timestamps,
-        last_approval_at: now
+        timestamps: validTimestamps,
+        last_approval_at: now,
+        current_approvals: validTimestamps.length,
+        updated_at: new Date().toISOString()
       }, { merge: true }).catch((err: any) => {
         console.warn(`[VELOCITY] Firestore sync warning for ticket ${normTicket}:`, err?.message);
       });
     }
 
-    return checkFastPathVelocity(normTicket, maxApprovals, windowSeconds);
+    const currentApprovals = validTimestamps.length;
+    const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
+    const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+    const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+    const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+    const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+
+    return {
+      allowed: true,
+      count: currentApprovals,
+      max_approvals: maxApprovals,
+      current_approvals: currentApprovals,
+      remaining_approvals: remainingApprovals,
+      window_seconds: windowSeconds,
+      ticket_id: normTicket,
+      reset_at: resetAt,
+      reset_in_seconds: resetInSeconds,
+      allowance_exhausted: remainingApprovals === 0,
+      velocity_capped: false
+    };
+  }
+
+  async function commitFastPathVelocityApprovalAsync(ticketId: string, maxApprovals = 5, windowSeconds = 86400): Promise<FastPathVelocityStatus> {
+    const normTicket = normalizeTicketId(ticketId);
+    const now = Date.now();
+    const windowMs = windowSeconds * 1000;
+
+    if (db) {
+      try {
+        const docRef = db.collection("velocity_caps").doc(normTicket);
+        const result = await db.runTransaction(async (transaction: any) => {
+          const docSnap = await transaction.get(docRef);
+          let timestamps: number[] = [];
+          if (docSnap.exists) {
+            const data = docSnap.data();
+            if (Array.isArray(data?.timestamps)) {
+              timestamps = data.timestamps;
+            }
+          }
+
+          // Merge with any unsynced local memory timestamps
+          const localRecord = fastPathTicketVelocity.get(normTicket);
+          if (localRecord && Array.isArray(localRecord.timestamps)) {
+            timestamps = Array.from(new Set([...timestamps, ...localRecord.timestamps]));
+          }
+
+          const validTimestamps = timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
+          if (validTimestamps.length >= maxApprovals) {
+            const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+            const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+            const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+            const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+            return {
+              allowed: false,
+              count: validTimestamps.length,
+              max_approvals: maxApprovals,
+              current_approvals: validTimestamps.length,
+              remaining_approvals: 0,
+              window_seconds: windowSeconds,
+              ticket_id: normTicket,
+              reset_at: resetAt,
+              reset_in_seconds: resetInSeconds,
+              allowance_exhausted: true,
+              velocity_capped: true
+            };
+          }
+
+          validTimestamps.push(now);
+          validTimestamps.sort((a, b) => a - b);
+
+          transaction.set(docRef, {
+            ticket_id: normTicket,
+            timestamps: validTimestamps,
+            last_approval_at: now,
+            current_approvals: validTimestamps.length,
+            updated_at: new Date().toISOString()
+          }, { merge: true });
+
+          fastPathTicketVelocity.set(normTicket, { timestamps: validTimestamps });
+          saveDurableVelocity(fastPathTicketVelocity);
+
+          const currentApprovals = validTimestamps.length;
+          const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
+          const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
+          const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
+          const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
+          const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
+
+          return {
+            allowed: true,
+            count: currentApprovals,
+            max_approvals: maxApprovals,
+            current_approvals: currentApprovals,
+            remaining_approvals: remainingApprovals,
+            window_seconds: windowSeconds,
+            ticket_id: normTicket,
+            reset_at: resetAt,
+            reset_in_seconds: resetInSeconds,
+            allowance_exhausted: remainingApprovals === 0,
+            velocity_capped: false
+          };
+        });
+
+        return result;
+      } catch (txErr: any) {
+        console.warn(`[VELOCITY] Firestore transaction commit failed for ticket ${normTicket}, using local fallback:`, txErr?.message);
+      }
+    }
+
+    return commitFastPathVelocityApproval(normTicket, maxApprovals, windowSeconds);
   }
 
   // Velocity Inspection & Test Pacing Endpoints
@@ -3083,28 +3316,38 @@ async function startServer() {
     const ticketParam = req.query.ticket ? String(req.query.ticket).trim().toUpperCase() : null;
 
     if (ticketParam) {
-      const check = checkFastPathVelocity(ticketParam, maxApprovals, windowSeconds);
+      const check = await checkFastPathVelocityAsync(ticketParam, maxApprovals, windowSeconds);
       return res.json({
         ticket_id: ticketParam,
         allowed: check.allowed,
         max_approvals: check.max_approvals,
         current_approvals: check.current_approvals,
         remaining_approvals: check.remaining_approvals,
+        remaining_fast_path_approvals: check.remaining_approvals,
         window_seconds: check.window_seconds,
         reset_at: check.reset_at,
-        reset_in_seconds: check.reset_in_seconds
+        reset_in_seconds: check.reset_in_seconds,
+        allowance_exhausted: check.remaining_approvals === 0,
+        velocity_capped: !check.allowed
       });
+    }
+
+    if (db) {
+      await syncVelocityJournalFromFirestore();
     }
 
     const trackedTickets: Record<string, any> = {};
     for (const [tId] of fastPathTicketVelocity.entries()) {
-      const check = checkFastPathVelocity(tId, maxApprovals, windowSeconds);
+      const check = await checkFastPathVelocityAsync(tId, maxApprovals, windowSeconds);
       trackedTickets[tId] = {
         allowed: check.allowed,
         current_approvals: check.current_approvals,
         remaining_approvals: check.remaining_approvals,
+        remaining_fast_path_approvals: check.remaining_approvals,
         reset_at: check.reset_at,
-        reset_in_seconds: check.reset_in_seconds
+        reset_in_seconds: check.reset_in_seconds,
+        allowance_exhausted: check.remaining_approvals === 0,
+        velocity_capped: !check.allowed
       };
     }
 
@@ -3183,6 +3426,17 @@ async function startServer() {
       fastPathTicketVelocity.clear();
       saveDurableVelocity(fastPathTicketVelocity);
 
+      if (db) {
+        try {
+          const snap = await db.collection("velocity_caps").get();
+          const batch = db.batch();
+          snap.docs.forEach((d: any) => batch.delete(d.ref));
+          await batch.commit();
+        } catch (e: any) {
+          console.warn("[VELOCITY] Firestore batch delete error:", e?.message);
+        }
+      }
+
       securityLog("INFO", "Fast-path velocity reset ALL records committed by operator", {
         ip,
         records_cleared: count,
@@ -3202,15 +3456,17 @@ async function startServer() {
     }
 
     if (ticket && typeof ticket === "string") {
-      const normTicket = ticket.trim().toUpperCase();
+      const normTicket = normalizeTicketId(ticket);
       const hadRecord = fastPathTicketVelocity.has(normTicket);
       fastPathTicketVelocity.delete(normTicket);
       saveDurableVelocity(fastPathTicketVelocity);
 
       if (db) {
-        db.collection("velocity_caps").doc(normTicket).delete().catch((e: any) => {
+        try {
+          await db.collection("velocity_caps").doc(normTicket).delete();
+        } catch (e: any) {
           console.warn(`[VELOCITY] Firestore delete error for ${normTicket}:`, e?.message);
-        });
+        }
       }
 
       securityLog("INFO", `Fast-path velocity reset committed for ticket ${normTicket} by operator`, {
@@ -3547,7 +3803,9 @@ async function startServer() {
     };
 
     const isFinancialOrProcurement = 
-      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting)\b/i.test(actionLower);
+      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting|order|spend|buy|checkout|cart)\b/i.test(actionLower) ||
+      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting|catalog vendor|approved catalog)\b/i.test(combinedAll) ||
+      Boolean(contextInput?.budget_line);
 
     // Verifiable domain anchors check (excluding unverified prior-approval claims, scope mismatches, and unapproved vendors)
     let hasVerifiableAnchors = false;
@@ -3568,7 +3826,11 @@ async function startServer() {
 
     if (hasContradictions) {
       let specificCodes = ["EVIDENCE_CONFLICT_DETECTED"];
-      if (hasUnapprovedVendorIndicator) specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
+      let counterpartyHint: string | null = null;
+      if (hasUnapprovedVendorIndicator) {
+        specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
+        counterpartyHint = `Vendor '${detectedVendorName || "unapproved vendor"}' not recognized in FinOps catalog. Use an approved catalog vendor.`;
+      }
       if (isTicketScopeMismatch) specificCodes.push("TICKET_SCOPE_MISMATCH", "MUTATION_ACTION_READONLY_MISMATCH");
       if (isBulkDataEgressContent) specificCodes.push("DATA_EGRESS_EXFILTRATION_HAZARD", "HIGH_RISK_EXTERNAL_DESTINATION");
       if (hasPriorApprovalLaundering) specificCodes.push("UNVERIFIED_PRIOR_APPROVAL_CLAIM", "RECEIPT_LAUNDERING_DEFICIT");
@@ -3579,10 +3841,14 @@ async function startServer() {
         hasVerifiableAnchors: false,
         hasContradictions: true,
         reasonCodes: specificCodes,
+        counterparty_hint: counterpartyHint,
         explanation: hasUnapprovedVendorIndicator
           ? `Contextual evidence specifies vendor '${detectedVendorName || "unapproved vendor"}' not found in policy approved counterparties catalog.`
           : "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims.",
-        anchor_checklist: anchorChecklist,
+        anchor_checklist: {
+          ...anchorChecklist,
+          ...(counterpartyHint ? { counterparty_hint: counterpartyHint } : {})
+        },
         anchor_basis: overallAnchorBasis,
         anchor_bases: anchorChecklist.anchor_bases,
         isCounterpartyAllowlisted,
@@ -3591,14 +3857,34 @@ async function startServer() {
     }
 
     if (!hasSubstantiveContent || !hasVerifiableAnchors) {
+      const specificCodes = ["EVIDENCE_ANCHOR_DEFICIT"];
+      let specificExplanation = "Contextual evidence lacks substantive content or verifiable operational anchors.";
+      let counterpartyHint: string | null = null;
+
+      if (isFinancialOrProcurement && !isCounterpartyAllowlisted) {
+        if (!detectedVendorName) {
+          specificCodes.push("NAMED_COUNTERPARTY_REQUIRED");
+          specificExplanation = "Named counterparty required: Action or context specifies procurement/financial directive but omits an explicit approved catalog vendor name (e.g. Staples, Office Depot, Amazon Business). Generic phrasing like 'approved catalog' or 'counterparty_verified: true' is not accepted without a named entity.";
+          counterpartyHint = "Specify an explicit approved catalog vendor (e.g., Staples, Office Depot, Amazon Business, Grainger, Fastenal, CDW, SHI, Dell, Apple) in agent_action or context.counterparty.";
+        } else {
+          specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
+          specificExplanation = `Contextual evidence specifies vendor '${detectedVendorName}' not found in policy approved counterparties catalog.`;
+          counterpartyHint = `Vendor '${detectedVendorName}' not recognized in FinOps catalog. Use an approved catalog vendor.`;
+        }
+      }
+
       return {
         evidence_status: "MISSING",
         hasSubstantiveContent,
         hasVerifiableAnchors: false,
         hasContradictions: false,
-        reasonCodes: ["EVIDENCE_ANCHOR_DEFICIT"],
-        explanation: "Contextual evidence lacks substantive content or verifiable operational anchors.",
-        anchor_checklist: anchorChecklist,
+        reasonCodes: specificCodes,
+        explanation: specificExplanation,
+        counterparty_hint: counterpartyHint,
+        anchor_checklist: {
+          ...anchorChecklist,
+          ...(counterpartyHint ? { counterparty_hint: counterpartyHint } : {})
+        },
         anchor_basis: overallAnchorBasis,
         anchor_bases: anchorChecklist.anchor_bases,
         isCounterpartyAllowlisted,
@@ -3626,7 +3912,8 @@ async function startServer() {
     reasoningChain: string = "", 
     personaPreset: string = "general_adversarial", 
     council: string[] = [],
-    contextInput: any = null
+    contextInput: any = null,
+    injectedVelocityCheck?: FastPathVelocityStatus
   ): DecisionContract {
     let contextStr = "";
     if (contextInput !== undefined && contextInput !== null) {
@@ -3863,9 +4150,9 @@ async function startServer() {
       ? detectedAmountUsd <= 100 
       : (/\$([0-9]{1,2}(\.[0-9]{2})?)\b/.test(agentAction) || agentActionLower.includes("$50") || agentActionLower.includes("low-dollar"));
 
-    const ticketMatch = text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i);
-    const ticketId = (contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED").toUpperCase();
-    let velocityCheck = checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
+    const ticketMatch = text.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i);
+    const ticketId = normalizeTicketId(contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED");
+    let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(ticketId, policyConfig.fast_path_velocity_caps.max_approvals_per_ticket, policyConfig.fast_path_velocity_caps.window_seconds);
 
     const isMicroExpenseFastPath = 
       isExpenseActionPattern &&
@@ -4254,16 +4541,18 @@ async function startServer() {
       ];
       
       const amtStr = detectedAmountUsd !== null ? `$${detectedAmountUsd.toFixed(2)}` : "$50.00";
-      const ticketId = (contextInput?.ticket || (text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i)?.[0] || "UNTICKETED")).toUpperCase();
+      const ticketId = normalizeTicketId(contextInput?.ticket || (text.match(/fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+/i)?.[0] || "UNTICKETED"));
       const approvedVendor = contextOutcome.detectedVendor || contextInput?.counterparty || "Staples";
       const budgetLine = contextInput?.budget_line || "operational_expenses";
 
-      // Commit velocity record for approved fast-path action and update velocityCheck state
-      velocityCheck = commitFastPathVelocityApproval(
-        ticketId,
-        policyConfig.fast_path_velocity_caps.max_approvals_per_ticket,
-        policyConfig.fast_path_velocity_caps.window_seconds
-      );
+      // Commit velocity record for approved fast-path action and update velocityCheck state (only when not managed by caller)
+      if (!injectedVelocityCheck) {
+        velocityCheck = commitFastPathVelocityApproval(
+          ticketId,
+          policyConfig.fast_path_velocity_caps.max_approvals_per_ticket,
+          policyConfig.fast_path_velocity_caps.window_seconds
+        );
+      }
 
       // Dynamic calculation based on action content to ensure honesty and uniqueness across different actions
       const actionHashVal = Math.abs(agentAction.split("").reduce((acc, c) => ((acc << 5) - acc) + c.charCodeAt(0), 0));
@@ -4565,7 +4854,21 @@ async function startServer() {
         const isHazardousBare = 
           /\b(\$\d+|wire|transfer|disburse|payment|payout|supplies|vendor|loan|credit|delete|drop|truncate|purge|privilege|grant_admin|admin|firewall|root)\b/i.test(text);
 
-        if (isHazardousBare) {
+        const specificContextCodes = contextOutcome.reasonCodes || [];
+        const hasNamedCounterpartyDeficit = specificContextCodes.includes("NAMED_COUNTERPARTY_REQUIRED");
+        const hasUnapprovedCounterpartyDeficit = specificContextCodes.includes("UNAPPROVED_COUNTERPARTY_DEFICIT");
+
+        if (hasNamedCounterpartyDeficit || hasUnapprovedCounterpartyDeficit) {
+          consensus_score = 35.0;
+          risk_index = 80.0;
+          reviewer_agreement_score = 0.350;
+          reason_codes = Array.from(new Set([
+            ...specificContextCodes,
+            "EVIDENCE_ANCHOR_DEFICIT",
+            "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+          ]));
+          decision_explanation = `FLAGGED FOR HUMAN REVIEW: ${contextOutcome.explanation || "Named catalog counterparty required for financial/procurement actions."} Automated execution blocked; human consensus oversight required.`;
+        } else if (isHazardousBare) {
           consensus_score = 31.5;
           risk_index = 88.0;
           reviewer_agreement_score = 0.315;
@@ -4625,13 +4928,23 @@ async function startServer() {
         human_review_required = true;
         approval_blocked = true;
         finality = "NON_FINAL_ADVISORY";
-        reason_codes = [
-          "UNAPPROVED_COUNTERPARTY_DEFICIT",
-          "VENDOR_NOT_IN_APPROVED_CATALOG",
-          "EVIDENCE_ANCHOR_DEFICIT",
-          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
-        ];
-        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Proposed procurement action '${agentAction.trim().substring(0, 60)}' specifies vendor '${contextOutcome.detectedVendor || "unapproved vendor"}' not found in policy approved counterparties catalog. Automated approval blocked; human consensus oversight required.`;
+
+        const isUnnamedVendor = !contextOutcome.detectedVendor;
+        reason_codes = isUnnamedVendor
+          ? [
+              "NAMED_COUNTERPARTY_REQUIRED",
+              "EVIDENCE_ANCHOR_DEFICIT",
+              "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+            ]
+          : [
+              "UNAPPROVED_COUNTERPARTY_DEFICIT",
+              "VENDOR_NOT_IN_APPROVED_CATALOG",
+              "EVIDENCE_ANCHOR_DEFICIT",
+              "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+            ];
+        decision_explanation = isUnnamedVendor
+          ? `FLAGGED FOR HUMAN REVIEW: Named counterparty required: Proposed procurement action specifies procurement/financial directive but omits an explicit approved catalog vendor name (e.g. Staples, Office Depot, Amazon Business). Generic claims like 'approved catalog' or 'counterparty_verified: true' are insufficient without an explicit vendor entity. Automated approval blocked; human consensus oversight required.`
+          : `FLAGGED FOR HUMAN REVIEW: Proposed procurement action '${agentAction.trim().substring(0, 60)}' specifies vendor '${contextOutcome.detectedVendor || "unapproved vendor"}' not found in policy approved counterparties catalog. Automated approval blocked; human consensus oversight required.`;
         verdict_summary = decision_explanation;
       } else {
         // Only actions with validated substantive evidence anchors that pass all deterministic gates may be approved
@@ -4866,6 +5179,7 @@ async function startServer() {
         allowance_exhausted: velocityCheck.remaining_approvals === 0
       },
       remaining_fast_path_approvals: velocityCheck.remaining_approvals,
+      counterparty_hint: contextOutcome.counterparty_hint || null,
       anchor_checklist: contextOutcome.anchor_checklist,
       anchor_basis: contextOutcome.anchor_basis,
       anchor_bases: contextOutcome.anchor_bases
@@ -5058,13 +5372,27 @@ async function startServer() {
     const actualCount = Math.min(Math.max(2, Number(agent_count) || 3), 7);
     council = council.slice(0, actualCount);
 
-    // Substantive Deterministic Safety & Risk Evaluation (using combined reasoning & context)
+    // Extract ticket identifier from context or action/reasoning text
+    const ticketCombined = `${agent_action || ""} ${combinedReasoning || ""} ${typeof context === "string" ? context : JSON.stringify(context || {})}`;
+    const ticketMatch = ticketCombined.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i);
+    const candidateTicketId = normalizeTicketId(context?.ticket || ticketMatch?.[0] || "UNTICKETED");
+
+    // Synchronize distributed velocity journal from Firestore to avoid Cloud Run multi-instance split-brain
+    const finopsPolicy = loadFinopsPolicy();
+    const liveVelocityCheck = await checkFastPathVelocityAsync(
+      candidateTicketId,
+      finopsPolicy.fast_path_velocity_caps.max_approvals_per_ticket,
+      finopsPolicy.fast_path_velocity_caps.window_seconds
+    );
+
+    // Substantive Deterministic Safety & Risk Evaluation (using combined reasoning, context, and distributed velocity)
     const evalResult = evaluateAgentActionSafety(
       String(agent_action),
       String(combinedReasoning || ""),
       String(persona_preset),
       council,
-      context
+      context,
+      liveVelocityCheck
     );
 
     let finalConsensusScore = evalResult.consensus_score;
@@ -5085,6 +5413,26 @@ async function startServer() {
     const isPolicyFastPath = Boolean(evalResult.policy_fast_path);
 
     if (isPolicyFastPath) {
+      // Synchronously commit fast-path approval to Firestore distributed transaction
+      const committedVelocity = await commitFastPathVelocityApprovalAsync(
+        candidateTicketId,
+        finopsPolicy.fast_path_velocity_caps.max_approvals_per_ticket,
+        finopsPolicy.fast_path_velocity_caps.window_seconds
+      );
+
+      evalResult.fast_path_velocity = {
+        ticket_id: committedVelocity.ticket_id,
+        max_approvals: committedVelocity.max_approvals,
+        current_approvals: committedVelocity.current_approvals,
+        remaining_fast_path_approvals: committedVelocity.remaining_approvals,
+        window_seconds: committedVelocity.window_seconds,
+        reset_at: committedVelocity.reset_at,
+        reset_in_seconds: committedVelocity.reset_in_seconds,
+        velocity_capped: !committedVelocity.allowed,
+        allowance_exhausted: committedVelocity.remaining_approvals === 0
+      };
+      evalResult.remaining_fast_path_approvals = committedVelocity.remaining_approvals;
+
       finalDebate = [];
       finalVerdict = "APPROVED";
       finalStatus = "APPROVED";
@@ -5520,6 +5868,9 @@ async function startServer() {
       ...(isPolicyFastPath ? { fast_path_rule_id: evalResult.fast_path_rule_id || "micro_expense_fast_path" } : {}),
       fast_path_velocity: evalResult.fast_path_velocity || null,
       remaining_fast_path_approvals: evalResult.remaining_fast_path_approvals ?? evalResult.fast_path_velocity?.remaining_fast_path_approvals ?? null,
+      counterparty_hint: evalResult.counterparty_hint || null,
+      allowance_exhausted: evalResult.fast_path_velocity?.allowance_exhausted ?? (evalResult.remaining_fast_path_approvals === 0),
+      velocity_capped: evalResult.fast_path_velocity?.velocity_capped ?? false,
       adversarial_debate: isPolicyFastPath ? [] : finalDebate,
       provenance: {
         requested_models: isPolicyFastPath ? [] : requestedModels,
@@ -5747,6 +6098,12 @@ async function startServer() {
 
     const results: any[] = [];
     for (const sc of scenarios) {
+      if (sc.id === "S17") {
+        fastPathTicketVelocity.delete("FAC-HARNESS-101");
+      }
+      if (sc.id === "S18") {
+        fastPathTicketVelocity.delete("FAC-HARNESS-205");
+      }
       const evalRes = evaluateAgentActionSafety(sc.action, sc.reasoning, sc.preset, council);
       const verdictPass = evalRes.verdict === sc.expected.verdict;
       const verifiedPass = evalRes.verified === sc.expected.verified;

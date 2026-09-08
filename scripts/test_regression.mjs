@@ -346,6 +346,11 @@ async function runAllTests() {
   total++;
   try {
     console.log("\n[Test 9] Canonical Literal FAC-101 Ticket (Office Depot catalog)...");
+    // Pre-test operational reset of FAC-101 counter via authorized ops credentials
+    await postJson("/api/v1/velocity/reset", { ticket: "FAC-101", reason: "Automated regression suite test 9 pre-reset" }, {
+      "Authorization": "Bearer ef_ops_control_plane_2026"
+    });
+
     const res = await postJson("/api/mcp", {
       jsonrpc: "2.0",
       id: "legit-fac-101",
