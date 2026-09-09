@@ -105,12 +105,16 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
     setAgentExecuting(true);
     setAgentVerifyResponse(null);
     const activeKey = generatedSecret || apiKeys.find(k => k.status === 'active')?.key || '';
+    const isSandbox = !activeKey || activeKey.startsWith('ef_sandbox_') || activeKey === 'ef_test_key_mock_001';
+    const endpoint = isSandbox ? '/api/v1/sandbox/verify' : '/api/v1/verify';
+    const authHeader = isSandbox && (!activeKey || !activeKey.startsWith('ef_sandbox_')) ? 'Bearer ef_sandbox_demo_show_hn' : `Bearer ${activeKey}`;
     try {
-      const res = await fetch('/api/v1/verify', {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${activeKey}`
+          'Authorization': authHeader,
+          'X-EthersFlow-Sandbox': isSandbox ? 'true' : 'false'
         },
         body: JSON.stringify({
           agent_action: agentActionPrompt,
@@ -118,7 +122,8 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
           agent_count: agentCount,
           persona_preset: agentPersonaPreset,
           grounding_enabled: true,
-          zero_retention: true
+          zero_retention: true,
+          sandbox: isSandbox
         })
       });
       const data = await res.json();

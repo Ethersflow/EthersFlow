@@ -54,7 +54,7 @@ export interface SavedAnalysis {
   agents?: AnalystSlot[];
 }
 
-export type View = 'main' | 'privacy' | 'terms' | 'security' | 'about' | 'research' | 'protocol' | 'pricing' | 'careers' | 'projects' | 'project-detail' | 'customize' | 'agent-library' | 'chats' | 'tutorials' | 'courses' | 'help' | 'welcome' | 'shared' | 'contact' | 'pricing_overview' | 'pro_plan_page' | 'max_plan_page' | 'enterprise_plan_page' | 'b2b_api_portal' | 'developers' | 'api' | 'auth';
+export type View = 'main' | 'privacy' | 'terms' | 'security' | 'about' | 'research' | 'protocol' | 'pricing' | 'careers' | 'projects' | 'project-detail' | 'customize' | 'agent-library' | 'chats' | 'tutorials' | 'courses' | 'help' | 'welcome' | 'shared' | 'contact' | 'pricing_overview' | 'pro_plan_page' | 'max_plan_page' | 'enterprise_plan_page' | 'b2b_api_portal' | 'developers' | 'api' | 'auth' | 'try_it';
 
 export type PlanTier = 'free' | 'pro' | 'max' | 'enterprise';
 

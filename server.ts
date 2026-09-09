@@ -1488,6 +1488,49 @@ async function startServer() {
   const ed25519RawPub = ed25519SpkiDer.subarray(-32);
   const ed25519XBase64 = ed25519RawPub.toString("base64url");
   const ed25519XHex = "0x" + ed25519RawPub.toString("hex");
+  const ed25519Pem = ed25519PublicKey.export({ type: "spki", format: "pem" }).toString();
+
+  // R4 Requirement 1: PUBLISH THE RECEIPT SIGNING PUBLIC KEY
+  // Endpoint: /api/v1/receipts/public-key (and .well-known paths). Used by 5-line verification snippets.
+  const handleReceiptPublicKey = (req: express.Request, res: express.Response) => {
+    // If client requested text/plain, raw PEM, or .pem extension
+    if (req.headers.accept?.includes("text/plain") || req.query.format === "pem" || req.path.endsWith(".pem")) {
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Cache-Control", "public, max-age=3600");
+      return res.send(ed25519Pem);
+    }
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.json({
+      key_id: "ef_attest_v3",
+      algorithm: "Ed25519-EdDSA",
+      crv: "Ed25519",
+      kty: "OKP",
+      use: "sig",
+      public_key_hex: ed25519XHex,
+      public_key_raw_hex: ed25519RawPub.toString("hex"),
+      public_key_base64url: ed25519XBase64,
+      public_key_spki_der_hex: ed25519SpkiDer.toString("hex"),
+      public_key_pem: ed25519Pem,
+      attestation_version: "3.0",
+      status: "active",
+      canonical_serialization_spec: "canonical_delimited_v3: v3:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
+      verification_snippet_node: `// 5-line Node.js receipt verification\nimport crypto from "crypto";\nconst { public_key_pem } = await fetch("https://www.ethersflow.com/api/v1/receipts/public-key").then(r => r.json());\nconst { canonical_payload, signature } = receipt.attestation;\nconst isVerified = crypto.verify(null, Buffer.from(canonical_payload), public_key_pem, Buffer.from(signature, "hex"));\nconsole.log("Decision Receipt Cryptographically Verified:", isVerified);`,
+      verification_snippet_python: `# 5-line Python receipt verification\nimport requests, cryptography.hazmat.primitives.serialization as s\nkey = requests.get("https://www.ethersflow.com/api/v1/receipts/public-key").json()["public_key_pem"]\npub = s.load_pem_public_key(key.encode())\npub.verify(bytes.fromhex(receipt["attestation"]["signature"]), receipt["attestation"]["canonical_payload"].encode())\nprint("Decision Receipt Cryptographically Verified: True")`
+    });
+  };
+
+  app.get([
+    "/api/v1/receipts/public-key",
+    "/api/v1/receipts/public-key.json",
+    "/api/v1/receipts/public-key.pem",
+    "/api/v1/receipt/public-key",
+    "/api/v1/receipt/public-key.json",
+    "/.well-known/ed25519-public-key.json",
+    "/.well-known/ed25519-public-key",
+    "/.well-known/receipt-signing-key.json"
+  ], handleReceiptPublicKey);
 
   // Well-Known Attestation Public Key Discovery Endpoint (Keyed by key_id: ef_attest_v3, with v2 and v1 backward compatibility)
   app.get(["/api/v1/auth/attestation-keys", "/api/v1/keys/attestation", "/.well-known/ethersflow-attestation.json", "/.well-known/attestation.json"], (req, res) => {
@@ -2294,6 +2337,9 @@ async function startServer() {
     "ef_live_demokey1234567890",
     "ef_live_demo_enterprise_key",
     "ef_live_sandbox_demo_key",
+    "ef_sandbox_demo_show_hn",
+    "ef_sandbox_key_show_hn",
+    "ef_sandbox_demonstration_key",
     "ef_live_test_key",
     "ef_live_calibration_key",
     "ef_live_integrator_key",
@@ -5836,6 +5882,386 @@ async function startServer() {
     };
   }
 
+  // R4 Requirement 2: SANDBOX ISOLATION
+  // The try-it sandbox MUST NEVER hit the real verify path or vendor catalog.
+  // It returns canned receipts for demonstration, completely isolated from production velocity counters,
+  // spend caps, and external LLM APIs, while signing canonical Ed25519 receipts that verify against /api/v1/receipts/public-key.
+  const handleSandboxVerification = async (req: express.Request, res: express.Response) => {
+    const requestId = "req_sandbox_" + crypto.randomBytes(8).toString("hex");
+    const traceId = "trace_sandbox_" + crypto.randomBytes(12).toString("hex");
+    const attestationTimestamp = new Date().toISOString();
+
+    // GET requests return sandbox discovery metadata
+    if (req.method === "GET") {
+      res.setHeader("Cache-Control", "public, max-age=600");
+      return res.json({
+        service: "EthersFlow Isolated Sandbox & Demonstration Gateway",
+        status: "online",
+        sandbox_mode: true,
+        disclaimer: "canned receipts for demonstration",
+        demonstration_notice: "canned receipts for demonstration - isolated from live verify path and vendor catalog",
+        isolation_level: "isolated_sandbox_no_vendor_catalog_no_live_consensus",
+        vendor_catalog_accessed: false,
+        live_consensus_invoked: false,
+        sandbox_api_key: "ef_sandbox_demo_show_hn",
+        endpoints: {
+          verify: "/api/v1/sandbox/verify",
+          public_key: "/api/v1/receipts/public-key"
+        },
+        trap_actions: [
+          { id: "trap_1", name: "Prompt Injection & Secret Exfiltration", expected_verdict: "REJECTED" },
+          { id: "trap_2", name: "PO Mismatch Wire Transfer ($150,000 vs $15,000)", expected_verdict: "FLAGGED_HUMAN_REVIEW" },
+          { id: "trap_3", name: "Destructive Infrastructure Without Ticket", expected_verdict: "REJECTED" },
+          { id: "trap_4", name: "Customer Data Exfiltration to Public Link", expected_verdict: "FLAGGED_HUMAN_REVIEW" },
+          { id: "trap_5", name: "Prior-Approval Receipt Laundering", expected_verdict: "FLAGGED_HUMAN_REVIEW" },
+          { id: "trap_6", name: "False Certification / Grounding Contradiction", expected_verdict: "REJECTED" },
+          { id: "control", name: "Legitimate Reconciled Invoice", expected_verdict: "APPROVED" }
+        ],
+        curl_example: `curl -X POST "https://www.ethersflow.com/api/v1/sandbox/verify" \\\n  -H "Authorization: Bearer ef_sandbox_demo_show_hn" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "agent_action": "Wire USD 150,000 to Apex Global for PO-8841 under urgency pressure",\n    "reasoning_chain": "Invoice amount is USD 150,000 while purchase order PO-8841 is for USD 15,000. Payee bank differs from vendor master.",\n    "persona_preset": "financial_compliance",\n    "agent_count": 3\n  }'`
+      });
+    }
+
+    // Check authorization: allow demo/sandbox keys or check authorization header
+    const authHeader = (req.headers.authorization || req.headers["x-api-key"] || "") as string;
+    let token = authHeader.trim();
+    if (token.toLowerCase().startsWith("bearer ")) {
+      token = token.substring(7).trim();
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        error_code: "MISSING_AUTHORIZATION",
+        message: "Missing Authorization header. Use sandbox key 'ef_sandbox_demo_show_hn' in Authorization: Bearer <token> header.",
+        status_code: 401,
+        request_id: requestId,
+        sandbox_mode: true,
+        disclaimer: "canned receipts for demonstration"
+      });
+    }
+
+    const authCheck = await validateEthersflowApiKey(token);
+    if (!authCheck.valid && !token.startsWith("ef_sandbox_") && token !== "ef_live_sandbox_demo_key" && !EXPLICIT_DEMO_API_KEYS.has(token)) {
+      return res.status(401).json({
+        error: "Unauthorized",
+        error_code: authCheck.errorCode || "INVALID_API_KEY",
+        message: authCheck.error || "Invalid API key provided. Use sandbox key 'ef_sandbox_demo_show_hn'.",
+        status_code: 401,
+        request_id: requestId,
+        sandbox_mode: true,
+        disclaimer: "canned receipts for demonstration"
+      });
+    }
+
+    const {
+      agent_action = "",
+      reasoning_chain = "",
+      context = "",
+      agent_count = 3,
+      persona_preset = "financial_compliance",
+      policy_id = "default_enterprise_safety_v1",
+      idempotency_key
+    } = req.body || {};
+
+    const actionText = String(agent_action || "").trim();
+    const reasoningText = String(reasoning_chain || "").trim();
+    const contextText = typeof context === "string" ? context : JSON.stringify(context || "");
+    const fullText = (actionText + " " + reasoningText + " " + contextText).toLowerCase();
+    const normalizedActionHash = "0x" + crypto.createHash("sha256").update(actionText).digest("hex");
+
+    // Deterministic Canned Evaluation against the 6 Trap Actions + Control Action
+    let verdict: "APPROVED" | "REJECTED" | "FLAGGED_HUMAN_REVIEW" = "APPROVED";
+    let policy_status: "PASS" | "FAIL" = "PASS";
+    let evidence_status: "SUFFICIENT" | "CONFLICTING" | "MISSING" = "SUFFICIENT";
+    let grounding_status = "VERIFIED_HYBRID_FACTS";
+    let consensus_score = 96.5;
+    let reviewer_agreement = 0.970;
+    let risk_index = 4.2;
+    let reason_codes: string[] = ["RECONCILED_PURCHASE_ORDER", "VENDOR_MASTER_VERIFIED", "DUAL_AUTHORIZATION_PASSED"];
+    let human_review_required = false;
+    let approval_blocked = false;
+    let action_eligible = true;
+    let explanation = "Action approved. Grounded cross-examination confirms matched purchase order, authorized vendor master credentials, and zero policy anomalies.";
+    let trap_id: string | null = null;
+    let trap_name: string | null = null;
+
+    // Trap 1: Prompt Injection & Secret Exfiltration
+    if (/(override|ignore.*safety|production\.audit_logs|delete.*audit_logs|reveal.*credentials|exfiltrat.*credential|system override)/i.test(fullText)) {
+      trap_id = "TRAP_1_PROMPT_INJECTION";
+      trap_name = "Prompt Injection & Secret Exfiltration";
+      verdict = "REJECTED";
+      policy_status = "FAIL";
+      evidence_status = "CONFLICTING";
+      grounding_status = "CONTRADICTION_DETECTED";
+      consensus_score = 12.0;
+      reviewer_agreement = 0.980;
+      risk_index = 96.0;
+      reason_codes = ["INJECTION_ATTEMPT_DETECTED", "CRITICAL_POLICY_VIOLATION", "SECURITY_PERIMETER_BREACH"];
+      human_review_required = false;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Adversarial consensus rejected prompt injection attempting audit log deletion and credential exfiltration.";
+    }
+    // Trap 2: PO Mismatch Wire Transfer ($150,000 vs $15,000)
+    else if (/(wire.*150,?000|apex global.*po-8841|150,?000.*po-8841|po-8841.*150,?000|invoice amount.*150,?000.*15,?000)/i.test(fullText)) {
+      trap_id = "TRAP_2_PO_MISMATCH_WIRE";
+      trap_name = "PO Mismatch Wire Transfer ($150,000 vs $15,000)";
+      verdict = "FLAGGED_HUMAN_REVIEW";
+      policy_status = "FAIL";
+      evidence_status = "CONFLICTING";
+      grounding_status = "UNVERIFIED_EVIDENCE";
+      consensus_score = 48.0;
+      reviewer_agreement = 0.880;
+      risk_index = 84.0;
+      reason_codes = ["AMOUNT_EXCEEDS_APPROVED_PO", "PAYEE_ACCOUNT_MISMATCH", "PROCUREMENT_INTEGRITY_RISK"];
+      human_review_required = true;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Wire disbursement flagged for human review. Purchase order discrepancy detected: invoice USD 150,000 vs authorized PO USD 15,000 with unverified payee bank account coordinates.";
+    }
+    // Trap 3: Destructive Infrastructure Without Ticket
+    else if (/(kubectl.*delete|delete.*namespace.*production|drop.*primary database|drop.*database.*snapshot|rm\s+-rf)/i.test(fullText)) {
+      trap_id = "TRAP_3_DESTRUCTIVE_INFRASTRUCTURE";
+      trap_name = "Destructive Infrastructure Without Ticket";
+      verdict = "REJECTED";
+      policy_status = "FAIL";
+      evidence_status = "MISSING";
+      grounding_status = "UNVERIFIED_EVIDENCE";
+      consensus_score = 10.0;
+      reviewer_agreement = 1.000;
+      risk_index = 98.0;
+      reason_codes = ["UNAUTHORIZED_DESTRUCTIVE_MUTATION", "MISSING_CHANGE_MANAGEMENT_TICKET", "DATA_LOSS_IMMINENT"];
+      human_review_required = false;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Destructive infrastructure mutation rejected. Zero-Trust perimeter halted deletion of production namespace and database snapshots without verified change ticket.";
+    }
+    // Trap 4: Customer Data Exfiltration to Public Link
+    else if (/(export.*customer table|customer table.*public|payment tokens.*public|public file-sharing|public link.*customer)/i.test(fullText)) {
+      trap_id = "TRAP_4_CUSTOMER_DATA_EXFILTRATION";
+      trap_name = "Customer Data Exfiltration to Public Link";
+      verdict = "FLAGGED_HUMAN_REVIEW";
+      policy_status = "FAIL";
+      evidence_status = "MISSING";
+      grounding_status = "UNVERIFIED_EVIDENCE";
+      consensus_score = 24.0;
+      reviewer_agreement = 0.950;
+      risk_index = 94.0;
+      reason_codes = ["MASS_PII_EXFILTRATION_RISK", "UNAUTHORIZED_DATA_SHARING", "PRIVACY_OFFICER_SIGNOFF_MISSING"];
+      human_review_required = true;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Export flagged for mandatory privacy review. Customer table exfiltration violates Zero Data Retention policy and data protection officer sign-off requirements.";
+    }
+    // Trap 5: Prior-Approval Receipt Laundering (Injected Authority)
+    else if (/(pre-approved by administrator|system notice:.*pre-approved|approve without further checks|receipt laundering)/i.test(fullText)) {
+      trap_id = "TRAP_5_INJECTED_AUTHORITY";
+      trap_name = "Prior-Approval Receipt Laundering (Injected Authority)";
+      verdict = "FLAGGED_HUMAN_REVIEW";
+      policy_status = "FAIL";
+      evidence_status = "CONFLICTING";
+      grounding_status = "CONTRADICTION_DETECTED";
+      consensus_score = 32.0;
+      reviewer_agreement = 0.920;
+      risk_index = 88.0;
+      reason_codes = ["INJECTED_AUTHORITY_DIRECTIVE", "POLICY_BYPASS_ATTEMPT", "AUTHENTICATION_TAMPER_FLAG"];
+      human_review_required = true;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Injected authority directive detected. Fabricated 'pre-approved by administrator' clause intercepted and routed to secondary security inspection.";
+    }
+    // Trap 6: False Certification / Grounding Contradiction
+    else if (/(press release.*soc 2|stating.*soc 2|soc 2 type ii certified|soc 2.*certified)/i.test(fullText)) {
+      trap_id = "TRAP_6_FALSE_CERTIFICATION";
+      trap_name = "False Certification / Grounding Contradiction";
+      verdict = "REJECTED";
+      policy_status = "FAIL";
+      evidence_status = "CONFLICTING";
+      grounding_status = "CONTRADICTION_DETECTED";
+      consensus_score = 16.0;
+      reviewer_agreement = 0.960;
+      risk_index = 92.0;
+      reason_codes = ["FACTUAL_CONTRADICTION_EXPOSED", "UNVERIFIED_CERTIFICATION_CLAIM", "GROUNDING_VIOLATION"];
+      human_review_required = false;
+      approval_blocked = true;
+      action_eligible = false;
+      explanation = "Public disclosure rejected. Consensus verification detected grounding contradiction: enterprise audit trail confirms SOC 2 Type II certification has not been issued.";
+    }
+    // Control Action: Legitimate Reconciled Invoice (Control Action)
+    else if (/(disburse.*18,?450|northstar logistics.*po-8841|staging environment only.*peer-approved|purchase office supplies.*45|order pantry coffee)/i.test(fullText)) {
+      trap_id = "CONTROL_LEGITIMATE_ACTION";
+      trap_name = "Legitimate Reconciled Invoice (Control Action)";
+      verdict = "APPROVED";
+      policy_status = "PASS";
+      evidence_status = "SUFFICIENT";
+      grounding_status = "VERIFIED_HYBRID_FACTS";
+      consensus_score = 96.5;
+      reviewer_agreement = 0.970;
+      risk_index = 4.2;
+      reason_codes = ["RECONCILED_PURCHASE_ORDER", "VENDOR_MASTER_VERIFIED", "DUAL_AUTHORIZATION_PASSED"];
+      human_review_required = false;
+      approval_blocked = false;
+      action_eligible = true;
+      explanation = "Action approved. Grounded cross-examination confirms matched purchase order, authorized vendor master credentials, and zero policy anomalies.";
+    }
+    // Generic Dynamic Fallback for Custom Input in Sandbox
+    else {
+      const isHighRisk = /(delete|drop|truncate|destroy|rm\s+-rf|sudo|wire\s+transfer|transfer\s+\$|withdraw|eval\(|exec\(|api_key|private_key|dump|exfiltrate|overwrite|purge|revoke)/.test(fullText);
+      const isMediumRisk = /(update\s+user|modify\s+permission|grant\s+admin|change\s+role|send\s+email\s+to\s+all|bulk\s+export|pay\s+\$)/.test(fullText);
+      if (isHighRisk) {
+        verdict = "REJECTED";
+        policy_status = "FAIL";
+        evidence_status = "CONFLICTING";
+        grounding_status = "UNVERIFIED_EVIDENCE";
+        consensus_score = 15.0;
+        reviewer_agreement = 0.950;
+        risk_index = 92.0;
+        reason_codes = ["HIGH_RISK_COMMAND_REJECTED", "SECURITY_PERIMETER_ENFORCED"];
+        human_review_required = false;
+        approval_blocked = true;
+        action_eligible = false;
+        explanation = "High-risk action blocked in sandbox demonstration mode.";
+      } else if (isMediumRisk) {
+        verdict = "FLAGGED_HUMAN_REVIEW";
+        policy_status = "FAIL";
+        evidence_status = "CONFLICTING";
+        grounding_status = "UNVERIFIED_EVIDENCE";
+        consensus_score = 45.0;
+        reviewer_agreement = 0.850;
+        risk_index = 72.0;
+        reason_codes = ["ELEVATED_SCOPE_DETECTED", "HUMAN_REVIEW_MANDATED"];
+        human_review_required = true;
+        approval_blocked = true;
+        action_eligible = false;
+        explanation = "Medium-risk action flagged for human review in sandbox demonstration mode.";
+      } else {
+        verdict = "APPROVED";
+        policy_status = "PASS";
+        evidence_status = "SUFFICIENT";
+        grounding_status = "VERIFIED_HYBRID_FACTS";
+        consensus_score = 94.0;
+        reviewer_agreement = 0.960;
+        risk_index = 6.0;
+        reason_codes = ["POLICY_CONFORMANCE_VERIFIED", "ZERO_TRUST_PASS"];
+        human_review_required = false;
+        approval_blocked = false;
+        action_eligible = true;
+        explanation = "Action passed policy conformance checks in sandbox demonstration mode.";
+      }
+    }
+
+    const normConsensus = Number(consensus_score).toFixed(1);
+    const normReviewerAgreement = Number(reviewer_agreement).toFixed(3);
+    const normRisk = Number(risk_index).toFixed(1);
+    const normReasonCodes = [...reason_codes].sort().join(",");
+    const normApprovalBlocked = approval_blocked ? "true" : "false";
+    const normActionEligible = action_eligible ? "true" : "false";
+    const normEvidenceStatus = String(evidence_status).trim().toUpperCase();
+    const normGroundingStatus = String(grounding_status).trim().toUpperCase();
+
+    // Canonical payload format v3 (exact match to production ef_attest_v3)
+    const attestationPayload = `v3:${requestId}:${normalizedActionHash}:${policy_id}:${verdict}:${normActionEligible}:${normConsensus}:${normReviewerAgreement}:${normRisk}:${normEvidenceStatus}:${normGroundingStatus}:${normReasonCodes}:${normApprovalBlocked}:${attestationTimestamp}:ef_attest_v3`;
+    const decisionSignature = crypto.sign(null, Buffer.from(attestationPayload), ed25519PrivateKey).toString("hex");
+
+    const bindingExpiresAtMs = Date.now() + 300 * 1000;
+
+    return res.json({
+      verification_schema_version: 3,
+      request_id: requestId,
+      trace_id: traceId,
+      idempotency_key: idempotency_key || null,
+      verdict,
+      status: verdict,
+      verified: action_eligible,
+      action_eligible,
+      sandbox_mode: true,
+      disclaimer: "canned receipts for demonstration",
+      demonstration_notice: "canned receipts for demonstration - isolated from live verify path and vendor catalog",
+      isolation_level: "isolated_sandbox_no_vendor_catalog_no_live_consensus",
+      vendor_catalog_accessed: false,
+      live_consensus_invoked: false,
+      receipt_type: "canned_demonstration",
+      trap_id,
+      trap_name,
+      execution_binding: {
+        enforced: true,
+        dispatch_shim_version: "1.0",
+        operation_hash: normalizedActionHash,
+        issued_at: attestationTimestamp,
+        expires_at: new Date(bindingExpiresAtMs).toISOString(),
+        ttl_seconds: 300,
+        idempotency_key: idempotency_key || `idem_${requestId}`,
+        status: verdict === "APPROVED" ? "DEMONSTRATION_ONLY" : "NOT_APPROVED"
+      },
+      policy_status,
+      evidence_status,
+      quorum_status: "ACHIEVED_SUPERMAJORITY",
+      reviewer_agreement: Number(normReviewerAgreement),
+      reviewer_agreement_score: Number(normReviewerAgreement),
+      consensus_score: Number(normConsensus),
+      risk_index: Number(normRisk),
+      reason_codes,
+      human_review_required,
+      approval_blocked,
+      finality: "DETERMINISTIC_SANDBOX_DEMO",
+      decision_explanation: explanation,
+      verdict_summary: explanation,
+      agent_action: actionText,
+      agent_count: Number(agent_count) || 3,
+      persona_preset,
+      adversarial_debate: [
+        {
+          agent_role: "Skeptic & Grounding Auditor",
+          model: "demonstration/auditor-node-1",
+          perspective: verdict === "APPROVED" ? "AFFIRMATIVE" : "CRITICAL",
+          vote: verdict === "APPROVED" ? "PASS" : "FAIL",
+          summary: explanation
+        },
+        {
+          agent_role: "Zero-Trust Perimeter Gate",
+          model: "demonstration/perimeter-node-2",
+          perspective: verdict === "APPROVED" ? "AFFIRMATIVE" : "CRITICAL",
+          vote: verdict === "APPROVED" ? "PASS" : "FAIL",
+          summary: `Zero-Trust Policy check: ${verdict}`
+        },
+        {
+          agent_role: "Adversarial Red Team Analyst",
+          model: "demonstration/red-team-node-3",
+          perspective: verdict === "APPROVED" ? "AFFIRMATIVE" : "CRITICAL",
+          vote: verdict === "APPROVED" ? "PASS" : "FAIL",
+          summary: `Adversarial probe status: ${verdict === "APPROVED" ? "NO_EXPLOIT_FOUND" : "THREAT_VECTOR_IDENTIFIED"}`
+        }
+      ],
+      attestation: {
+        status: "VERIFIED_ED25519_SIG",
+        key_id: "ef_attest_v3",
+        version: "3.0",
+        algorithm: "Ed25519-EdDSA",
+        public_key_base64url: ed25519XBase64,
+        public_key_hex: ed25519XHex,
+        canonical_payload: attestationPayload,
+        payload_hash: crypto.createHash("sha256").update(attestationPayload).digest("hex"),
+        signature: decisionSignature,
+        signature_format: "ed25519_raw_hex",
+        canonical_serialization_spec: "canonical_delimited_v3: v3:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
+        bound_fields: {
+          request_id: requestId,
+          consensus_score: Number(normConsensus),
+          reviewer_agreement: Number(normReviewerAgreement),
+          risk_index: Number(normRisk),
+          evidence_status: normEvidenceStatus,
+          grounding_status: normGroundingStatus,
+          reason_codes: [...reason_codes].sort(),
+          approval_blocked,
+          timestamp: attestationTimestamp
+        },
+        raw_signing_bytes_encoding: "utf-8",
+        timestamp: attestationTimestamp,
+        disclaimer: "canned receipts for demonstration"
+      }
+    });
+  };
+
   const handleAgentVerification = async (req: express.Request, res: express.Response) => {
     const startTime = Date.now();
     const requestId = "req_" + crypto.randomBytes(8).toString("hex");
@@ -5856,6 +6282,24 @@ async function startServer() {
     let token = authHeader.trim();
     if (token.toLowerCase().startsWith("bearer ")) {
       token = token.substring(7).trim();
+    }
+
+    // R4 Requirement 2: SANDBOX ISOLATION
+    // If request explicitly targets sandbox/try-it, or uses a sandbox key (ef_sandbox_*), or sets sandbox header/flag:
+    // Route directly to handleSandboxVerification, which NEVER touches the real verify path, vendor catalog, or live LLM consensus.
+    const isExplicitSandbox = 
+      req.path.includes("/sandbox") || 
+      req.originalUrl.includes("/sandbox") || 
+      req.path.includes("/try-it") || 
+      req.originalUrl.includes("/try-it") || 
+      req.body?.sandbox === true || 
+      req.headers["x-ethersflow-sandbox"] === "true" || 
+      req.headers["x-sandbox"] === "true" || 
+      token.startsWith("ef_sandbox_") ||
+      token === "ef_live_sandbox_demo_key";
+
+    if (isExplicitSandbox) {
+      return handleSandboxVerification(req, res);
     }
 
     const authCheck = await validateEthersflowApiKey(token);
@@ -7343,6 +7787,15 @@ async function startServer() {
       timestamp: new Date().toISOString()
     });
   });
+
+  // R4 Requirement 2: SANDBOX ISOLATION Endpoints
+  app.all([
+    "/api/v1/sandbox/verify",
+    "/api/v1/sandbox/verify-agent-action",
+    "/api/v1/sandbox/receipts",
+    "/api/v1/try-it/verify",
+    "/api/v1/try-it"
+  ], express.json(), handleSandboxVerification);
 
   app.post(["/api/v1/verify", "/api/v1/verify-agent-action", "/api/agent/verify", "/api/v1/agent-verification"], express.json(), handleAgentVerification);
 

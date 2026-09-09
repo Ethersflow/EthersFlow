@@ -12,7 +12,7 @@
     "build:sdk:ts": "tsc -p sdk/typescript/tsconfig.json",
     "publish:sdk:ts": "cd sdk/typescript && npm run build && npm publish --access public",
     "check:references": "tsc --noEmit --skipLibCheck --target es2022 --module esnext --moduleResolution node --esModuleInterop server.ts",
-    "test": "npm run check:references && node scripts/test_regression.mjs && node scripts/test_auth_battery.mjs",
+    "test": "npm run check:references && node scripts/test_regression.mjs && node scripts/test_auth_battery.mjs && node scripts/test_r4_requirements.mjs",
     "test:auth": "node scripts/test_auth_battery.mjs",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0 && npm run check:references",
     "preview": "vite preview"
