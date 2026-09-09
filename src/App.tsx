@@ -71,7 +71,8 @@ import {
   Loader2,
   Code,
   Key,
-  Eye
+  Eye,
+  Terminal
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, cleanHeadingText, stripMarkdown, normalizeAnalystReport, normalizeConsensus, parseAnalystReport, extractThinking, stripThinking } from './lib/utils';
@@ -114,6 +115,7 @@ import { ResearchPage } from './components/ResearchPage';
 import { ProtocolPage } from './components/ProtocolPage';
 import { B2bDeveloperPortal } from './components/B2bDeveloperPortal';
 import { DevelopersPage } from './components/DevelopersPage';
+import { TryItSection } from './components/TryItSection';
 
 import { 
   collection, 
@@ -270,6 +272,7 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
             <li><a href="#pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
             <li><a href="#developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
             <li><a href="#api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
+            <li><a href="#try-it" onClick={(e) => { e.preventDefault(); setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Try-It Sandbox</span><span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded text-[9px] font-black uppercase">Demo</span></a></li>
             <li>
               <a href="https://smithery.ai/servers/ethersflow-dev/ethersflow" target="_blank" rel="noreferrer" className="hover:text-white transition-colors text-left font-bold flex items-center gap-2">
                 <span>Smithery MCP</span>
@@ -886,9 +889,12 @@ export default function App() {
         'main', 'auth', 'privacy', 'terms', 'security', 'about', 'research', 'protocol', 
         'pricing', 'careers', 'projects', 'project-detail', 'customize', 
         'agent-library', 'chats', 'tutorials', 'courses', 'help', 'welcome', 'shared', 'contact',
-        'pricing_overview', 'pro_plan_page', 'max_plan_page', 'enterprise_plan_page', 'b2b_api_portal', 'developers', 'api'
+        'pricing_overview', 'pro_plan_page', 'max_plan_page', 'enterprise_plan_page', 'b2b_api_portal', 'developers', 'api', 'try_it'
       ];
-      if (hash === 'sovereign-dashboard') {
+      if (hash === 'try-it' || hash === 'try_it' || hash === 'sandbox') {
+        setView('try_it');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      } else if (hash === 'sovereign-dashboard') {
         setSecurityActiveTab('sovereign');
         setView('security');
         window.scrollTo({ top: 0, behavior: 'instant' });
@@ -4851,6 +4857,20 @@ function NestedAgentLibraryUnused() { return null; }
           {/* Links */}
           <div className="hidden lg:flex items-center gap-4 xl:gap-6 text-[13px] xl:text-[14px] font-bold">
             <button 
+              id="nav-try-sandbox-btn"
+              onClick={() => { setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
+              className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
+                view === 'try_it' 
+                  ? (isDark ? 'text-white font-extrabold border-b-2 border-emerald-400' : 'text-[#1d1d1f] font-extrabold border-b-2 border-emerald-600')
+                  : (isDark ? 'text-gray-300' : 'text-gray-500')
+              }`}
+            >
+              <Terminal className="w-4 h-4 text-emerald-500" />
+              <span>Try-It Sandbox</span>
+              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[9px] font-black uppercase">Demo</span>
+            </button>
+
+            <button 
               onClick={() => { setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
               className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
                 view === 'developers' 
@@ -5243,6 +5263,18 @@ function NestedAgentLibraryUnused() { return null; }
             }}
             setView={setView}
           />
+        </main>
+        <CommonFooter setView={setView} />
+      </div>
+    );
+  }
+
+  if (view === 'try_it') {
+    return (
+      <div className="min-h-screen bg-[#F9F8F6] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col justify-between font-sans">
+        {renderPublicHeader()}
+        <main className="flex-1 w-full py-8">
+          <TryItSection />
         </main>
         <CommonFooter setView={setView} />
       </div>
@@ -5679,6 +5711,11 @@ function NestedAgentLibraryUnused() { return null; }
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Live Interactive Try-It Sandbox Section */}
+        <div id="try-it-container" className="w-full bg-white dark:bg-neutral-950 border-t border-gray-100 dark:border-neutral-800">
+          <TryItSection />
         </div>
 
         {/* Pricing Section */}
