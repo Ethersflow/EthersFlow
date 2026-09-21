@@ -1,0 +1,29 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.Ethersflow/EthersFlow",
+  "title": "EthersFlow — Trust Gate for AI Agents",
+  "description": "Trust gate for AI agents: multi-model adversarial consensus, signed and verifiable verdicts.",
+  "repository": { "url": "https://github.com/Ethersflow/EthersFlow", "source": "github" },
+  "version": "0.2.2",
+  "websiteUrl": "https://www.ethersflow.com",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ethersflow/mcp-server",
+      "version": "0.2.2",
+      "transport": { "type": "stdio" },
+      "environmentVariables": [
+        { "description": "EthersFlow API key for authenticating consensus requests", "isRequired": true, "isSecret": true, "name": "ETHERSFLOW_TOKEN" }
+      ]
+    }
+  ],
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://www.ethersflow.com/api/mcp",
+      "headers": [
+        { "description": "Bearer token API key for EthersFlow", "isRequired": true, "isSecret": true, "name": "Authorization" }
+      ]
+    }
+  ]
+}
