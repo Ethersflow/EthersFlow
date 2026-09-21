@@ -1838,5 +1838,37 @@
     "executed": false,
     "executed_at": null,
     "execution_id": null
+  },
+  "req_898048406a5e2a77": {
+    "receipt_id": "req_898048406a5e2a77",
+    "operation_hash": "5b3116f72e4572b598a7773f1185a28e4a19ac852e15d711f86435802ed00139",
+    "action_preview": "Disburse USD 18,450 to NorthStar Logistics under purchase order PO-8841 (Invoice INV-2026-0818)",
+    "verdict": "APPROVED",
+    "issued_at": "2026-09-21T18:52:50.581Z",
+    "issued_at_ms": 1790016770582,
+    "expires_at": "2026-09-21T18:57:50.582Z",
+    "expires_at_ms": 1790017070582,
+    "ttl_seconds": 300,
+    "idempotency_key": "idem_req_898048406a5e2a77",
+    "status": "PENDING_EXECUTION",
+    "executed": false,
+    "executed_at": null,
+    "execution_id": null
+  },
+  "req_a69617109628fbb0": {
+    "receipt_id": "req_a69617109628fbb0",
+    "operation_hash": "5b3116f72e4572b598a7773f1185a28e4a19ac852e15d711f86435802ed00139",
+    "action_preview": "Disburse USD 18,450 to NorthStar Logistics under purchase order PO-8841 (Invoice INV-2026-0818)",
+    "verdict": "APPROVED",
+    "issued_at": "2026-09-21T18:53:22.043Z",
+    "issued_at_ms": 1790016802043,
+    "expires_at": "2026-09-21T18:58:22.043Z",
+    "expires_at_ms": 1790017102043,
+    "ttl_seconds": 300,
+    "idempotency_key": "idem_req_a69617109628fbb0",
+    "status": "PENDING_EXECUTION",
+    "executed": false,
+    "executed_at": null,
+    "execution_id": null
   }
 }

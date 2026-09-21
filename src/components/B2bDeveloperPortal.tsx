@@ -22,13 +22,15 @@ import {
   Cpu,
   Activity,
   Sliders,
-  Globe
+  Globe,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface B2bDeveloperPortalProps {
   userId: string;
   userEmail?: string;
+  setView?: (v: any) => void;
 }
 
 interface ApiKeyItem {
@@ -57,7 +59,7 @@ interface ApiLogItem {
   isSample?: boolean;
 }
 
-export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, userEmail }) => {
+export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, userEmail, setView }) => {
   const [activeTab, setActiveTab] = useState<'snippets' | 'agent_verify' | 'mcp_server' | 'keys' | 'playground' | 'logs'>('snippets');
   const [snippetLang, setSnippetLang] = useState<'ts' | 'python' | 'anthropic' | 'curl' | 'verify' | 'mcp'>('ts');
   const [copiedCode, setCopiedCode] = useState(false);
@@ -467,6 +469,20 @@ main();`;
           </p>
 
           <div className="pt-2 flex flex-wrap gap-3 text-xs font-bold">
+            <button
+              onClick={() => {
+                if (setView) {
+                  setView('try_it');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }
+              }}
+              className="bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-3.5 py-1.5 rounded-xl text-emerald-300 flex items-center gap-1.5 shadow-sm cursor-pointer transition-all hover:border-emerald-500/50"
+            >
+              <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Try-It Sandbox</span>
+              <span className="px-1.5 py-0.2 bg-emerald-500/20 text-emerald-300 rounded text-[9px] font-black uppercase">Demo</span>
+              <ArrowRight className="w-3 h-3 text-emerald-400 ml-0.5" />
+            </button>
             <span className="bg-slate-900/90 border border-slate-700/80 px-3 py-1.5 rounded-xl text-indigo-300 flex items-center gap-1.5 shadow-sm">
               <Code className="w-3.5 h-3.5 text-indigo-400" /> Compatible SDK Integration
             </span>
@@ -484,32 +500,48 @@ main();`;
       </div>
 
       {/* Main Tab Navigation */}
-      <div className="flex border-b border-slate-800 overflow-x-auto no-scrollbar gap-2 sm:gap-6">
-        {[
-          { id: 'snippets', label: 'Compatible SDK Integration', icon: Code },
-          { id: 'agent_verify', label: 'Agent Action Gate (/verify)', icon: Shield },
-          { id: 'mcp_server', label: 'MCP Protocol Server (/mcp)', icon: Server },
-          { id: 'keys', label: 'API Keys & Vault', icon: Key },
-          { id: 'playground', label: 'Interactive API Sandbox', icon: Terminal },
-          { id: 'logs', label: 'Request log', icon: Activity }
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-3.5 px-4 text-xs sm:text-sm font-black transition-all border-b-2 whitespace-nowrap cursor-pointer ${
-                isActive 
-                  ? 'border-indigo-400 text-indigo-300 font-extrabold' 
-                  : 'border-transparent text-slate-400 hover:text-slate-100 hover:border-slate-700'
-              }`}
-            >
-              <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
+      <div className="flex items-center justify-between border-b border-slate-800 overflow-x-auto no-scrollbar gap-2 sm:gap-6">
+        <div className="flex items-center gap-2 sm:gap-6">
+          {[
+            { id: 'snippets', label: 'Compatible SDK Integration', icon: Code },
+            { id: 'agent_verify', label: 'Agent Action Gate (/verify)', icon: Shield },
+            { id: 'mcp_server', label: 'MCP Protocol Server (/mcp)', icon: Server },
+            { id: 'keys', label: 'API Keys & Vault', icon: Key },
+            { id: 'playground', label: 'Interactive API Sandbox', icon: Terminal },
+            { id: 'logs', label: 'Request log', icon: Activity }
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 py-3.5 px-4 text-xs sm:text-sm font-black transition-all border-b-2 whitespace-nowrap cursor-pointer ${
+                  isActive 
+                    ? 'border-indigo-400 text-indigo-300 font-extrabold' 
+                    : 'border-transparent text-slate-400 hover:text-slate-100 hover:border-slate-700'
+                }`}
+              >
+                <Icon className={`w-4 h-4 ${isActive ? 'text-indigo-400' : 'text-slate-500'}`} />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        {setView && (
+          <button
+            onClick={() => {
+              setView('try_it');
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }}
+            className="hidden lg:flex items-center gap-2 py-2 px-3.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs font-black transition-all cursor-pointer whitespace-nowrap shrink-0 my-1"
+          >
+            <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Launch Try-It Sandbox</span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Tab 1: Code Snippets & Integration */}
@@ -667,7 +699,34 @@ main();`;
 
       {/* Tab: Agent Action Verification Gate (/api/v1/verify) */}
       {activeTab === 'agent_verify' && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="space-y-6">
+          {/* Try-It Sandbox Dedicated Callout */}
+          <div className="bg-gradient-to-r from-emerald-950/40 via-[#12131a] to-indigo-950/30 rounded-3xl p-6 border border-emerald-500/30 shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-black uppercase">Official Demo Sandbox</span>
+                <span className="text-xs font-bold text-slate-400">Isolated Dry-Run Rails</span>
+              </div>
+              <h4 className="text-base font-black text-white">Pre-Configured 6 Execution Traps & Ed25519 Cryptographic Verification</h4>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Looking for pre-configured adversarial test scenarios (Prompt Injection, $150k PO Mismatch, Data Exfiltration) with copyable cURL and Ed25519 root public key verification?
+              </p>
+            </div>
+            {setView && (
+              <button
+                onClick={() => {
+                  setView('try_it');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }}
+                className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shrink-0 shadow-md shadow-emerald-600/20 cursor-pointer"
+              >
+                <span>Launch Try-It Sandbox</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* Controls Panel */}
           <div className="lg:col-span-5 bg-[#12131a] rounded-3xl p-6 border border-slate-800 shadow-xl space-y-5">
@@ -886,6 +945,7 @@ main();`;
               <span>Zero Data Retention Enforced</span>
             </div>
           </div>
+        </div>
         </div>
       )}
 

@@ -7,7 +7,7 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 // Client Firebase configuration loaded via environment variables or runtime client settings
 const getFirebaseConfig = () => {
   try {
@@ -32,7 +32,21 @@ const firebaseConfig = getFirebaseConfig();
 const app = initializeApp(firebaseConfig);
 const dbId = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_FIREBASE_DATABASE_ID) || (firebaseConfig as any).firestoreDatabaseId || '(default)';
 console.log(`[Firebase Service] Initializing Firestore targeting database ID: "${dbId}"`);
-export const db = dbId && dbId !== '(default)' ? getFirestore(app, dbId) : getFirestore(app);
+export const db = (() => {
+  const targetDbId = dbId && dbId !== '(default)' ? dbId : undefined;
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalForceLongPolling: true,
+      },
+      targetDbId
+    );
+  } catch (e) {
+    console.warn('[Firebase Service] initializeFirestore warning, falling back to getFirestore:', e);
+    return targetDbId ? getFirestore(app, targetDbId) : getFirestore(app);
+  }
+})();
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 

@@ -16,8 +16,14 @@ import {
   Info,
   CheckCircle,
   FileCode2,
-  Code
+  Code,
+  ArrowLeft
 } from 'lucide-react';
+
+export interface TryItSectionProps {
+  onBack?: () => void;
+  setView?: (v: any) => void;
+}
 
 export interface TrapScenario {
   id: string;
@@ -121,7 +127,7 @@ export const TRAP_SCENARIOS: TrapScenario[] = [
 
 export const SANDBOX_API_KEY = 'ef_sandbox_demo_show_hn';
 
-export const TryItSection: React.FC<{ compact?: boolean }> = ({ compact = false }) => {
+export const TryItSection: React.FC<TryItSectionProps & { compact?: boolean }> = ({ compact = false, onBack, setView }) => {
   const [selectedTrap, setSelectedTrap] = useState<TrapScenario>(TRAP_SCENARIOS[1]);
   const [actionInput, setActionInput] = useState<string>(TRAP_SCENARIOS[1].action);
   const [reasoningInput, setReasoningInput] = useState<string>(TRAP_SCENARIOS[1].reasoning);
@@ -241,6 +247,38 @@ export const TryItSection: React.FC<{ compact?: boolean }> = ({ compact = false 
 
   return (
     <div id="try-it-sandbox" className="w-full max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+      {/* Top Return Navigation */}
+      {(onBack || setView) && (
+        <div className="mb-8 flex items-center justify-between pb-4 border-b border-neutral-200 dark:border-neutral-800">
+          <button
+            onClick={() => {
+              if (onBack) onBack();
+              else if (setView) {
+                setView('developers');
+                window.scrollTo({ top: 0, behavior: 'instant' });
+              }
+            }}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-900 dark:hover:bg-neutral-800 text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 transition-colors cursor-pointer border border-neutral-200 dark:border-neutral-700"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Developer Hub</span>
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                if (setView) {
+                  setView('api');
+                  window.scrollTo({ top: 0, behavior: 'instant' });
+                }
+              }}
+              className="text-xs font-bold text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200 cursor-pointer"
+            >
+              API Gateway & Keys →
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top Banner & Header */}
       <div className="text-center mb-10">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs font-semibold uppercase tracking-wider mb-4">

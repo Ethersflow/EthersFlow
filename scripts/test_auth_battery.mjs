@@ -180,7 +180,7 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 6 (Regression Endpoint): Network error`, err);
   }
 
-  // Test 7: MCP tools/list Missing Auth Check -> -32000 MISSING_AUTHORIZATION
+  // Test 7: Unauthenticated MCP tools/list -> Succeeds and returns tool schema (unblocks Smithery, directories, Cline onboarding)
   total++;
   try {
     const res = await request({
@@ -191,18 +191,19 @@ async function runAuthBattery() {
       headers: { "Content-Type": "application/json" }
     }, { jsonrpc: "2.0", id: "mcp-test-7", method: "tools/list" });
 
-    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "MISSING_AUTHORIZATION";
-    if (isErr) {
-      console.log(`[PASS] Case 7 (MCP tools/list Missing Auth): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+    const isSuccess = res.status === 200 && Array.isArray(res.body?.result?.tools) && res.body?.result?.tools.length > 0;
+    const hasCorrectId = res.body?.id === "mcp-test-7";
+    if (isSuccess && hasCorrectId) {
+      console.log(`[PASS] Case 7 (Unauthenticated MCP tools/list): toolsCount=${res.body?.result?.tools.length}, id=${res.body?.id}`);
       passed++;
     } else {
-      console.error(`[FAIL] Case 7 (MCP tools/list Missing Auth):`, res.body);
+      console.error(`[FAIL] Case 7 (Unauthenticated MCP tools/list):`, res.body);
     }
   } catch (err) {
-    console.error(`[FAIL] Case 7 (MCP tools/list Missing Auth): Network error`, err);
+    console.error(`[FAIL] Case 7 (Unauthenticated MCP tools/list): Network error`, err);
   }
 
-  // Test 8: MCP tools/call Missing Auth Check -> -32000 MISSING_AUTHORIZATION
+  // Test 8: MCP tools/call Missing Auth Check -> -32000 MISSING_AUTHORIZATION with valid id
   total++;
   try {
     const res = await request({
@@ -222,8 +223,9 @@ async function runAuthBattery() {
     });
 
     const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "MISSING_AUTHORIZATION";
-    if (isErr) {
-      console.log(`[PASS] Case 8 (MCP tools/call Missing Auth): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+    const hasValidId = res.body?.id === "mcp-test-8" && res.body?.id !== null;
+    if (isErr && hasValidId) {
+      console.log(`[PASS] Case 8 (MCP tools/call Missing Auth): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}, id=${res.body?.id}`);
       passed++;
     } else {
       console.error(`[FAIL] Case 8 (MCP tools/call Missing Auth):`, res.body);
@@ -232,32 +234,40 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 8 (MCP tools/call Missing Auth): Network error`, err);
   }
 
-  // Test 9: MCP tools/list Fabricated Key -> -32000 INVALID_API_KEY
+  // Test 9: MCP Empty results for resources/list and prompts/list
   total++;
   try {
-    const res = await request({
+    const resResources = await request({
       hostname: "localhost",
       port: 3000,
       path: "/mcp",
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer ef_live_INVALIDKEY0000000000000000"
-      }
-    }, { jsonrpc: "2.0", id: "mcp-test-9", method: "tools/list" });
+      headers: { "Content-Type": "application/json" }
+    }, { jsonrpc: "2.0", id: 91, method: "resources/list" });
 
-    const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "INVALID_API_KEY";
-    if (isErr) {
-      console.log(`[PASS] Case 9 (MCP tools/list Fabricated Key): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+    const resPrompts = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/mcp",
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    }, { jsonrpc: "2.0", id: 92, method: "prompts/list" });
+
+    const hasResources = Array.isArray(resResources.body?.result?.resources) && resResources.body?.result?.resources.length === 0;
+    const hasPrompts = Array.isArray(resPrompts.body?.result?.prompts) && resPrompts.body?.result?.prompts.length === 0;
+    const validIds = resResources.body?.id === 91 && resPrompts.body?.id === 92;
+
+    if (hasResources && hasPrompts && validIds) {
+      console.log(`[PASS] Case 9 (MCP resources/list & prompts/list): resources:[], prompts:[], valid IDs returned`);
       passed++;
     } else {
-      console.error(`[FAIL] Case 9 (MCP tools/list Fabricated Key):`, res.body);
+      console.error(`[FAIL] Case 9 (MCP resources/list & prompts/list):`, { resources: resResources.body, prompts: resPrompts.body });
     }
   } catch (err) {
-    console.error(`[FAIL] Case 9 (MCP tools/list Fabricated Key): Network error`, err);
+    console.error(`[FAIL] Case 9 (MCP resources/list & prompts/list): Network error`, err);
   }
 
-  // Test 10: MCP tools/call Fabricated Key -> -32000 INVALID_API_KEY
+  // Test 10: MCP tools/call Fabricated Key -> -32000 INVALID_API_KEY with valid non-null id
   total++;
   try {
     const res = await request({
@@ -280,8 +290,9 @@ async function runAuthBattery() {
     });
 
     const isErr = res.body?.error?.code === -32000 && res.body?.error?.data?.error_code === "INVALID_API_KEY";
-    if (isErr) {
-      console.log(`[PASS] Case 10 (MCP tools/call Fabricated Key): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}`);
+    const hasValidId = res.body?.id === "mcp-test-10" && (typeof res.body?.id === "string" || typeof res.body?.id === "number");
+    if (isErr && hasValidId) {
+      console.log(`[PASS] Case 10 (MCP tools/call Fabricated Key): code=${res.body?.error?.code}, error_code=${res.body?.error?.data?.error_code}, id=${res.body?.id}`);
       passed++;
     } else {
       console.error(`[FAIL] Case 10 (MCP tools/call Fabricated Key):`, res.body);
@@ -388,6 +399,41 @@ async function runAuthBattery() {
     }
   } catch (err) {
     console.error(`[FAIL] Case 12 (MCP Auth Battery Legacy): Network error`, err);
+  }
+
+  // Test 13: Gateway Version 0.2.2 Consistency Check (/api/health, GET /api/mcp, initialize, /.well-known/mcp.json)
+  total++;
+  try {
+    const health = await request({ hostname: "localhost", port: 3000, path: "/api/health", method: "GET" });
+    const mcpRoot = await request({ hostname: "localhost", port: 3000, path: "/api/mcp", method: "GET" });
+    const wellKnown = await request({ hostname: "localhost", port: 3000, path: "/.well-known/mcp.json", method: "GET" });
+    const initRpc = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/api/mcp",
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    }, { jsonrpc: "2.0", id: "init-test", method: "initialize" });
+
+    const expectedVersion = "0.2.2";
+    const vHealth = health.body?.version === expectedVersion;
+    const vMcp = mcpRoot.body?.version === expectedVersion;
+    const vWellKnown = wellKnown.body?.version === expectedVersion;
+    const vInit = initRpc.body?.result?.serverInfo?.version === expectedVersion;
+
+    if (vHealth && vMcp && vWellKnown && vInit) {
+      console.log(`[PASS] Case 13 (Version 0.2.2 Consistency): /api/health=${health.body?.version}, GET /api/mcp=${mcpRoot.body?.version}, /.well-known/mcp.json=${wellKnown.body?.version}, initialize=${initRpc.body?.result?.serverInfo?.version}`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 13 (Version 0.2.2 Consistency):`, {
+        health: health.body?.version,
+        mcp: mcpRoot.body?.version,
+        wellKnown: wellKnown.body?.version,
+        initialize: initRpc.body?.result?.serverInfo?.version
+      });
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 13 (Version 0.2.2 Consistency): Network error`, err);
   }
 
   console.log("================================================================================");

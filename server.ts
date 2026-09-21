@@ -50,7 +50,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.1";
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.2";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
@@ -855,8 +855,8 @@ async function startServer() {
         return res.send(cached.buffer);
       }
 
-      // Split text into ~350-character chunks at sentence boundaries
-      const maxChunkLen = 350;
+      // Split text into ~1200-character chunks at sentence boundaries (dramatically saves daily quota)
+      const maxChunkLen = 1200;
       const sentences = cleaned.match(/[^.!?]+[.!?]+(\s+|$)|[^.!?]+$/g) || [cleaned];
       const chunks: string[] = [];
       let currentChunk = "";
@@ -873,7 +873,7 @@ async function startServer() {
 
       // Helper function to call OpenRouter audio/speech with rate-limit ducking retries
       const fetchTTSChunkWithDucking = async (chunkText: string, retryCount = 0): Promise<Buffer> => {
-        const maxRetries = 4;
+        const maxRetries = 2;
         try {
           const response = await fetch("https://openrouter.ai/api/v1/audio/speech", {
             method: "POST",
@@ -890,10 +890,26 @@ async function startServer() {
             })
           });
 
-          if (response.status === 429 || response.status >= 500) {
+          if (response.status === 429) {
+            const errText = await response.text().catch(() => "");
+            const isDailyQuota = errText.includes("free-models-per-day") || errText.includes("openrouter_free_tier_daily");
+            if (isDailyQuota) {
+              const quotaErr: any = new Error(`OpenRouter TTS returned status 429: ${errText}`);
+              quotaErr.status = 429;
+              quotaErr.dailyLimitExceeded = true;
+              throw quotaErr;
+            }
+
             if (retryCount < maxRetries) {
               const backoffMs = Math.pow(2, retryCount) * 1500 + Math.floor(Math.random() * 400);
-              console.log(`[TTS] Rate limit / server error (${response.status}). Silent ducking backoff ${backoffMs}ms for chunk (attempt ${retryCount + 1}/${maxRetries})...`);
+              console.log(`[TTS] Burst rate limit (429). Silent ducking backoff ${backoffMs}ms (attempt ${retryCount + 1}/${maxRetries})...`);
+              await new Promise((r) => setTimeout(r, backoffMs));
+              return fetchTTSChunkWithDucking(chunkText, retryCount + 1);
+            }
+          } else if (response.status >= 500) {
+            if (retryCount < maxRetries) {
+              const backoffMs = Math.pow(2, retryCount) * 1500 + Math.floor(Math.random() * 400);
+              console.log(`[TTS] Server error (${response.status}). Retrying in ${backoffMs}ms...`);
               await new Promise((r) => setTimeout(r, backoffMs));
               return fetchTTSChunkWithDucking(chunkText, retryCount + 1);
             }
@@ -907,9 +923,12 @@ async function startServer() {
           const arrayBuffer = await response.arrayBuffer();
           return Buffer.from(arrayBuffer);
         } catch (err: any) {
+          if (err.dailyLimitExceeded) {
+            throw err;
+          }
           if (retryCount < maxRetries) {
-            const backoffMs = 2000 + retryCount * 1500;
-            console.warn(`[TTS] Transient error: ${err.message}. Retrying silently in ${backoffMs}ms...`);
+            const backoffMs = 1500 + retryCount * 1500;
+            console.warn(`[TTS] Transient error: ${err.message}. Retrying in ${backoffMs}ms...`);
             await new Promise((r) => setTimeout(r, backoffMs));
             return fetchTTSChunkWithDucking(chunkText, retryCount + 1);
           }
@@ -917,8 +936,8 @@ async function startServer() {
         }
       };
 
-      // Process chunks in bounded parallel batches (concurrency of 3 with slight stagger)
-      const CONCURRENCY_LIMIT = 3;
+      // Process chunks in bounded parallel batches (concurrency of 2 to avoid burst 429s)
+      const CONCURRENCY_LIMIT = 2;
       const audioBuffers: Buffer[] = new Array(chunks.length);
 
       for (let i = 0; i < chunks.length; i += CONCURRENCY_LIMIT) {
@@ -926,7 +945,7 @@ async function startServer() {
         await Promise.all(
           batchIndices.map(async (idx, offset) => {
             if (offset > 0) {
-              await new Promise((r) => setTimeout(r, offset * 120));
+              await new Promise((r) => setTimeout(r, offset * 150));
             }
             audioBuffers[idx] = await fetchTTSChunkWithDucking(chunks[idx]);
           })
@@ -948,9 +967,14 @@ async function startServer() {
       return res.send(combinedBuffer);
     } catch (err: any) {
       console.error("[TTS API Error]:", err);
-      return res.status(500).json({
-        error: "TTS_GENERATION_FAILED",
-        message: err.message || "Failed to generate speech audio via Fish Audio S2.1 Pro Free."
+      const isDaily = err.dailyLimitExceeded || (err.message && (err.message.includes("free-models-per-day") || err.message.includes("openrouter_free_tier_daily")));
+      const status = isDaily ? 429 : (err.status || 500);
+
+      return res.status(status).json({
+        error: isDaily ? "RATE_LIMIT_EXCEEDED" : "TTS_GENERATION_FAILED",
+        dailyLimitExceeded: isDaily,
+        message: err.message || "Failed to generate speech audio via Fish Audio S2.1 Pro Free.",
+        remedyHint: isDaily ? "Add 5 credits to OpenRouter to unlock 1,000 free model requests per day, or use instant neural browser speech synthesis." : undefined
       });
     }
   });
@@ -5185,7 +5209,7 @@ async function startServer() {
       human_review_required = true;
       approval_blocked = true;
       finality = "POLICY_FINAL_BLOCK";
-      decision_explanation = "REJECTED: Factual grounding contradiction exposed. EthersFlow is in early developer release (v0.2.1) and is NOT SOC 2 Type II certified. Disseminating unearned compliance or audit certifications violates regulatory truth-in-advertising and enterprise compliance boundaries.";
+      decision_explanation = `REJECTED: Factual grounding contradiction exposed. EthersFlow is in early developer release (v${ETHERSFLOW_RELEASE_VERSION}) and is NOT SOC 2 Type II certified. Disseminating unearned compliance or audit certifications violates regulatory truth-in-advertising and enterprise compliance boundaries.`;
       verdict_summary = decision_explanation;
     } else if (isMicroExpenseFastPath) {
       // Micro-Expense Fast Path Policy Evaluation (finops_default_v1.json: micro_expense_fast_path)
@@ -5727,7 +5751,7 @@ async function startServer() {
       } else if (hasFalseCertificationClaim) {
         if (role.includes("Pragmatist") || role.includes("Compliance")) {
           nodeStatus = "CONTRADICTION_EXPOSED";
-          perspective = `CONTRADICTION EXPOSED (Direct Pragmatist): Factual contradiction detected. EthersFlow is in developer release (v0.2.1) and is NOT SOC 2 Type II certified. Asserting verified SOC 2 Type II compliance constitutes a false factual claim.`;
+          perspective = `CONTRADICTION EXPOSED (Direct Pragmatist): Factual contradiction detected. EthersFlow is in developer release (v${ETHERSFLOW_RELEASE_VERSION}) and is NOT SOC 2 Type II certified. Asserting verified SOC 2 Type II compliance constitutes a false factual claim.`;
         } else if (role.includes("Skeptic") || role.includes("Fraud")) {
           nodeStatus = "CONTRADICTION_EXPOSED";
           perspective = `GROUNDING CONTRADICTION (Constructive Skeptic): Attestation of SOC 2 Type II certification directly contradicts enterprise grounding records. Marketing dissemination of unverified regulatory credentials is strictly prohibited.`;
@@ -7807,7 +7831,7 @@ async function startServer() {
       vendor: "EthersFlow Inc.",
       homepage: "https://www.ethersflow.com",
       repository: "https://github.com/Ethersflow/EthersFlow",
-      version: "0.2.1",
+      version: ETHERSFLOW_RELEASE_VERSION,
       license: "MIT",
       listings: {
         smithery: "https://smithery.ai/servers/ethersflow-dev/ethersflow",
@@ -7834,7 +7858,7 @@ async function startServer() {
     res.json({
       status: "online",
       server: "ethersflow-mcp-gateway",
-      version: "0.2.1",
+      version: ETHERSFLOW_RELEASE_VERSION,
       protocol: "Model Context Protocol JSON-RPC 2.0",
       repository: "https://github.com/Ethersflow/EthersFlow",
       listings: {
@@ -7851,23 +7875,35 @@ async function startServer() {
     });
   });
 
+  // Helper to ensure JSON-RPC 2.0 error and result IDs are strictly string | number (never null) per specification
+  const normalizeMcpId = (rawId: any): string | number => {
+    if (typeof rawId === "string" && rawId.trim().length > 0) {
+      return rawId;
+    }
+    if (typeof rawId === "number" && !isNaN(rawId)) {
+      return rawId;
+    }
+    return 1;
+  };
+
   // MCP (Model Context Protocol JSON-RPC 2.0 Server Endpoint) - supports both /mcp and /api/mcp
   app.post(["/mcp", "/api/mcp"], express.json(), async (req, res) => {
-    const { jsonrpc = "2.0", id = 1, method, params } = req.body || {};
+    const { jsonrpc = "2.0", id: rawId, method, params } = req.body || {};
+    const id = normalizeMcpId(rawId ?? req.body?.id);
 
-    // Validate JSON-RPC 2.0 Method
-    if (!method || typeof method !== "string" || !["initialize", "tools/list", "tools/call"].includes(method)) {
+    // Validate JSON-RPC 2.0 Method presence
+    if (!method || typeof method !== "string") {
       return res.status(200).json({
         jsonrpc: "2.0",
-        id: id || null,
+        id,
         error: {
-          code: -32601,
-          message: `Method not found: ${method || "undefined"}`
+          code: -32600,
+          message: "Invalid Request: method is required and must be a string."
         }
       });
     }
 
-    // Unified MCP Authentication Extractor and Validator (Identical for tools/list and tools/call)
+    // Unified MCP Authentication Extractor and Validator (enforced strictly on tools/call)
     async function extractAndValidateMcpAuth(req: express.Request, requestId: any) {
       let rawToken = (
         req.headers.authorization ||
@@ -7912,7 +7948,7 @@ async function startServer() {
           token: "",
           errorResponse: {
             jsonrpc: "2.0",
-            id: requestId || null,
+            id: normalizeMcpId(requestId),
             error: {
               code: -32000,
               message: "Unauthorized: Missing EthersFlow API key in Authorization header, x-api-key, or params.",
@@ -7931,7 +7967,7 @@ async function startServer() {
           token,
           errorResponse: {
             jsonrpc: "2.0",
-            id: requestId || null,
+            id: normalizeMcpId(requestId),
             error: {
               code: -32000,
               message: `Unauthorized: ${authCheck.error || "Invalid API key provided. Authorization header must contain a valid EthersFlow Bearer token."}`,
@@ -7953,11 +7989,13 @@ async function startServer() {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: {
-            tools: { listChanged: false }
+            tools: { listChanged: false },
+            resources: { subscribe: false, listChanged: false },
+            prompts: { listChanged: false }
           },
           serverInfo: {
             name: "EthersFlow",
-            version: "0.2.1",
+            version: ETHERSFLOW_RELEASE_VERSION,
             description: "EthersFlow Federated Adversarial Consensus & Agent Action Verification Server"
           }
         }
@@ -7965,12 +8003,7 @@ async function startServer() {
     }
 
     if (method === "tools/list") {
-      // Enforce unified authorization check on MCP tools/list (identical to tools/call)
-      const auth = await extractAndValidateMcpAuth(req, id);
-      if (!auth.valid) {
-        return res.json(auth.errorResponse);
-      }
-
+      // Unauthenticated tools/list — returns tool schema without key so directories/onboarding work cleanly
       return res.json({
         jsonrpc: "2.0",
         id,
@@ -8027,6 +8060,44 @@ async function startServer() {
       });
     }
 
+    if (method === "resources/list") {
+      return res.json({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          resources: []
+        }
+      });
+    }
+
+    if (method === "resources/templates/list") {
+      return res.json({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          resourceTemplates: []
+        }
+      });
+    }
+
+    if (method === "prompts/list") {
+      return res.json({
+        jsonrpc: "2.0",
+        id,
+        result: {
+          prompts: []
+        }
+      });
+    }
+
+    if (method === "notifications/initialized" || method === "initialized") {
+      return res.status(200).json({
+        jsonrpc: "2.0",
+        id,
+        result: {}
+      });
+    }
+
     if (method === "tools/call") {
       const toolName = params?.name;
       const toolArgs = params?.arguments || {};
@@ -8042,7 +8113,7 @@ async function startServer() {
         });
       }
 
-      // Enforce unified authorization check on MCP tools/call (identical to tools/list)
+      // Enforce authorization check on MCP tools/call
       const auth = await extractAndValidateMcpAuth(req, id);
       if (!auth.valid) {
         return res.json(auth.errorResponse);
@@ -8137,7 +8208,7 @@ async function startServer() {
 
     return res.json({
       jsonrpc: "2.0",
-      id: id || null,
+      id,
       error: {
         code: -32601,
         message: `Method not found: ${method}`

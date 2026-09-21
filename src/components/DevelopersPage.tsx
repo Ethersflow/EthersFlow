@@ -404,11 +404,19 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
             </div>
             <span className="font-black text-white tracking-tight">Developers Hub</span>
             <span className="text-[10px] text-slate-400 font-bold px-2 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded uppercase tracking-wider">
-              v0.2.0 (REST & MCP)
+              v0.2.2 (REST & MCP)
             </span>
           </div>
 
           <div className="flex items-center gap-2.5">
+            <button
+              onClick={() => { setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
+              className="px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Try-It Sandbox</span>
+              <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 rounded text-[9px] font-black uppercase">Demo</span>
+            </button>
             <button
               onClick={() => setView('api')}
               className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-black transition-all flex items-center gap-1.5 shadow-sm shadow-indigo-600/20 cursor-pointer"
@@ -1059,12 +1067,33 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
 
         {/* SECTION 3: AGENT ACTION GATE */}
         {activeSection === 'agent_gate' && (
-          <div className="space-y-12">
+          <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-black text-white mb-2">Agent Action Gate (<code className="text-indigo-400">/api/v1/verify</code>)</h2>
               <p className="text-slate-400 text-sm font-medium">
                 Prevent autonomous AI agents from executing unauthorized, rogue, or destructive tool calls by putting a real-time multi-model adversarial review loop in front of high-stakes actions.
               </p>
+            </div>
+
+            {/* Try-It Sandbox Interactive Launcher */}
+            <div className="p-6 bg-gradient-to-r from-emerald-950/50 via-slate-900 to-indigo-950/40 border border-emerald-500/40 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-xl">
+              <div className="space-y-1.5 max-w-2xl">
+                <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-mono font-bold uppercase tracking-wider">
+                  <Terminal className="w-3 h-3 text-emerald-400" />
+                  <span>Interactive Sandbox & 6 Execution Traps</span>
+                </div>
+                <h3 className="text-lg font-black text-white">Dedicated Try-It Sandbox & Cryptographic Verification</h3>
+                <p className="text-xs text-slate-300 leading-relaxed font-medium">
+                  Test prompt injection detection, PO mismatch wire traps, destructive infra gating, and real-time Ed25519 cryptographic signature verification using the published root public key.
+                </p>
+              </div>
+              <button
+                onClick={() => { setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
+                className="px-5 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all flex items-center gap-2 shrink-0 shadow-lg shadow-emerald-600/30 cursor-pointer"
+              >
+                <span>Launch Try-It Sandbox</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

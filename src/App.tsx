@@ -78,7 +78,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn, cleanHeadingText, stripMarkdown, normalizeAnalystReport, normalizeConsensus, parseAnalystReport, extractThinking, stripThinking } from './lib/utils';
 import { useAuth } from './hooks/useAuth';
 import { extractTextFromPdfClient } from './services/clientPdfExtractor';
-import { fetchAudioBlobForText, cleanMarkdownForSpeech } from './services/ttsService';
+import { fetchAudioBlobForText, cleanMarkdownForSpeech, BrowserSpeechController, TtsError } from './services/ttsService';
 import { runConsensus, type AnalystResponse, type SynthesisResult, type ChatMessage } from './services/consensusService';
 import { fetchUsage, incrementUsage, createCheckoutSession, createPortalSession, type UsageInfo } from './services/billingService';
 import { translations, languageCodeMap, type Language } from './lib/i18n';
@@ -249,7 +249,7 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
       <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24 grid grid-cols-1 md:grid-cols-4 gap-20">
         <div className="col-span-1 md:col-span-1">
           <a 
-            href="#main"
+            href="/"
             className="flex items-center gap-2 mb-8 cursor-pointer inline-flex"
             onClick={(e) => {
               e.preventDefault();
@@ -268,11 +268,11 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
         <div>
           <h4 className="font-black text-xs uppercase tracking-[0.3em] mb-8 text-white">Platform</h4>
           <ul className="space-y-4 text-sm font-bold text-[#86868b]">
-            <li><a href="#protocol" onClick={(e) => { e.preventDefault(); setView('protocol'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Protocol</a></li>
-            <li><a href="#pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
-            <li><a href="#developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
-            <li><a href="#api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
-            <li><a href="#try-it" onClick={(e) => { e.preventDefault(); setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Try-It Sandbox</span><span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded text-[9px] font-black uppercase">Demo</span></a></li>
+            <li><a href="/protocol" onClick={(e) => { e.preventDefault(); setView('protocol'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Protocol</a></li>
+            <li><a href="/pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
+            <li><a href="/developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
+            <li><a href="/api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
+            <li><a href="/try-it" onClick={(e) => { e.preventDefault(); setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Try-It Sandbox</span><span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded text-[9px] font-black uppercase">Demo</span></a></li>
             <li>
               <a href="https://smithery.ai/servers/ethersflow-dev/ethersflow" target="_blank" rel="noreferrer" className="hover:text-white transition-colors text-left font-bold flex items-center gap-2">
                 <span>Smithery MCP</span>
@@ -285,18 +285,18 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
         <div>
           <h4 className="font-black text-xs uppercase tracking-[0.3em] mb-8 text-white">Company</h4>
           <ul className="space-y-4 text-sm font-bold text-[#86868b]">
-            <li><a href="#about" onClick={(e) => { e.preventDefault(); setView('about'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">About</a></li>
-            <li><a href="#research" onClick={(e) => { e.preventDefault(); setView('research'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Research</a></li>
-            <li><a href="#careers" onClick={(e) => { e.preventDefault(); setView('careers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Careers</a></li>
-            <li><a href="#contact" onClick={(e) => { e.preventDefault(); setView('contact'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Contact Us</a></li>
+            <li><a href="/about" onClick={(e) => { e.preventDefault(); setView('about'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">About</a></li>
+            <li><a href="/research" onClick={(e) => { e.preventDefault(); setView('research'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Research</a></li>
+            <li><a href="/careers" onClick={(e) => { e.preventDefault(); setView('careers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Careers</a></li>
+            <li><a href="/contact" onClick={(e) => { e.preventDefault(); setView('contact'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Contact Us</a></li>
           </ul>
         </div>
 
         <div>
           <h4 className="font-black text-xs uppercase tracking-[0.3em] mb-8 text-white">Legal</h4>
           <ul className="space-y-4 text-sm font-bold text-[#86868b]">
-            <li><a href="#privacy" onClick={() => setView('privacy')} className="hover:text-white transition-colors text-left font-bold block">Privacy Policy</a></li>
-            <li><a href="#terms" onClick={() => setView('terms')} className="hover:text-white transition-colors text-left font-bold block">Terms of Service</a></li>
+            <li><a href="/privacy" onClick={(e) => { e.preventDefault(); setView('privacy'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Privacy Policy</a></li>
+            <li><a href="/terms" onClick={(e) => { e.preventDefault(); setView('terms'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Terms of Service</a></li>
           </ul>
         </div>
       </div>
@@ -821,6 +821,179 @@ const SECTORS_FOR_LIBRARY = [
   { id: 'analytical', label: 'Analytical & Logic' },
 ];
 
+export interface ResolvedRoute {
+  view: View;
+  securityTab?: 'sovereign' | 'telemetry' | 'guardian' | 'gtm';
+  cleanPath: string;
+}
+
+export function resolveRouteFromLocation(): ResolvedRoute {
+  if (typeof window === 'undefined') {
+    return { view: 'auth', cleanPath: '/' };
+  }
+
+  // 1. Check hash first for backward compatibility (e.g. #developers, #pricing, #about, etc.)
+  const rawHash = window.location.hash.replace(/^#\/?/, '').trim();
+  // 2. Check pathname (e.g. /developers, /pricing, /security, etc.)
+  const rawPath = window.location.pathname.replace(/^\/+|\/+$/g, '').trim();
+
+  // If a hash exists and maps to a route, treat it as highest priority to recover direct links
+  const candidate = (rawHash || rawPath).toLowerCase();
+
+  if (candidate === 'try-it' || candidate === 'try_it' || candidate === 'sandbox') {
+    return { view: 'try_it', cleanPath: '/try-it' };
+  }
+  if (candidate === 'developers' || candidate === 'developer' || candidate === 'docs') {
+    return { view: 'developers', cleanPath: '/developers' };
+  }
+  if (candidate === 'api' || candidate === 'gateway' || candidate === 'keys' || candidate === 'b2b_api_portal' || candidate === 'b2b-api-portal') {
+    return { view: 'api', cleanPath: '/api' };
+  }
+  if (candidate === 'pricing' || candidate === 'pricing_overview' || candidate === 'pricing-overview') {
+    return { view: 'pricing_overview', cleanPath: '/pricing' };
+  }
+  if (candidate === 'pricing/pro' || candidate === 'pro' || candidate === 'pro_plan_page' || candidate === 'pro-plan') {
+    return { view: 'pro_plan_page', cleanPath: '/pricing/pro' };
+  }
+  if (candidate === 'pricing/max' || candidate === 'max' || candidate === 'max_plan_page' || candidate === 'max-plan') {
+    return { view: 'max_plan_page', cleanPath: '/pricing/max' };
+  }
+  if (candidate === 'pricing/enterprise' || candidate === 'enterprise' || candidate === 'enterprise_plan_page' || candidate === 'enterprise-plan') {
+    return { view: 'enterprise_plan_page', cleanPath: '/pricing/enterprise' };
+  }
+  if (candidate === 'security' || candidate === 'sovereign-dashboard' || candidate === 'sovereign') {
+    return { view: 'security', securityTab: 'sovereign', cleanPath: '/security' };
+  }
+  if (candidate === 'ops-telemetry' || candidate === 'telemetry' || candidate === 'security/telemetry') {
+    return { view: 'security', securityTab: 'telemetry', cleanPath: '/security/telemetry' };
+  }
+  if (candidate === 'guardian-telemetry' || candidate === 'guardian' || candidate === 'security/guardian') {
+    return { view: 'security', securityTab: 'guardian', cleanPath: '/security/guardian' };
+  }
+  if (candidate === 'gtm-pipeline' || candidate === 'ops-gtm' || candidate === 'gtm' || candidate === 'security/gtm') {
+    return { view: 'security', securityTab: 'gtm', cleanPath: '/security/gtm' };
+  }
+  if (candidate === 'about') {
+    return { view: 'about', cleanPath: '/about' };
+  }
+  if (candidate === 'research') {
+    return { view: 'research', cleanPath: '/research' };
+  }
+  if (candidate === 'protocol') {
+    return { view: 'protocol', cleanPath: '/protocol' };
+  }
+  if (candidate === 'careers') {
+    return { view: 'careers', cleanPath: '/careers' };
+  }
+  if (candidate === 'contact') {
+    return { view: 'contact', cleanPath: '/contact' };
+  }
+  if (candidate === 'privacy' || candidate === 'privacy-policy') {
+    return { view: 'privacy', cleanPath: '/privacy' };
+  }
+  if (candidate === 'terms' || candidate === 'terms-of-service') {
+    return { view: 'terms', cleanPath: '/terms' };
+  }
+  if (candidate === 'main' || candidate === 'app') {
+    return { view: 'main', cleanPath: '/app' };
+  }
+  if (candidate === 'projects') {
+    return { view: 'projects', cleanPath: '/projects' };
+  }
+  if (candidate === 'chats') {
+    return { view: 'chats', cleanPath: '/chats' };
+  }
+  if (candidate === 'agent-library' || candidate === 'agents') {
+    return { view: 'agent-library', cleanPath: '/agent-library' };
+  }
+  if (candidate === 'shared') {
+    return { view: 'shared', cleanPath: '/shared' };
+  }
+  if (candidate === 'help') {
+    return { view: 'help', cleanPath: '/help' };
+  }
+  if (candidate === 'tutorials') {
+    return { view: 'tutorials', cleanPath: '/tutorials' };
+  }
+  if (candidate === 'courses') {
+    return { view: 'courses', cleanPath: '/courses' };
+  }
+  if (candidate === 'welcome') {
+    return { view: 'welcome', cleanPath: '/welcome' };
+  }
+
+  // Preserve invite/share routes
+  if (rawPath.startsWith('share/')) {
+    return { view: 'main', cleanPath: '/' + rawPath };
+  }
+  if (rawPath.startsWith('invite/')) {
+    return { view: 'main', cleanPath: '/' + rawPath };
+  }
+
+  return { view: 'auth', cleanPath: '/' };
+}
+
+export function getPathForView(view: View, securityActiveTab?: 'sovereign' | 'telemetry' | 'guardian' | 'gtm'): string {
+  switch (view) {
+    case 'auth':
+      return '/';
+    case 'main':
+      return '/app';
+    case 'developers':
+      return '/developers';
+    case 'api':
+    case 'b2b_api_portal':
+      return '/api';
+    case 'pricing_overview':
+      return '/pricing';
+    case 'pro_plan_page':
+      return '/pricing/pro';
+    case 'max_plan_page':
+      return '/pricing/max';
+    case 'enterprise_plan_page':
+      return '/pricing/enterprise';
+    case 'try_it':
+      return '/try-it';
+    case 'security':
+      if (securityActiveTab === 'telemetry') return '/security/telemetry';
+      if (securityActiveTab === 'guardian') return '/security/guardian';
+      if (securityActiveTab === 'gtm') return '/security/gtm';
+      return '/security';
+    case 'about':
+      return '/about';
+    case 'research':
+      return '/research';
+    case 'protocol':
+      return '/protocol';
+    case 'careers':
+      return '/careers';
+    case 'contact':
+      return '/contact';
+    case 'privacy':
+      return '/privacy';
+    case 'terms':
+      return '/terms';
+    case 'projects':
+      return '/projects';
+    case 'chats':
+      return '/chats';
+    case 'agent-library':
+      return '/agent-library';
+    case 'shared':
+      return '/shared';
+    case 'help':
+      return '/help';
+    case 'tutorials':
+      return '/tutorials';
+    case 'courses':
+      return '/courses';
+    case 'welcome':
+      return '/welcome';
+    default:
+      return '/';
+  }
+}
+
 export default function App() {
   const { user: authUser, loading: authLoading, signInWithGoogle, signInWithGoogleDrive, logout, signInWithEmail, signUpWithEmail } = useAuth();
   const [loadingOverride, setLoadingOverride] = useState(false);
@@ -861,7 +1034,10 @@ export default function App() {
   const loading = authLoading && !loadingOverride && !bypassUser;
 
   const [currentPlan, setCurrentPlan] = useState<PlanTier>('free');
-  const [view, setView] = useState<View>('auth');
+  const [view, setView] = useState<View>(() => resolveRouteFromLocation().view);
+  const [securityActiveTab, setSecurityActiveTab] = useState<'sovereign' | 'telemetry' | 'guardian' | 'gtm'>(() => {
+    return resolveRouteFromLocation().securityTab || 'sovereign';
+  });
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme');
     if (saved === 'dark' || saved === 'light') return saved;
@@ -879,74 +1055,44 @@ export default function App() {
 
   const [showPricingDropdown, setShowPricingDropdown] = useState(false);
   const [showResourcesDropdown, setShowResourcesDropdown] = useState(false);
-  const [securityActiveTab, setSecurityActiveTab] = useState<'sovereign' | 'telemetry' | 'guardian' | 'gtm'>('sovereign');
 
-  // Synchronize view state with URL hash for direct mapping, search indexing, and Google OAuth Verification
+  // Synchronize route state with browser history (popstate & legacy hashchange), upgrading hash URLs cleanly
   useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '');
-      const validViews: View[] = [
-        'main', 'auth', 'privacy', 'terms', 'security', 'about', 'research', 'protocol', 
-        'pricing', 'careers', 'projects', 'project-detail', 'customize', 
-        'agent-library', 'chats', 'tutorials', 'courses', 'help', 'welcome', 'shared', 'contact',
-        'pricing_overview', 'pro_plan_page', 'max_plan_page', 'enterprise_plan_page', 'b2b_api_portal', 'developers', 'api', 'try_it'
-      ];
-      if (hash === 'try-it' || hash === 'try_it' || hash === 'sandbox') {
-        setView('try_it');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else if (hash === 'sovereign-dashboard') {
-        setSecurityActiveTab('sovereign');
-        setView('security');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else if (hash === 'ops-telemetry') {
-        setSecurityActiveTab('telemetry');
-        setView('security');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else if (hash === 'guardian-telemetry') {
-        setSecurityActiveTab('guardian');
-        setView('security');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else if (hash === 'gtm-pipeline' || hash === 'ops-gtm' || hash === 'sovereign-dashboard' + '#gtm-pipeline') {
-        setSecurityActiveTab('gtm');
-        setView('security');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else if (hash && hash !== 'main' && hash !== 'auth' && validViews.includes(hash as View)) {
-        setView(hash as View);
-        // Scroll to the top when navigating via direct routes or deep links
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      } else {
-        // Always default to landing page ('auth') on root/boot
-        setView('auth');
+    // If the visitor arrived with a hash (e.g. #developers or #pricing), upgrade to clean path without reloading
+    if (window.location.hash) {
+      const route = resolveRouteFromLocation();
+      const targetPath = route.cleanPath + (window.location.search || '');
+      window.history.replaceState(null, '', targetPath);
+    }
+
+    const syncRouteFromWindow = () => {
+      const route = resolveRouteFromLocation();
+      setView(route.view);
+      if (route.securityTab) {
+        setSecurityActiveTab(route.securityTab);
       }
+      window.scrollTo({ top: 0, behavior: 'instant' });
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    // Trigger on boot to capture nested link entry
-    handleHashChange();
+    window.addEventListener('popstate', syncRouteFromWindow);
+    window.addEventListener('hashchange', syncRouteFromWindow);
 
     return () => {
-      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('popstate', syncRouteFromWindow);
+      window.removeEventListener('hashchange', syncRouteFromWindow);
     };
   }, []);
 
-  // Set the window.location.hash whenever state-driven route navigation changes
+  // Update browser URL pathname cleanly whenever view or sub-tab changes (no unsightly '#')
   useEffect(() => {
-    const currentHash = window.location.hash.replace('#', '');
-    if (view && view !== currentHash) {
-      if (view === 'main') {
-        const cleanURL = window.location.pathname + window.location.search;
-        window.history.pushState(null, '', cleanURL);
-      } else if (view === 'security') {
-        const targetHash = 
-          securityActiveTab === 'sovereign' ? 'sovereign-dashboard' : 
-          securityActiveTab === 'telemetry' ? 'ops-telemetry' :
-          securityActiveTab === 'guardian' ? 'guardian-telemetry' : 'gtm-pipeline';
-        if (currentHash !== targetHash) {
-          window.location.hash = targetHash;
-        }
-      } else {
-        window.location.hash = view;
-      }
+    const targetPath = getPathForView(view, securityActiveTab);
+    const currentPath = window.location.pathname;
+    const currentHash = window.location.hash;
+
+    // Only update history if the path actually differs or if we need to clear an unsightly hash
+    if (currentPath !== targetPath || currentHash) {
+      const search = window.location.search || '';
+      window.history.pushState(null, '', targetPath + search);
     }
   }, [view, securityActiveTab]);
 
@@ -1170,13 +1316,15 @@ export default function App() {
   const [currentFlashIndex, setCurrentFlashIndex] = useState(0);
   const [debateProgress, setDebateProgress] = useState(0);
 
-  // --- Text-to-Speech Audio State (Fish Audio S2.1 Pro Free) ---
+  // --- Text-to-Speech Audio State (Dual-Engine: Fish Audio S2.1 Pro + Web Speech Fallback) ---
   const [ttsAudioState, setTtsAudioState] = useState<{
     status: 'idle' | 'loading' | 'playing' | 'paused' | 'error';
     title: string;
     audioUrl: string | null;
     audioObj: HTMLAudioElement | null;
+    mode: 'server' | 'browser';
     errorMessage: string | null;
+    infoMessage: string | null;
     currentTime: number;
     duration: number;
   }>({
@@ -1184,10 +1332,14 @@ export default function App() {
     title: '',
     audioUrl: null,
     audioObj: null,
+    mode: 'server',
     errorMessage: null,
+    infoMessage: null,
     currentTime: 0,
     duration: 0
   });
+
+  const browserSpeechRef = useRef<BrowserSpeechController | null>(null);
 
   const summarizeTopicForSpeech = (rawQuery: string): string => {
     if (!rawQuery || !rawQuery.trim()) return "Adversarial Consensus Report";
@@ -1276,129 +1428,151 @@ export default function App() {
     return parts.join("\n\n");
   };
 
-  const preloadedTtsCacheRef = useRef<Map<string, { promise: Promise<Blob>; blob?: Blob; url?: string }>>(new Map());
+  const preloadedTtsCacheRef = useRef<Map<string, { blob?: Blob; url?: string }>>(new Map());
 
-  const preloadAudioBrief = (resultsObj: any) => {
-    if (!resultsObj || !resultsObj.synthesis) return;
-    const textToSpeak = getComprehensiveBriefingText(resultsObj);
-    if (!textToSpeak || !textToSpeak.trim()) return;
-
-    const cacheKey = cleanMarkdownForSpeech(textToSpeak);
-    if (!cacheKey) return;
-
-    if (preloadedTtsCacheRef.current.has(cacheKey)) {
-      console.log("[TTS Preloader] Audio briefing already preloaded or in-flight.");
-      return;
-    }
-
-    console.log("[TTS Preloader] Starting background pre-synthesis of full briefing audio...");
-    const promise = fetchAudioBlobForText(textToSpeak)
-      .then((blob) => {
-        const url = URL.createObjectURL(blob);
-        const cachedEntry = preloadedTtsCacheRef.current.get(cacheKey);
-        if (cachedEntry) {
-          cachedEntry.blob = blob;
-          cachedEntry.url = url;
+  // Initialize or retrieve Browser Speech Controller with reactive state updates
+  const getBrowserSpeechController = () => {
+    if (!browserSpeechRef.current) {
+      browserSpeechRef.current = new BrowserSpeechController({
+        onStart: () => {
+          setTtsAudioState(prev => ({
+            ...prev,
+            status: 'playing',
+            mode: 'browser',
+            errorMessage: null
+          }));
+        },
+        onPause: () => {
+          setTtsAudioState(prev => ({ ...prev, status: 'paused' }));
+        },
+        onResume: () => {
+          setTtsAudioState(prev => ({ ...prev, status: 'playing' }));
+        },
+        onEnd: () => {
+          setTtsAudioState(prev => ({ ...prev, status: 'idle', currentTime: 0 }));
+        },
+        onError: (err: any) => {
+          console.warn("[Browser Speech Error]:", err);
+          setTtsAudioState(prev => ({
+            ...prev,
+            status: 'error',
+            errorMessage: err?.message || 'Browser voice playback failed.'
+          }));
+        },
+        onSentenceChange: (curr: number, total: number) => {
+          setTtsAudioState(prev => ({
+            ...prev,
+            currentTime: curr,
+            duration: total
+          }));
         }
-        console.log("[TTS Preloader] Background briefing pre-synthesis READY for instant playback!");
-        return blob;
-      })
-      .catch((err) => {
-        console.warn("[TTS Preloader] Background audio pre-synthesis warning:", err);
-        preloadedTtsCacheRef.current.delete(cacheKey);
-        throw err;
       });
-
-    preloadedTtsCacheRef.current.set(cacheKey, { promise });
-  };
-
-  useEffect(() => {
-    if (results && results.synthesis) {
-      preloadAudioBrief(results);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results]);
+    return browserSpeechRef.current;
+  };
 
   const handlePlayTts = async (textToSpeak: string, title: string = 'Consensus Synthesis Briefing') => {
     if (!textToSpeak || !textToSpeak.trim()) return;
 
     // Toggle pause/play if same title is active
-    if (ttsAudioState.title === title && ttsAudioState.audioObj) {
-      if (ttsAudioState.status === 'playing') {
-        ttsAudioState.audioObj.pause();
-        setTtsAudioState(prev => ({ ...prev, status: 'paused' }));
-        return;
-      } else if (ttsAudioState.status === 'paused') {
-        ttsAudioState.audioObj.play();
-        setTtsAudioState(prev => ({ ...prev, status: 'playing' }));
-        return;
+    if (ttsAudioState.title === title) {
+      if (ttsAudioState.mode === 'browser') {
+        const controller = getBrowserSpeechController();
+        if (ttsAudioState.status === 'playing') {
+          controller.pause();
+          return;
+        } else if (ttsAudioState.status === 'paused') {
+          controller.resume();
+          return;
+        }
+      } else if (ttsAudioState.audioObj) {
+        if (ttsAudioState.status === 'playing') {
+          ttsAudioState.audioObj.pause();
+          setTtsAudioState(prev => ({ ...prev, status: 'paused' }));
+          return;
+        } else if (ttsAudioState.status === 'paused') {
+          ttsAudioState.audioObj.play();
+          setTtsAudioState(prev => ({ ...prev, status: 'playing' }));
+          return;
+        }
       }
     }
 
-    // Stop previous audio if playing
-    if (ttsAudioState.audioObj) {
-      ttsAudioState.audioObj.pause();
-      if (ttsAudioState.audioUrl) {
-        URL.revokeObjectURL(ttsAudioState.audioUrl);
-      }
-    }
+    // Stop previous audio or speech if playing
+    handleStopTts();
 
     setTtsAudioState({
       status: 'loading',
       title,
       audioUrl: null,
       audioObj: null,
+      mode: 'server',
       errorMessage: null,
+      infoMessage: null,
       currentTime: 0,
       duration: 0
     });
 
-    try {
-      const cacheKey = cleanMarkdownForSpeech(textToSpeak);
-      let blob: Blob;
-      let url: string;
+    const cacheKey = cleanMarkdownForSpeech(textToSpeak);
 
-      const cachedEntry = preloadedTtsCacheRef.current.get(cacheKey);
-      if (cachedEntry) {
-        if (cachedEntry.blob && cachedEntry.url) {
-          console.log("[TTS Playback] Instant 0ms playback from preloaded background synthesis cache!");
-          blob = cachedEntry.blob;
-          url = cachedEntry.url;
-        } else {
-          console.log("[TTS Playback] Awaiting in-flight background pre-synthesis...");
-          blob = await cachedEntry.promise;
-          url = cachedEntry.url || URL.createObjectURL(blob);
-          cachedEntry.url = url;
-        }
-      } else {
-        console.log("[TTS Playback] Fetching fresh TTS audio...");
-        const promise = fetchAudioBlobForText(textToSpeak);
-        preloadedTtsCacheRef.current.set(cacheKey, { promise });
-        blob = await promise;
-        url = URL.createObjectURL(blob);
-        preloadedTtsCacheRef.current.set(cacheKey, { promise, blob, url });
+    // 1. Check local client cache
+    const cachedEntry = preloadedTtsCacheRef.current.get(cacheKey);
+    if (cachedEntry?.blob && cachedEntry?.url) {
+      try {
+        const audio = new Audio(cachedEntry.url);
+        audio.onloadedmetadata = () => {
+          setTtsAudioState(prev => ({ ...prev, duration: audio.duration }));
+        };
+        audio.ontimeupdate = () => {
+          setTtsAudioState(prev => ({ ...prev, currentTime: audio.currentTime }));
+        };
+        audio.onended = () => {
+          setTtsAudioState(prev => ({ ...prev, status: 'idle', currentTime: 0 }));
+        };
+        await audio.play();
+        setTtsAudioState({
+          status: 'playing',
+          title,
+          audioUrl: cachedEntry.url,
+          audioObj: audio,
+          mode: 'server',
+          errorMessage: null,
+          infoMessage: null,
+          currentTime: 0,
+          duration: audio.duration || 0
+        });
+        return;
+      } catch (playErr) {
+        console.warn("[TTS Audio] Cached playback failed, re-fetching:", playErr);
       }
+    }
+
+    // 2. Try server-side Fish Audio generation
+    try {
+      const blob = await fetchAudioBlobForText(textToSpeak);
+      const url = URL.createObjectURL(blob);
+      preloadedTtsCacheRef.current.set(cacheKey, { blob, url });
 
       const audio = new Audio(url);
-
       audio.onloadedmetadata = () => {
         setTtsAudioState(prev => ({ ...prev, duration: audio.duration }));
       };
-
       audio.ontimeupdate = () => {
         setTtsAudioState(prev => ({ ...prev, currentTime: audio.currentTime }));
       };
-
       audio.onended = () => {
         setTtsAudioState(prev => ({ ...prev, status: 'idle', currentTime: 0 }));
       };
-
       audio.onerror = () => {
+        console.warn("[TTS Audio] Audio element failed, activating Browser Speech fallback...");
+        const controller = getBrowserSpeechController();
         setTtsAudioState(prev => ({
           ...prev,
-          status: 'error',
-          errorMessage: 'Audio playback failed.'
+          mode: 'browser',
+          infoMessage: "Neural Browser Voice Active",
+          errorMessage: null
         }));
+        controller.speak(textToSpeak);
       };
 
       await audio.play();
@@ -1407,21 +1581,41 @@ export default function App() {
         title,
         audioUrl: url,
         audioObj: audio,
+        mode: 'server',
         errorMessage: null,
+        infoMessage: null,
         currentTime: 0,
         duration: audio.duration || 0
       });
     } catch (err: any) {
-      console.error("[TTS Playback Error]:", err);
-      setTtsAudioState(prev => ({
-        ...prev,
-        status: 'error',
-        errorMessage: err.message || 'Fish Audio generation error.'
-      }));
+      console.warn("[TTS Engine] Server generation error. Seamlessly switching to Neural Browser Voice:", err);
+
+      // Gracefully switch to Browser Speech without stopping user playback
+      const isRateLimit = err?.status === 429 || err?.isRateLimit || err?.dailyQuotaExceeded || err?.message?.includes("429") || err?.message?.includes("free-models-per-day");
+      const infoText = isRateLimit
+        ? "Neural Browser Voice (OpenRouter daily quota limit reached)"
+        : "Neural Browser Voice Active";
+
+      const controller = getBrowserSpeechController();
+      setTtsAudioState({
+        status: 'playing',
+        title,
+        audioUrl: null,
+        audioObj: null,
+        mode: 'browser',
+        errorMessage: null,
+        infoMessage: infoText,
+        currentTime: 0,
+        duration: 0
+      });
+      controller.speak(textToSpeak);
     }
   };
 
   const handleStopTts = () => {
+    if (browserSpeechRef.current) {
+      browserSpeechRef.current.stop();
+    }
     if (ttsAudioState.audioObj) {
       ttsAudioState.audioObj.pause();
       if (ttsAudioState.audioUrl) {
@@ -1433,7 +1627,9 @@ export default function App() {
       title: '',
       audioUrl: null,
       audioObj: null,
+      mode: 'server',
       errorMessage: null,
+      infoMessage: null,
       currentTime: 0,
       duration: 0
     });
@@ -4857,20 +5053,6 @@ function NestedAgentLibraryUnused() { return null; }
           {/* Links */}
           <div className="hidden lg:flex items-center gap-4 xl:gap-6 text-[13px] xl:text-[14px] font-bold">
             <button 
-              id="nav-try-sandbox-btn"
-              onClick={() => { setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
-              className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
-                view === 'try_it' 
-                  ? (isDark ? 'text-white font-extrabold border-b-2 border-emerald-400' : 'text-[#1d1d1f] font-extrabold border-b-2 border-emerald-600')
-                  : (isDark ? 'text-gray-300' : 'text-gray-500')
-              }`}
-            >
-              <Terminal className="w-4 h-4 text-emerald-500" />
-              <span>Try-It Sandbox</span>
-              <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded text-[9px] font-black uppercase">Demo</span>
-            </button>
-
-            <button 
               onClick={() => { setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }}
               className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
                 view === 'developers' 
@@ -5274,7 +5456,13 @@ function NestedAgentLibraryUnused() { return null; }
       <div className="min-h-screen bg-[#F9F8F6] dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 flex flex-col justify-between font-sans">
         {renderPublicHeader()}
         <main className="flex-1 w-full py-8">
-          <TryItSection />
+          <TryItSection 
+            setView={setView} 
+            onBack={() => {
+              setView('developers');
+              window.scrollTo({ top: 0, behavior: 'instant' });
+            }} 
+          />
         </main>
         <CommonFooter setView={setView} />
       </div>
@@ -5286,7 +5474,7 @@ function NestedAgentLibraryUnused() { return null; }
       <div className="min-h-screen bg-[#0b0c10] text-slate-100 flex flex-col justify-between font-sans">
         {renderPublicHeader()}
         <main className="flex-1 w-full py-6">
-          <B2bDeveloperPortal userId={user?.uid || 'guest_user'} userEmail={user?.email} />
+          <B2bDeveloperPortal userId={user?.uid || 'guest_user'} userEmail={user?.email} setView={setView} />
         </main>
         <CommonFooter setView={setView} />
       </div>
@@ -5493,15 +5681,8 @@ function NestedAgentLibraryUnused() { return null; }
               <StreamingHeroText text="before they execute." />
             </h1>
 
-            <p className="text-lg sm:text-xl text-gray-600 font-bold mb-6 sm:mb-8 leading-relaxed max-w-2xl">
+            <p className="text-lg sm:text-xl text-gray-600 font-bold mb-8 sm:mb-10 leading-relaxed max-w-2xl">
               Choose reviewer roles and the LLM behind each perspective, inspect disagreement and evidence, and—if you are building an agent—extend the same review through API or MCP before a consequential action.
-            </p>
-
-            <p className="text-sm sm:text-base text-gray-500 font-medium mb-2 leading-relaxed max-w-2xl">
-              EthersFlow verifies and gates AI agent purchase actions at the execution boundary, enforces bounded FinOps policies, and produces versioned signed decision receipts.*
-            </p>
-            <p className="text-xs text-gray-400 font-normal mb-8 sm:mb-10 leading-relaxed max-w-2xl">
-              * Execution binding enforced via EthersFlow Dispatcher Shim (operation-hash validation, 300s TTL expiry, and single-use idempotency journal). Live as of 2026-09-08.
             </p>
 
             {/* Primary and Secondary Hero CTAs */}
@@ -5711,11 +5892,6 @@ function NestedAgentLibraryUnused() { return null; }
               </button>
             </div>
           </div>
-        </div>
-
-        {/* Live Interactive Try-It Sandbox Section */}
-        <div id="try-it-container" className="w-full bg-white dark:bg-neutral-950 border-t border-gray-100 dark:border-neutral-800">
-          <TryItSection />
         </div>
 
         {/* Pricing Section */}
@@ -10651,8 +10827,13 @@ function NestedAgentLibraryUnused() { return null; }
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-300 bg-indigo-500/20 px-2 py-0.5 rounded-full border border-indigo-500/30">
-                  Fish Audio S2.1 Pro
+                <span className={cn(
+                  "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                  ttsAudioState.mode === 'browser'
+                    ? "text-emerald-300 bg-emerald-500/20 border-emerald-500/30"
+                    : "text-indigo-300 bg-indigo-500/20 border-indigo-500/30"
+                )}>
+                  {ttsAudioState.mode === 'browser' ? 'Neural Browser Voice' : 'Fish Audio S2.1 Pro'}
                 </span>
                 {ttsAudioState.status === 'loading' && (
                   <span className="text-[9px] font-bold text-amber-300 animate-pulse">
@@ -10663,6 +10844,11 @@ function NestedAgentLibraryUnused() { return null; }
               <div className="text-xs font-bold text-white truncate mt-1">
                 {ttsAudioState.title}
               </div>
+              {ttsAudioState.infoMessage && (
+                <div className="text-[10px] text-emerald-400 mt-0.5 truncate font-medium">
+                  {ttsAudioState.infoMessage}
+                </div>
+              )}
               {ttsAudioState.errorMessage && (
                 <div className="text-[10px] text-red-400 mt-0.5 truncate">
                   {ttsAudioState.errorMessage}
