@@ -64,11 +64,11 @@ export const PAGE_CONTENT: Partial<Record<Exclude<View, 'main'>, {
   about: {
     title: "About EthersFlow",
     subtitle: "The verification layer for agentic systems.",
-    introduction: "EthersFlow builds the review, routing, and evidence systems that help teams inspect model disagreement, enforce policies before consequential actions, and preserve a record of how decisions were reached.",
+    introduction: "EthersFlow builds the review, routing, and evidence systems that help teams inspect model disagreement, verify trust verdicts before consequential actions, and preserve a record of how decisions were reached.",
     sections: [
       { 
-        title: "Federated Adversarial Consensus (FAC)", 
-        content: "Federated Adversarial Consensus is our protocol for coordinating independent reviewer roles, model routing, adversarial challenge, quorum evaluation, and evidence synthesis." 
+        title: "Federated Consensus Protocol (FCP)", 
+        content: "Federated Consensus Protocol is our architecture for coordinating independent reviewer roles, model routing, adversarial challenge, quorum evaluation, and evidence synthesis." 
       },
       { 
         title: "From Model Output to Accountable Action", 
@@ -91,7 +91,7 @@ export const PAGE_CONTENT: Partial<Record<Exclude<View, 'main'>, {
       },
       { 
         title: "EthersFlow Protocol Specification", 
-        content: "Formal specifications for Federated Adversarial Consensus, reviewer coordination, quorum evaluation, and evidence synthesis." 
+        content: "Formal specifications for Federated Consensus Protocol, reviewer coordination, quorum evaluation, and evidence synthesis." 
       },
       { 
         title: "EthersFlow Benchmarks", 
@@ -171,7 +171,7 @@ export const PAGE_CONTENT: Partial<Record<Exclude<View, 'main'>, {
     sections: [
       { 
         title: "1. Key Definitions", 
-        content: "These Terms define Review Configuration (the configured roles, models, and thresholds), Quorum (minimum required reviewer participation), Fallback Routing (continuity routing when a provider is unavailable), Partial Result (a review where quorum was incomplete), Verified Result (a synthesis meeting all policy criteria), Human Escalation (routing unresolvable cases to human review), Source Report (the evidence, citations, and dissent breakdown), and Action Gate (the policy boundary enforcing verification before tool execution)." 
+        content: "These Terms define Review Configuration (the configured roles, models, and thresholds), Quorum (minimum required reviewer participation), Fallback Routing (continuity routing when a provider is unavailable), Partial Result (a review where quorum was incomplete), Verified Result (a synthesis meeting all policy criteria), Human Escalation (routing unresolvable cases to human review), Source Report (the evidence, citations, and dissent breakdown), and Action Verification (the evaluation boundary issuing trust verdicts before tool execution)." 
       },
       { 
         title: "2. Probabilistic Review & Human Oversight", 
@@ -193,16 +193,16 @@ export const PAGE_CONTENT: Partial<Record<Exclude<View, 'main'>, {
     introduction: "Step-by-step guides to designing review configurations, integrating tool-boundary verification, and inspecting review traces.",
     sections: [
       { title: "Review Configuration", content: "Learn how to select reviewer roles, configure model routing, and calibrate consensus alignment thresholds." },
-      { title: "Tool Boundary Protection", content: "Techniques for wiring EthersFlow API and MCP action gates into autonomous agent execution loops." }
+      { title: "Tool Boundary Protection", content: "Techniques for wiring EthersFlow API and MCP verification endpoints into autonomous agent execution loops." }
     ]
   },
   courses: {
     title: "Verification Engineering",
     subtitle: "Architecture for Agentic Reliability",
-    introduction: "In-depth modules on multi-model review, adversarial challenge dynamics, and policy enforcement.",
+    introduction: "In-depth modules on multi-model review, adversarial challenge dynamics, and policy verification.",
     sections: [
       { title: "Independent Review Fundamentals", content: "Understanding single-model failure modes and the mechanics of multi-architecture cross-examination." },
-      { title: "Production Enforcement", content: "Implementing inspectable review traces, quorum policies, and fallback continuity in enterprise workflows." }
+      { title: "Production Verification", content: "Implementing inspectable review traces, quorum policies, and fallback continuity in enterprise workflows." }
     ]
   },
   help: {

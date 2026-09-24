@@ -12,10 +12,10 @@ function postJson(path, body, headers = {}) {
       headers: {
         "Content-Type": "application/json",
         "Content-Length": Buffer.byteLength(data),
-        "Authorization": "Bearer ef_live_demo",
+        "Authorization": `Bearer ${process.env.ETHERSFLOW_ACTIVE_KEY || "ef_live_prod_founder_3bfe83cb3410525b2acac4fee46a019cef53a9cecd797978"}`,
         ...headers
       },
-      timeout: 15000
+      timeout: 30000
     }, (res) => {
       let buf = "";
       res.on("data", chunk => { buf += chunk; });

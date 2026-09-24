@@ -286,10 +286,10 @@ export const TryItSection: React.FC<TryItSectionProps & { compact?: boolean }> =
           Sandbox Isolated • Canned Receipts for Demonstration
         </div>
         <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-          Try EthersFlow Agent Action Gate
+          Try EthersFlow Agent Action Verification
         </h2>
         <p className="mt-3 text-base sm:text-lg text-neutral-600 dark:text-neutral-400 max-w-3xl mx-auto">
-          Test federated adversarial consensus on the 6 real-world execution traps. 
+          Test verifiable trust verdicts on the 6 real-world action traps. 
           Every verdict produces a versioned, cryptographically bound Ed25519 decision receipt verified by our public key.
         </p>
       </div>
@@ -494,7 +494,7 @@ export const TryItSection: React.FC<TryItSectionProps & { compact?: boolean }> =
               {loading ? (
                 <>
                   <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                  Running Adversarial Consensus...
+                  Evaluating Trust Verdict...
                 </>
               ) : (
                 <>
@@ -689,7 +689,7 @@ export const TryItSection: React.FC<TryItSectionProps & { compact?: boolean }> =
                 Awaiting Sandbox Execution
               </h4>
               <p className="text-xs text-neutral-500 max-w-sm mt-1">
-                Select one of the 6 trap actions above or edit the prompt, then click "Run Sandbox Verification" to observe how adversarial consensus protects the execution boundary.
+                Select one of the 6 trap actions above or edit the prompt, then click "Run Sandbox Verification" to observe how EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions.
               </p>
             </div>
           )}

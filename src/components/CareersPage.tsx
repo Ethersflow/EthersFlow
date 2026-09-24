@@ -284,7 +284,7 @@ export function CareersPage({ onClose }: CareersPageProps) {
                   <textarea 
                     required
                     rows={5}
-                    placeholder="Briefly summarize your thesis or describe why you are interested in adversarial consensus models..."
+                    placeholder="Briefly summarize your thesis or describe why you are interested in multi-agent trust verification..."
                     value={formData.coverLetter}
                     onChange={(e) => setFormData({...formData, coverLetter: e.target.value})}
                     className="w-full bg-[#fcfbfa] border border-gray-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 rounded-xl px-4 py-3 text-sm font-bold placeholder-gray-400 outline-none transition-all text-[#1d1d1f] resize-none"

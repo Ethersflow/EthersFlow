@@ -67,11 +67,11 @@ export function AboutPage({ onClose }: AboutPageProps) {
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-6">// OUR PROTOCOL</h3>
             <h2 className="text-2xl sm:text-3xl font-sans font-black tracking-tight mb-6 uppercase text-gray-950">
-              Federated Adversarial Consensus (FAC)
+              Federated Consensus Protocol (FCP)
             </h2>
             <div className="space-y-6 text-[#1d1d1f]/80 font-medium text-base leading-relaxed">
               <p>
-                <strong>Federated Adversarial Consensus</strong> is our protocol for coordinating independent reviewer roles, model routing, adversarial challenge, quorum evaluation, and evidence synthesis.
+                <strong>Federated Consensus Protocol</strong> is our architecture for coordinating specialized reviewer roles, model routing, adversarial challenge, quorum evaluation, and evidence synthesis.
               </p>
               <p>
                 We do not train generic models. EthersFlow builds the verification and arbitration infrastructure that holds autonomous systems accountable before they act.

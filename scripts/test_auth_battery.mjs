@@ -129,7 +129,8 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 4: Network error`, err);
   }
 
-  // Test 5: Allowlisted Demo Key with benign action -> 200 APPROVED
+  // Test 5: Allowlisted Active Key with benign action -> 200 APPROVED
+  const activeKey = process.env.ETHERSFLOW_ACTIVE_KEY || "ef_live_prod_founder_3bfe83cb3410525b2acac4fee46a019cef53a9cecd797978";
   total++;
   try {
     const res = await request({
@@ -139,7 +140,7 @@ async function runAuthBattery() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": "Bearer ef_live_demo"
+        "Authorization": `Bearer ${activeKey}`
       }
     }, {
       agent_action: "Disburse USD 18,450 to NorthStar Logistics under purchase order PO-8841 (Invoice INV-2026-0818)",
@@ -150,13 +151,88 @@ async function runAuthBattery() {
     const is200 = res.status === 200;
     const isApproved = res.body?.verdict === "APPROVED" && res.body?.action_eligible === true;
     if (is200 && isApproved) {
-      console.log(`[PASS] Case 5 (Allowlisted Demo Key): Status ${res.status}, verdict=${res.body?.verdict}, verified=${res.body?.verified}`);
+      console.log(`[PASS] Case 5 (Allowlisted Active Key): Status ${res.status}, verdict=${res.body?.verdict}, verified=${res.body?.verified}`);
       passed++;
     } else {
-      console.error(`[FAIL] Case 5 (Allowlisted Demo Key): Status ${res.status}`, res.body);
+      console.error(`[FAIL] Case 5 (Allowlisted Active Key): Status ${res.status}`, res.body);
     }
   } catch (err) {
-    console.error(`[FAIL] Case 5 (Allowlisted Demo Key): Network error`, err);
+    console.error(`[FAIL] Case 5 (Allowlisted Active Key): Network error`, err);
+  }
+
+  // Test 5b: Burned Keys Check (P0 Revocation - All committed keys must return 401 REVOKED_API_KEY)
+  total++;
+  try {
+    const burnedKeys = [
+      "ef_live_prod_secondary_k8f2m9q1",
+      "ef_live_prod_beta2_discriminator_2026",
+      "ef_live_demo",
+      "ef_live_calibration_key",
+      "ef_live_integrator_key"
+    ];
+    let allBurnedRejected = true;
+    for (const bKey of burnedKeys) {
+      const res = await request({
+        hostname: "localhost",
+        port: 3000,
+        path: "/api/v1/verify",
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${bKey}`
+        }
+      }, { agent_action: "Test action with burned key" });
+
+      if (res.status !== 401 || res.body?.error_code !== "REVOKED_API_KEY") {
+        allBurnedRejected = false;
+        console.error(`[FAIL] Burned key ${bKey} was NOT rejected cleanly: status=${res.status}`, res.body);
+      }
+    }
+    if (allBurnedRejected) {
+      console.log(`[PASS] Case 5b (Burned Keys Verification): All ${burnedKeys.length} committed keys successfully rejected with 401 REVOKED_API_KEY`);
+      passed++;
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 5b (Burned Keys Verification): Network error`, err);
+  }
+
+  // Test 5c: Public Sandbox Key Isolation (ef_sandbox_demo_show_hn must be 200 on sandbox, 401 on live)
+  total++;
+  try {
+    const sandboxKey = "ef_sandbox_demo_show_hn";
+    const sandboxRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/api/v1/sandbox/verify",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${sandboxKey}`
+      }
+    }, { agent_action: "Disburse USD 1500 office equipment" });
+
+    const liveRes = await request({
+      hostname: "localhost",
+      port: 3000,
+      path: "/api/v1/verify",
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${sandboxKey}`
+      }
+    }, { agent_action: "Disburse USD 1500 office equipment" });
+
+    const sandboxOk = sandboxRes.status === 200 && sandboxRes.body?.sandbox_mode === true;
+    const liveRejected = liveRes.status === 401 && liveRes.body?.error_code === "SANDBOX_KEY_NOT_PERMITTED_ON_LIVE_ROUTES";
+
+    if (sandboxOk && liveRejected) {
+      console.log(`[PASS] Case 5c (Sandbox Key Isolation): 200 on /api/v1/sandbox/verify, 401 on /api/v1/verify`);
+      passed++;
+    } else {
+      console.error(`[FAIL] Case 5c (Sandbox Key Isolation): sandbox=${sandboxRes.status}, live=${liveRes.status}`, { sandbox: sandboxRes.body, live: liveRes.body });
+    }
+  } catch (err) {
+    console.error(`[FAIL] Case 5c (Sandbox Key Isolation): Network error`, err);
   }
 
   // Test 6: Check /api/v1/test-regression endpoint
@@ -301,10 +377,10 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 10 (MCP tools/call Fabricated Key): Network error`, err);
   }
 
-  // Test 11: MCP Auth Battery (SAME KEY ef_live_demo MUST PASS tools/list AND tools/call)
+  // Test 11: MCP Auth Battery (Active Key MUST PASS tools/list AND tools/call)
   total++;
   try {
-    const key = "ef_live_demo";
+    const key = activeKey;
     // Part A: tools/list
     const listRes = await request({
       hostname: "localhost",
@@ -342,7 +418,7 @@ async function runAuthBattery() {
     const callValid = Array.isArray(callRes.body?.result?.content) && callRes.body?.result?.content.length > 0;
 
     if (listValid && callValid) {
-      console.log(`[PASS] Case 11 (MCP Auth Battery: SAME key passes tools/list AND tools/call): toolsCount=${listRes.body?.result?.tools.length}, callContentItems=${callRes.body?.result?.content.length}`);
+      console.log(`[PASS] Case 11 (MCP Auth Battery: Active key passes tools/list AND tools/call): toolsCount=${listRes.body?.result?.tools.length}, callContentItems=${callRes.body?.result?.content.length}`);
       passed++;
     } else {
       console.error(`[FAIL] Case 11 (MCP Auth Battery): listValid=${listValid}, callValid=${callValid}`, { listRes: listRes.body, callRes: callRes.body });
@@ -351,11 +427,11 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 11 (MCP Auth Battery): Network error`, err);
   }
 
-  // Test 12: MCP Auth Battery (SAME PRESERVED LEGACY KEY MUST PASS tools/list AND tools/call - Zero Migration Loss)
+  // Test 12: MCP Auth Battery (Burned key allowed on tools/list discovery BUT rejected on tools/call)
   total++;
   try {
-    const legacyKey = "ef_live_legacy_integrator_key_01";
-    // Part A: tools/list
+    const burnedKey = "ef_live_legacy_integrator_key_01";
+    // Part A: tools/list (unauthenticated discovery works regardless of key)
     const listRes = await request({
       hostname: "localhost",
       port: 3000,
@@ -363,13 +439,13 @@ async function runAuthBattery() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${legacyKey}`
+        "Authorization": `Bearer ${burnedKey}`
       }
     }, { jsonrpc: "2.0", id: "mcp-test-12a", method: "tools/list" });
 
     const listValid = Array.isArray(listRes.body?.result?.tools) && listRes.body?.result?.tools.length > 0;
 
-    // Part B: tools/call
+    // Part B: tools/call (authenticated execution MUST reject burned key)
     const callRes = await request({
       hostname: "localhost",
       port: 3000,
@@ -377,7 +453,7 @@ async function runAuthBattery() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${legacyKey}`
+        "Authorization": `Bearer ${burnedKey}`
       }
     }, {
       jsonrpc: "2.0",
@@ -389,16 +465,16 @@ async function runAuthBattery() {
       }
     });
 
-    const callValid = Array.isArray(callRes.body?.result?.content) && callRes.body?.result?.content.length > 0;
+    const callRejected = callRes.body?.error?.code === -32000 && callRes.body?.error?.data?.error_code === "REVOKED_API_KEY";
 
-    if (listValid && callValid) {
-      console.log(`[PASS] Case 12 (MCP Auth Battery: SAME legacy key passes tools/list AND tools/call - Zero Migration Loss): toolsCount=${listRes.body?.result?.tools.length}, callContentItems=${callRes.body?.result?.content.length}`);
+    if (listValid && callRejected) {
+      console.log(`[PASS] Case 12 (MCP Auth Battery: Burned key passes tools/list discovery BUT rejected on tools/call with REVOKED_API_KEY)`);
       passed++;
     } else {
-      console.error(`[FAIL] Case 12 (MCP Auth Battery Legacy): listValid=${listValid}, callValid=${callValid}`, { listRes: listRes.body, callRes: callRes.body });
+      console.error(`[FAIL] Case 12 (MCP Auth Battery Burned): listValid=${listValid}, callRejected=${callRejected}`, { listRes: listRes.body, callRes: callRes.body });
     }
   } catch (err) {
-    console.error(`[FAIL] Case 12 (MCP Auth Battery Legacy): Network error`, err);
+    console.error(`[FAIL] Case 12 (MCP Auth Battery Burned): Network error`, err);
   }
 
   // Test 13: Gateway Version 0.2.2 Consistency Check (/api/health, GET /api/mcp, initialize, /.well-known/mcp.json)

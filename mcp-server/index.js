@@ -145,7 +145,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         agent_count: args.agent_count || 3,
         persona_preset: args.persona_preset,
         scope_hint: args.scope_hint || args.scope || args.hint,
-        policy_id: args.policy_id || "default_enterprise_safety_v1",
+        policy_id: args.policy_id || "finops_default_v1",
         grounding_enabled: args.grounding_enabled !== undefined ? args.grounding_enabled : true,
         zero_retention: args.zero_retention !== undefined ? args.zero_retention : true,
       }),

@@ -601,7 +601,7 @@ export function SecurityDashboard({ onClose, setView, initialTab, onTabChange }:
                       { key: 'evm_keys', label: 'EVM Private Keys', matchPattern: '0x hex keys (64 characters)', desc: 'Prevents critical cryptographic address leaks' },
                       { key: 'emails', label: 'Personal & Client Emails', matchPattern: 'Standard mail addresses', desc: 'Compliant with default GDPR and CCPA rules' },
                       { key: 'phones', label: 'Phone Numbers', matchPattern: 'Multi-region regex mapping', desc: 'Protects customer support logs details' },
-                      { key: 'credit_cards', label: 'Credit Card & Fin Assets', matchPattern: 'Standard 13-16 digit numbers', desc: 'Enforces PCI-DSS client-side security standards' },
+                      { key: 'credit_cards', label: 'Credit Card & Fin Assets', matchPattern: 'Standard 13-16 digit numbers', desc: 'Validates PCI-DSS client-side security standards' },
                       { key: 'ips', label: 'IP Networks & Hosts', matchPattern: 'IPv4 Host network patterns', desc: 'Hides your server topologies and entry targets' },
                       { key: 'ssns', label: 'Social Security IDs', matchPattern: 'Government security numbers', desc: 'Restricts medical / administrative personnel database exposure' }
                     ].map((item) => {

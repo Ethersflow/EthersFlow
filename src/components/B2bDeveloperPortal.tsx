@@ -74,7 +74,7 @@ export const B2bDeveloperPortal: React.FC<B2bDeveloperPortalProps> = ({ userId, 
   const [newKeyZdr, setNewKeyZdr] = useState(true);
   const [generatedSecret, setGeneratedSecret] = useState<string | null>(null);
 
-  // Agent Action Gate State (/api/v1/verify)
+  // Agent Action Verification State (/api/v1/verify)
   const [agentActionPrompt, setAgentActionPrompt] = useState('Execute $250,000 wire transfer to Vendor X based on invoice PO-8841');
   const [agentReasoningChain, setAgentReasoningChain] = useState('Invoice PO-8841 matched vendor payment record; approval threshold under $500k auto-limit.');
   const [agentCount, setAgentCount] = useState<number>(3);
@@ -504,7 +504,7 @@ main();`;
         <div className="flex items-center gap-2 sm:gap-6">
           {[
             { id: 'snippets', label: 'Compatible SDK Integration', icon: Code },
-            { id: 'agent_verify', label: 'Agent Action Gate (/verify)', icon: Shield },
+            { id: 'agent_verify', label: 'Agent Action Verification (/verify)', icon: Shield },
             { id: 'mcp_server', label: 'MCP Protocol Server (/mcp)', icon: Server },
             { id: 'keys', label: 'API Keys & Vault', icon: Key },
             { id: 'playground', label: 'Interactive API Sandbox', icon: Terminal },
@@ -732,11 +732,11 @@ main();`;
           <div className="lg:col-span-5 bg-[#12131a] rounded-3xl p-6 border border-slate-800 shadow-xl space-y-5">
             <div className="border-b border-slate-800 pb-3 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-black text-white tracking-tight">Agent Action Gate Tester</h3>
+                <h3 className="text-lg font-black text-white tracking-tight">Agent Action Verification Tester</h3>
                 <p className="text-xs font-medium text-slate-400">Endpoint: <code className="text-indigo-400 font-mono">POST /api/v1/verify</code></p>
               </div>
               <span className="px-2.5 py-1 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded-xl text-[10px] font-black uppercase">
-                Agentic Gate
+                Action Verdicts
               </span>
             </div>
 
@@ -1124,7 +1124,7 @@ main();`;
                 <Key className="w-8 h-8 text-slate-600 mx-auto" />
                 <p className="text-sm font-black text-slate-200">No B2B API Keys Generated Yet</p>
                 <p className="text-xs text-slate-400 max-w-sm mx-auto font-medium">
-                  Create a live key above to start proxying queries through EthersFlow's adversarial consensus engine.
+                  Create a live key above to start evaluating queries through EthersFlow's trust verdict engine.
                 </p>
               </div>
             ) : (
@@ -1298,7 +1298,7 @@ main();`;
               {apiExecuting ? (
                 <>
                   <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Executing Adversarial Consensus...</span>
+                  <span>Evaluating Trust Verdicts...</span>
                 </>
               ) : (
                 <>

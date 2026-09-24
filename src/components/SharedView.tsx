@@ -698,7 +698,7 @@ export const SharedView: React.FC<SharedViewProps> = ({ debate, onClose }) => {
               <span className="font-black italic tracking-tighter text-indigo-900">EthersFlow</span>
             </div>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Institutional Intelligence Framework — Powered by Adversarial Consensus
+              Institutional Intelligence Framework — Powered by Verifiable Consensus
             </p>
          </div>
       </footer>

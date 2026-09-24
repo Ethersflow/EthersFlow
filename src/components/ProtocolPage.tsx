@@ -44,8 +44,8 @@ export function ProtocolPage({ onClose }: ProtocolPageProps) {
               <span className="text-[10px] uppercase tracking-[0.2em] font-black text-indigo-700">Consensus Architecture</span>
             </div>
             <h1 className="text-4xl sm:text-6xl font-sans font-black tracking-tight leading-[0.95] uppercase mb-8">
-              Adversarial Consensus <br />
-              <span className="text-indigo-600">Protocol (FAC).</span>
+              Verifiable Consensus <br />
+              <span className="text-indigo-600">Protocol (FCP).</span>
             </h1>
             <p className="text-lg sm:text-xl font-bold text-gray-700 leading-relaxed max-w-2xl">
               EthersFlow coordinates independent reviewer roles into structured adversarial cross-examination to reduce dependence on a single model and surface blind spots that single-model review may miss before consequential actions execute.
@@ -114,7 +114,7 @@ export function ProtocolPage({ onClose }: ProtocolPageProps) {
               <span className="text-[10px] font-black text-emerald-600 uppercase tracking-wider block mb-2">Stage 04</span>
               <h4 className="text-base font-black text-gray-950 uppercase mb-3 text-left">Resolve with Evidence and Policy</h4>
               <p className="text-xs font-semibold text-gray-500 leading-relaxed">
-                The system calculates consensus alignment scores, verifies quorum, enforces policy constraints, and attaches an inspectable review trace.
+                The system calculates consensus alignment scores, verifies quorum, evaluates policy constraints, and attaches an inspectable review trace.
               </p>
             </div>
           </div>

@@ -58,18 +58,18 @@ const RESEARCH_PAPERS = [
     citations: 310,
     readTime: "22 mins",
     abstract: "This study introduces a personalized federated learning framework named Adversarial Federated Consensus Learning (AFedCL) to address data heterogeneity across decentralized clients. It develops a dynamic consensus construction strategy based on adversarial training to align varying data distributions and implements a consensus-aware aggregation mechanism.",
-    whatThisSupports: "Decentralized adversarial consensus mechanisms can align heterogeneous data distributions and improve robustness across distributed participants.",
+    whatThisSupports: "Decentralized consensus mechanisms can align heterogeneous data distributions and improve robustness across distributed participants.",
     whatThisDoesNotProve: "Federated optimization guarantees depend on network latency budgets and client participation stability."
   },
   {
     category: "EthersFlow Protocol Specification",
-    title: "Federated Adversarial Consensus (FAC): Specification & Routing Architecture",
+    title: "Federated Consensus Protocol (FCP): Specification & Routing Architecture",
     source: "EthersFlow Labs Protocol Standard (v2.6)",
     url: "internal_whitepaper",
     year: "2026",
     citations: "Protocol Standard",
     readTime: "30 mins",
-    abstract: "We specify the formal architecture for the EthersFlow FAC Protocol. The pipeline coordinates: (1) Local input sanitization, (2) Heterogeneous reviewer role assignment, (3) Structured adversarial cross-examination, and (4) Policy-aware consensus synthesis with quorum evaluation and fallback routing.",
+    abstract: "We specify the formal architecture for the EthersFlow FCP Protocol. The pipeline coordinates: (1) Local input sanitization, (2) Heterogeneous reviewer role assignment, (3) Structured adversarial cross-examination, and (4) Policy-aware consensus synthesis with quorum evaluation and fallback routing.",
     whatThisSupports: "Formalizes portable review configurations, quorum requirements, and inspectable review traces for agentic execution pipelines.",
     whatThisDoesNotProve: "Protocol execution remains probabilistic; human escalation remains necessary for unbounded or highly sensitive operations."
   },
@@ -81,8 +81,8 @@ const RESEARCH_PAPERS = [
     year: "2026",
     citations: "Benchmark Suite",
     readTime: "20 mins",
-    abstract: "A standardized benchmark measuring contradiction detection and policy enforcement across 10,000 sampled traces (5,000 simulated workflow scenarios and 5,000 recorded tool-call traces) compared against single-model prompt baselines across structured data, financial verification, and infrastructure ops. Note: Benchmark evaluates automated tool-boundary action gates, not human Console review interactions.",
-    whatThisSupports: "Multi-model adversarial gating intercepts unintended or contradictory tool calls at a significantly higher rate than single-model evaluation baselines.",
+    abstract: "A standardized benchmark measuring contradiction detection and policy compliance across 10,000 sampled traces (5,000 simulated workflow scenarios and 5,000 recorded tool-call traces) compared against single-model prompt baselines across structured data, financial verification, and infrastructure ops. Note: Benchmark evaluates automated verification checks, not human Console review interactions.",
+    whatThisSupports: "Multi-model review telemetry intercepts unintended or contradictory tool calls at a significantly higher rate than single-model evaluation baselines.",
     whatThisDoesNotProve: "Performance on benchmark traces does not guarantee identical error mitigation across unique, proprietary enterprise runtime environments."
   }
 ];
@@ -387,7 +387,7 @@ export function ResearchPage({ onClose }: ResearchPageProps) {
                   PREPRINT LABS-2026-v2.6
                 </span>
                 <span className="text-[10px] font-mono text-zinc-550 hidden md:inline">
-                  Federated Adversarial Consensus Whitepaper
+                  Federated Consensus Protocol Whitepaper
                 </span>
               </div>
               <button
@@ -409,7 +409,7 @@ export function ResearchPage({ onClose }: ResearchPageProps) {
                   </p>
                   
                   <h1 className="text-xl sm:text-3.5xl md:text-5xl lg:text-6xl font-display font-black uppercase tracking-tight text-zinc-950 mb-6 sm:mb-8 leading-snug">
-                    Federated Adversarial Consensus (FAC): Math Formulations of Verification Weightings for Multi-Agent LLM Reasoning Tunnels
+                    Federated Consensus Protocol (FCP): Math Formulations of Verification Weightings for Multi-Agent LLM Reasoning Tunnels
                   </h1>
 
                   <div className="max-w-2xl mx-auto text-center py-6 border-y border-zinc-200 mb-8 flex flex-col items-center justify-center gap-1.5">
@@ -426,7 +426,7 @@ export function ResearchPage({ onClose }: ResearchPageProps) {
                 <div className="bg-zinc-55 border border-zinc-200 rounded-[32px] p-8 sm:p-12 mb-16 font-sans font-bold shadow-sm bg-zinc-50/50">
                   <h3 className="text-xs sm:text-sm uppercase font-mono tracking-[0.2em] font-black text-indigo-600 border-b border-zinc-200 pb-3 mb-6">Abstract</h3>
                   <p className="italic text-zinc-700 leading-[1.8] text-sm sm:text-[15px] font-medium">
-                    Artificial intelligence systems are fundamentally limited by a silent cognitive bottleneck: when left in isolation, Large Language Models cannot reliably self-correct their reasoning errors, often reinforcing their own initial mistakes within a recursive bias loop. This paper addresses this limitation by introducing EthersFlow's Federated Adversarial Consensus (FAC) protocol combined with the Zero-Token Algorithmic Guardian Layer (AGL). Instead of relying on an isolated model to self-audit, our architecture spawns specialized, non-homogeneous expert agents that engage in structured game-theoretic debates within an online arbitration arena. To protect institutional data sovereignty and comply with strict compliance mandates, confidential data undergoes localized, client-side token sanitization before entering the debate tunnels. The customizable expert nodes cross-examine assertions in sequence, computing dynamic verification weights and applying direct penalties when circular claims or mathematical contradictions are proven. High-throughput empirical evaluations demonstrate that this multi-agent consensus network raises analytical precision to 94.2% on complex multi-hop queries, solving the isolation crisis while maintaining absolute privacy.
+                    Artificial intelligence systems are fundamentally limited by a silent cognitive bottleneck: when left in isolation, Large Language Models cannot reliably self-correct their reasoning errors, often reinforcing their own initial mistakes within a recursive bias loop. This paper addresses this limitation by introducing EthersFlow's Federated Consensus Protocol (FCP) combined with the Zero-Token Algorithmic Guardian Layer (AGL). Instead of relying on an isolated model to self-audit, our architecture spawns specialized, non-homogeneous expert agents that engage in structured game-theoretic debates within an online arbitration arena. To protect institutional data sovereignty and comply with strict compliance mandates, confidential data undergoes localized, client-side token sanitization before entering the debate tunnels. The customizable expert nodes cross-examine assertions in sequence, computing dynamic verification weights and applying direct penalties when circular claims or mathematical contradictions are proven. High-throughput empirical evaluations demonstrate that this multi-agent consensus network raises analytical precision to 94.2% on complex multi-hop queries, solving the isolation crisis while maintaining absolute privacy.
                   </p>
                 </div>
 
@@ -685,7 +685,7 @@ export function ResearchPage({ onClose }: ResearchPageProps) {
                     </div>
 
                     <p className="font-sans text-zinc-800 text-sm sm:text-[16.5px] leading-[1.85] mb-6">
-                      Empirically, independent models speaking about the same topic with healthy grammatical variations should register LHI ∈ [0.15, 0.30]. When LHI &gt; 0.35, it signals premature alignment convergence—the models are echoing one another's phrases. When this occurs, the Guardian triggers a dynamic temperature acceleration, bumping the models' temperature coefficients by +0.15 to stimulate exploratory paths, and injects a <i>Pluralism Directive</i> into the synthesis prompt.
+                      Empirically, diverse evaluation models speaking about the same topic with healthy grammatical variations should register LHI ∈ [0.15, 0.30]. When LHI &gt; 0.35, it signals premature alignment convergence—the models are echoing one another's phrases. When this occurs, the Guardian triggers a dynamic temperature acceleration, bumping the models' temperature coefficients by +0.15 to stimulate exploratory paths, and injects a <i>Pluralism Directive</i> into the synthesis prompt.
                     </p>
                     <p className="font-sans text-zinc-800 text-sm sm:text-[16.5px] leading-[1.85] mb-6">
                       <strong>C. Agentic Entropy Score (AE):</strong> In perfect alignment with the Positive Alignment thesis [5], we evaluate system safety not by the volume of content censored (negative alignment), but as a function of preserved cognitive diversity. We compile the Agentic Entropy Score (AE ∈ [0, 1]):

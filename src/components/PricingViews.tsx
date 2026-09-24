@@ -542,7 +542,7 @@ export const ProPlanDetailedPage: React.FC<PricingViewProps> = ({
           </div>
 
           <p className="text-base text-gray-500 font-medium leading-relaxed mb-8">
-            EthersFlow Pro provides unlimited access to EthersFlow's robust adversarial consensus engines. By evaluating multiple active agents at once, Pro exposes logical contradictions, resolves hallucinations, and guarantees total confidentiality with on-device Zero-Data-Retention filters.
+            EthersFlow Pro provides unlimited access to EthersFlow's robust trust verdict engines. By evaluating multiple active agents at once, Pro exposes logical contradictions, resolves hallucinations, and guarantees total confidentiality with on-device Zero-Data-Retention filters.
           </p>
 
           <button 
@@ -825,7 +825,7 @@ export const EnterprisePlanDetailedPage: React.FC<PricingViewProps> = ({
             EthersFlow <span className="text-indigo-400">Enterprise</span>
           </h1>
           <p className="text-lg text-gray-400 font-medium leading-relaxed">
-            Independent review, policy enforcement, and audit evidence for consequential AI decisions. Coordinate expert reviewer roles across models, record provenance, and protect mission-critical workflows before execution.
+            Independent review, policy verification, and audit evidence for consequential AI decisions. Coordinate expert reviewer roles across models, record provenance, and protect mission-critical workflows before execution.
           </p>
         </div>
 
@@ -1119,7 +1119,7 @@ export const EnterprisePlanDetailedPage: React.FC<PricingViewProps> = ({
                   rows={4}
                   value={inquiryMessage} 
                   onChange={e => setInquiryMessage(e.target.value)}
-                  placeholder="Describe the agent action, tool call, or high-consequence decision you need to verify (e.g., verifying vendor disbursements, code deployment gate, medical summary audits, VPC isolation needs)..." 
+                  placeholder="Describe the agent action, tool call, or high-consequence decision you need to verify (e.g., verifying vendor disbursements, code deployment verification, medical summary audits, VPC isolation needs)..." 
                   className="w-full bg-[#161618] border border-gray-800 rounded-2xl px-5 py-4 text-sm font-bold text-white outline-none focus:border-indigo-500 transition-colors resize-none placeholder:text-gray-600"
                 />
               </div>

@@ -147,8 +147,8 @@ verify_agent_action({
 
 ---
 
-## 🔒 Zero Data Retention Guarantee
+## 🔒 Retention Architecture & Privacy Guarantee
 
-EthersFlow operates on a strict **Zero-Data-Retention (ZDR)** policy. Submitted prompts and action chains are processed strictly in volatile memory and never stored, logged to disk, or used for model training.
+EthersFlow operates on a strict **receipt-only persistence** architecture by default. Submitted action payloads and prompt texts are discarded from storage immediately after cryptographic signing (not persisted to disk or used for training), while the cryptographic verification receipt (verdict, reason codes, action SHA-256 hash, and Ed25519 signature) is retained for auditability and verification. Full payload retention is available only via explicit per-call opt-in (`zero_retention: false`).
 
 For full API reference and Ed25519 attestation details, visit [EthersFlow Documentation](https://www.ethersflow.com).

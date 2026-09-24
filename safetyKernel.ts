@@ -247,7 +247,11 @@ const ALLOWED_VERIFY_TOP_LEVEL_FIELDS = new Set([
   "hint",
   "zero_retention",
   "injected_velocity_check",
-  "amount_usd"
+  "amount_usd",
+  "fail_mode",
+  "simulate_error",
+  "retention",
+  "retention_tier"
 ]);
 
 /**

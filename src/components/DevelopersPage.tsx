@@ -45,7 +45,7 @@ export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView
   const [mcpClient, setMcpClient] = useState<'claude_desktop' | 'cursor' | 'windsurf' | 'langchain'>('claude_desktop');
   const [mcpApiKey, setMcpApiKey] = useState('YOUR_API_KEY');
 
-  // Agent Action Gate State
+  // Agent Action Verification State
   const [actionQuery, setActionQuery] = useState('Execute $150,000 wire transfer to Vendor Corp for invoice INV-2026-08');
   const [gatePersona, setGatePersona] = useState('financial_compliance');
   const [gateSimulating, setGateSimulating] = useState(false);
@@ -58,7 +58,7 @@ export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView
   };
 
   const codeSnippets = {
-    ts: `// EthersFlow Agent Action Gate Verification (Node.js / TypeScript)
+    ts: `// EthersFlow Agent Action Verification (Node.js / TypeScript)
 const API_URL = "https://www.ethersflow.com/api/v1/verify";
 const API_KEY = process.env.ETHERSFLOW_API_KEY || "YOUR_API_KEY";
 
@@ -94,7 +94,7 @@ verifyAgentAction();`,
     python: `import os
 import requests
 
-# EthersFlow Agent Action Gate Verification (Python)
+# EthersFlow Agent Action Verification (Python)
 API_URL = "https://www.ethersflow.com/api/v1/verify"
 API_KEY = os.getenv("ETHERSFLOW_API_KEY", "YOUR_API_KEY")
 
@@ -286,7 +286,7 @@ agent = create_react_agent(llm, mcp_tools)`;
             { 
               agent: "Sovereign Audit Node", 
               vote: "FAIL", 
-              note: "Action Gate verification check rejected. Zero-Trust pipeline halted execution at the network perimeter." 
+              note: "Trust verdict verification rejected. Zero-Trust pipeline recorded non-aligned security evaluation." 
             }
           ],
           verificationHash: randomHash
@@ -343,8 +343,8 @@ agent = create_react_agent(llm, mcp_tools)`;
     };
 
     try {
-      const systemInstruction = `You are the EthersFlow Agent Action Gate verification engine.
-You analyze proposed AI agent tool calls or actions and conduct a real multi-agent adversarial audit.
+      const systemInstruction = `You are the EthersFlow Agent Action trust verdict verification engine.
+You analyze proposed AI agent tool calls or actions and conduct a multi-agent review audit.
 
 Selected Lead Auditor Persona: ${personaLabel}.
 
@@ -537,7 +537,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
             }`}
           >
             <ShieldAlert className="w-4 h-4 text-emerald-400" />
-            <span>Agent Action Gate</span>
+            <span>Agent Action Verification</span>
           </button>
 
           <button
@@ -571,7 +571,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
             <div>
               <h2 className="text-2xl font-black text-white mb-2">SDK Quickstarts & Code Integration</h2>
               <p className="text-slate-400 text-sm font-medium">
-                Select your programming language or framework to integrate EthersFlow adversarial consensus in minutes.
+                Select your programming language or framework to integrate EthersFlow trust verdict verification in minutes.
               </p>
             </div>
 
@@ -1048,7 +1048,7 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-[11px] text-slate-400 font-medium">3. Native REST API Action Gate:</div>
+                    <div className="text-[11px] text-slate-400 font-medium">3. Native REST API Action Verification:</div>
                     <div className="p-3 bg-[#08090d] border border-slate-800 rounded-xl font-mono text-[11px] text-emerald-400 flex items-center justify-between">
                       <span className="truncate">POST https://www.ethersflow.com/api/v1/verify</span>
                       <button
@@ -1065,13 +1065,13 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
           </div>
         )}
 
-        {/* SECTION 3: AGENT ACTION GATE */}
+        {/* SECTION 3: AGENT ACTION VERIFICATION */}
         {activeSection === 'agent_gate' && (
           <div className="space-y-8">
             <div>
-              <h2 className="text-2xl font-black text-white mb-2">Agent Action Gate (<code className="text-indigo-400">/api/v1/verify</code>)</h2>
+              <h2 className="text-2xl font-black text-white mb-2">Agent Action Trust Verdicts (<code className="text-indigo-400">/api/v1/verify</code>)</h2>
               <p className="text-slate-400 text-sm font-medium">
-                Prevent autonomous AI agents from executing unauthorized, rogue, or destructive tool calls by putting a real-time multi-model adversarial review loop in front of high-stakes actions.
+                Issues cryptographically signed, independently verifiable trust verdicts for AI agent actions before tool execution.
               </p>
             </div>
 
@@ -1084,7 +1084,7 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
                 </div>
                 <h3 className="text-lg font-black text-white">Dedicated Try-It Sandbox & Cryptographic Verification</h3>
                 <p className="text-xs text-slate-300 leading-relaxed font-medium">
-                  Test prompt injection detection, PO mismatch wire traps, destructive infra gating, and real-time Ed25519 cryptographic signature verification using the published root public key.
+                  Test prompt injection detection, PO mismatch wire traps, destructive action verification, and real-time Ed25519 cryptographic signature verification using the published root public key.
                 </p>
               </div>
               <button
@@ -1138,12 +1138,12 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
                   {gateSimulating ? (
                     <>
                       <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Evaluating Action Gate Payload via Live Review Panel...</span>
+                      <span>Evaluating Action Payload via Live Review Panel...</span>
                     </>
                   ) : (
                     <>
                       <ShieldCheck className="w-4 h-4" />
-                      <span>Run Live Action Gate Audit</span>
+                      <span>Run Live Action Verification Audit</span>
                     </>
                   )}
                 </button>
@@ -1211,7 +1211,7 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \\
                     </div>
                   ) : (
                     <div className="py-16 text-center text-slate-500 font-medium text-xs">
-                      Type any proposed tool call or action and click "Run Live Action Gate Audit" to test real-time AI adversarial verification.
+                      Type any proposed tool call or action and click "Run Live Action Verification Audit" to test real-time AI trust verification.
                     </div>
                   )}
                 </div>

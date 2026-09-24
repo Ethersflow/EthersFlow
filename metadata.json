@@ -1,6 +1,6 @@
 {
   "name": "EthersFlow",
-  "description": "EthersFlow verifies and gates AI agent actions at the execution boundary, enforces bounded purchase policies with cryptographic execution binding (Dispatcher Shim), and produces versioned signed decision receipts.",
+  "description": "EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

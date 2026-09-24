@@ -261,7 +261,7 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
           </a>
           <p className="text-[#86868b] font-bold text-sm leading-relaxed mb-8">
             Closing the AI trust gap through <br />
-            verifiable adversarial consensus.
+            verifiable trust verdicts for AI agent actions.
           </p>
         </div>
         
@@ -1342,7 +1342,7 @@ export default function App() {
   const browserSpeechRef = useRef<BrowserSpeechController | null>(null);
 
   const summarizeTopicForSpeech = (rawQuery: string): string => {
-    if (!rawQuery || !rawQuery.trim()) return "Adversarial Consensus Report";
+    if (!rawQuery || !rawQuery.trim()) return "Consensus Verification Report";
     const cleaned = rawQuery.trim().replace(/\s+/g, ' ');
     if (cleaned.length <= 140) return cleaned;
 
@@ -1364,7 +1364,7 @@ export default function App() {
     if (!resultsObj) return fallbackText || "EthersFlow Multi-Agent Consensus Platform";
 
     const parts: string[] = [];
-    const rawTopic = resultsObj.query || query || "Adversarial Consensus Report";
+    const rawTopic = resultsObj.query || query || "Consensus Verification Report";
     const abbreviatedTopic = summarizeTopicForSpeech(rawTopic);
 
     parts.push(`EthersFlow Intelligence Briefing on: ${abbreviatedTopic}.`);
@@ -2589,14 +2589,14 @@ export default function App() {
       setHistory([
         {
           id: 'mock-1',
-          query: 'Is adversarial consensus effective for reducing AI hallucinations?',
+          query: 'Is multi-agent consensus effective for reducing AI hallucinations?',
           timestamp: Date.now() - 1000 * 60 * 60 * 2,
           analystResponses: [],
           synthesis: { 
             consensus: 'Based on multi-model debate, the consensus is that adversarial structures significantly reduce reasoning drift.', 
             dissents: [],
             uncertainty: 'Low-to-medium logic variance detected.',
-            verdict: 'Deploy adversarial consensus for high-stakes decisions.',
+            verdict: 'Deploy multi-agent consensus for high-stakes decisions.',
             confidenceMetric: 88,
             uniformityWarning: false,
             sources: []
@@ -4024,7 +4024,7 @@ function NestedAgentLibraryUnused() { return null; }
     <div class="footer-note" style="margin-top: 48px; padding-top: 24px; border-top: 1px solid #e2e8f0; font-size: 13px; color: #475569;">
       <p style="margin: 0 0 8px 0; font-weight: 700; color: #4f46e5; font-size: 14.5px;">🌌 EthersFlow Research Portal</p>
       <p style="margin: 0; line-height: 1.6;">
-        This consensus report was compiled dynamically under the adversarial consensus infrastructure of <strong>EthersFlow</strong>. 
+        This consensus report was compiled dynamically under the verifiable consensus infrastructure of <strong>EthersFlow</strong>. 
         Generated on behalf of the EthersFlow researcher account of: 
         <a href="${window.location.origin}?ref=${encodeURIComponent(user?.uid || '')}&email=${encodeURIComponent(user?.email || '')}" style="color: #4f46e5; font-weight: 700; text-decoration: underline;">
           ${user?.displayName || user?.email || 'Scholar'} (${user?.email || 'verified user'})
@@ -4192,14 +4192,14 @@ function NestedAgentLibraryUnused() { return null; }
     <div class="footer-note" style="margin-top: 36px; border-top: 1px solid #e2e8f0; padding-top: 24px; font-style: italic;">
       <p style="margin: 0 0 10px 0; font-weight: 700; color: #4f46e5; font-size: 14px; font-style: normal;">🌌 EthersFlow Analytical Source Node</p>
       <p style="margin: 0 0 12px 0; line-height: 1.6; font-style: normal; font-size: 13px; color: #475569;">
-        This document was downloaded from the adversarial consensus workspace on <strong>EthersFlow</strong>. 
+        This document was downloaded from the verifiable consensus workspace on <strong>EthersFlow</strong>. 
         Sent by and linked to the EthersFlow researcher account at: 
         <a href="${window.location.origin}?ref=${encodeURIComponent(user?.uid || '')}&email=${encodeURIComponent(user?.email || '')}" style="color: #4f46e5; font-weight: 700; text-decoration: underline;">
           ${user?.displayName || user?.email || 'Authorized Lab User'} (${user?.email || 'verified node'})
         </a>.
       </p>
       <div style="font-size: 11px; color: #64748b; margin-top: 16px; border-top: 1px dashed #e2e8f0; padding-top: 12px;">
-        This intelligence report is a direct, uncensored extraction of the analyst's dedicated slot outputs, compiled dynamically within the EthersFlow adversarial consensus engine.
+        This intelligence report is a direct, uncensored extraction of the analyst's dedicated slot outputs, compiled dynamically within the EthersFlow trust verdict engine.
       </div>
     </div>
   </div>
@@ -5874,9 +5874,9 @@ function NestedAgentLibraryUnused() { return null; }
               <div className="space-y-1 max-w-3xl">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold">
                   <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Developer Extension: API & MCP Action Gating</span>
+                  <span>Developer Extension: API & MCP Action Verification</span>
                 </div>
-                <h4 className="text-lg font-black text-gray-900 pt-1">Enforce Verification Policies Before Autonomous Agent Actions</h4>
+                <h4 className="text-lg font-black text-gray-900 pt-1">Issue Verifiable Trust Verdicts Before Autonomous Agent Actions</h4>
                 <p className="text-xs sm:text-sm text-gray-500 font-medium leading-relaxed">
                   Put verification directly in your agent's execution path. Extend the same review capability through compatible SDK, REST API (<code className="text-indigo-600 font-mono">/api/v1/verify</code>), or native Model Context Protocol (MCP) server before high-stakes tool calls execute.
                 </p>
@@ -5901,7 +5901,7 @@ function NestedAgentLibraryUnused() { return null; }
             <div className="text-center mb-10 sm:mb-16">
               <div className="text-[10px] sm:text-[12px] font-black text-indigo-400 uppercase tracking-[0.4em] mb-4 sm:mb-6">Verification That Scales</div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white mb-4 tracking-tight leading-tight">Verification that scales with the consequence of the action.</h2>
-              <p className="text-sm sm:text-base text-gray-400 font-semibold max-w-2xl mx-auto">Choose the review configuration, latency class, and policy enforcement level matched to your workflow requirements.</p>
+              <p className="text-sm sm:text-base text-gray-400 font-semibold max-w-2xl mx-auto">Choose the review configuration, latency class, and policy verification level matched to your workflow requirements.</p>
             </div>
 
             <div className="flex flex-col items-center mb-12 sm:mb-20 space-y-8">
@@ -5989,7 +5989,7 @@ function NestedAgentLibraryUnused() { return null; }
                   {/* Pro / Production Review */}
                   <div className="bg-white p-8 sm:p-12 rounded-[40px] sm:rounded-[56px] text-left shadow-2xl shadow-indigo-900/40 relative transform sm:scale-105 lg:scale-110">
                     <h3 className="text-xl sm:text-2xl font-black text-[#1d1d1f] mb-2 uppercase tracking-tight">Production Review</h3>
-                    <p className="text-xs sm:text-sm text-gray-500 font-bold mb-4">Everyday audit, verification & policy enforcement</p>
+                    <p className="text-xs sm:text-sm text-gray-500 font-bold mb-4">Everyday audit, verification & policy attestation</p>
                     <div className="flex items-baseline gap-1 mb-8">
                       <span className="text-4xl sm:text-5xl font-black text-[#1d1d1f]">
                         ${billingInterval === 'year' ? '17' : '20'}
@@ -6086,7 +6086,7 @@ function NestedAgentLibraryUnused() { return null; }
 
                   <div className="bg-gradient-to-br from-indigo-900/40 to-purple-900/40 backdrop-blur-md border border-indigo-500/30 p-12 rounded-[56px] text-left">
                     <h3 className="text-2xl font-black text-white mb-2">Sovereign Deployment</h3>
-                    <p className="text-sm text-indigo-300 font-bold mb-8 italic">Fully isolated, policy-enforced deployment on client hardware or dedicated VPC nodes.</p>
+                    <p className="text-sm text-indigo-300 font-bold mb-8 italic">Fully isolated, cryptographically verified deployment on client hardware or dedicated VPC nodes.</p>
                     <ul className="space-y-5 mb-12">
                       {['Custom Agent Fine-Tuning & Weights', 'Isolated Dedicated Private VPC Nodes', 'Active 180s Multi-Agent Maximum SLA Limit', 'ZDR Sovereign Storage Certification'].map((feat, i) => (
                         <li key={i} className="flex items-center gap-4 text-base font-bold text-gray-200">
@@ -6123,15 +6123,15 @@ function NestedAgentLibraryUnused() { return null; }
               {[
                 { 
                   q: "What is EthersFlow?", 
-                  a: "EthersFlow is a verification layer for agentic systems. Configure independent reviewer roles in the Console, inspect disagreement and evidence in an inspectable review trace, and enforce the resulting policy through API or MCP before an agent calls a tool or changes the world." 
+                  a: "EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions. Configure independent reviewer roles in the Console, inspect disagreement and evidence in an inspectable review trace, and verify the resulting trust verdict through API or MCP before an agent calls a tool or changes the world." 
                 },
                 { 
                   q: "Why is independent review necessary before AI agents execute actions?", 
-                  a: "Single-model AI systems can produce plausible yet flawed reasoning, missing edge-case risks and creating liability for mission-critical operations. EthersFlow solves this by coordinating independent reviewer roles into structured adversarial cross-examination—exposing contradictions, recording provenance, and enforcing verification policy before an agent executes." 
+                  a: "Single-model AI systems can produce plausible yet flawed reasoning, missing edge-case risks and creating liability for mission-critical operations. EthersFlow solves this by coordinating independent reviewer roles into structured adversarial cross-examination—exposing contradictions, recording provenance, and issuing verification verdicts before an agent executes." 
                 },
                 { 
-                  q: "How does EthersFlow enforce policies at the tool boundary?", 
-                  a: "Using our REST API, TypeScript/Python SDKs, or MCP server, agent actions and proposed tool executions are routed through policy verification gates. Reviewers cross-examine the proposal, evaluate evidence, calculate a Consensus Alignment Score, and enforce policy rules before allowing tool execution." 
+                  q: "How does EthersFlow verify policies at the tool level?", 
+                  a: "Using our REST API, TypeScript/Python SDKs, or MCP server, agent actions and proposed tool executions are routed through policy verification checks. Reviewers evaluate the proposal and evidence, calculate a Consensus Alignment Score, and attest to policy compliance before allowing tool execution." 
                 },
                 { 
                   q: "Is customer data preserved or used for training?", 
@@ -6139,7 +6139,7 @@ function NestedAgentLibraryUnused() { return null; }
                 },
                 { 
                   q: "How do I interpret the Consensus Alignment Score and Evidence Status?", 
-                  a: "The Consensus Alignment Score measures statistical agreement across non-homogeneous reviewer models. Evidence Status reflects the strength of empirical citations and grounding. If critical dissent or an evidentiary gap is surfaced, the action gate blocks execution and routes the review for human oversight." 
+                  a: "The Consensus Alignment Score measures statistical agreement across non-homogeneous reviewer models. Evidence Status reflects the strength of empirical citations and grounding. If critical dissent or an evidentiary gap is surfaced, EthersFlow issues a FLAGGED verdict and routes the review for human oversight." 
                 }
               ].map((item, i) => (
                 <div key={i} className="border-b border-gray-100 last:border-0">
@@ -8639,7 +8639,7 @@ function NestedAgentLibraryUnused() { return null; }
                                     return "Single Expert Review Briefing";
                                   }
                                   if (results.synthesis?.dissents && results.synthesis.dissents.length > 0) {
-                                    return "Adversarial Consensus with Unresolved Dissent";
+                                    return "Consensus Evaluation with Unresolved Dissent";
                                   }
                                   if (results.synthesis?.confidenceMetric && results.synthesis.confidenceMetric >= 80) {
                                     return "Consensus Reached: Supporting Evidence Synthesized";
@@ -8707,7 +8707,7 @@ function NestedAgentLibraryUnused() { return null; }
                                </button>
 
                                <button 
-                                onClick={() => handleShare({ query: results?.query || query || messages[0]?.content || 'Adversarial Consensus Report', synthesis: results?.synthesis, analystResponses: results?.analystResponses })}
+                                onClick={() => handleShare({ query: results?.query || query || messages[0]?.content || 'Consensus Verification Report', synthesis: results?.synthesis, analystResponses: results?.analystResponses })}
                                 disabled={isSharing}
                                 className="p-2.5 sm:p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl transition-all group relative shadow-lg shadow-indigo-100 border border-indigo-500 disabled:opacity-50"
                               >
