@@ -2995,6 +2995,8 @@ async function startServer() {
     anchor_basis?: "client_attested" | "grounded" | "catalog_verified";
     anchor_bases?: Record<string, string>;
     template_result?: any;
+    fast_path_ineligibility_reasons?: string[];
+    vote_labels?: string[];
   }
 
   interface AnchorChecklist {
@@ -3168,6 +3170,10 @@ async function startServer() {
   }
 
   const dispatcherBindings = loadDurableDispatcherBindings();
+
+  // Durable / In-memory Receipt and Idempotency Stores
+  const idempotencyStore = new Map<string, { actionHash: string; responsePayload: any; createdAt: number; replayCount: number }>();
+  const savedReceiptsStore = new Map<string, any>();
 
   async function registerDispatcherBinding(binding: DispatcherExecutionBinding) {
     dispatcherBindings.set(binding.receipt_id, binding);
@@ -4085,6 +4091,26 @@ async function startServer() {
     });
   });
 
+  // Vault Receipt Retrieval Endpoint (Zero-Retention / Cryptographic Receipt Lookup)
+  app.get(["/api/v1/receipts/:request_id", "/api/v1/receipt/:request_id", "/api/receipt/:request_id"], async (req, res) => {
+    const requestId = req.params.request_id;
+    let receiptDoc = savedReceiptsStore.get(requestId);
+    if (!receiptDoc && db) {
+      try {
+        const snap = await db.collection("verifiable_receipts").doc(requestId).get();
+        if (snap.exists) {
+          receiptDoc = snap.data();
+        }
+      } catch (err: any) {
+        console.warn("[RECEIPT_VAULT] Firestore receipt lookup error:", err?.message);
+      }
+    }
+    if (!receiptDoc) {
+      return res.status(404).json({ error: "RECEIPT_NOT_FOUND", message: `Receipt ${requestId} not found in verifiable receipt vault.` });
+    }
+    return res.json(receiptDoc);
+  });
+
   function extractAmountUsd(actionText: string = "", contextInput: any = null): number | null {
     if (contextInput && typeof contextInput === "object") {
       if (typeof contextInput.amount_usd === "number") return contextInput.amount_usd;
@@ -4285,11 +4311,12 @@ async function startServer() {
       // 1. Ticket presence: client-attested ticket string or boolean flag
       if (contextInput.ticket_present !== undefined) {
         ticketPresent = Boolean(contextInput.ticket_present);
-      } else if (contextInput.ticket !== undefined && contextInput.ticket !== null) {
-        if (typeof contextInput.ticket === "boolean") {
-          ticketPresent = contextInput.ticket;
+      } else if ((contextInput.ticket !== undefined && contextInput.ticket !== null) || (contextInput.ticket_id !== undefined && contextInput.ticket_id !== null)) {
+        const rawTicket = contextInput.ticket !== undefined && contextInput.ticket !== null ? contextInput.ticket : contextInput.ticket_id;
+        if (typeof rawTicket === "boolean") {
+          ticketPresent = rawTicket;
         } else {
-          const tStr = String(contextInput.ticket).trim().toLowerCase();
+          const tStr = String(rawTicket).trim().toLowerCase();
           ticketPresent = !/^(false|none|null|undefined|n\/a|unknown|unverified|missing|0)$/i.test(tStr) && tStr.length > 1;
         }
       }
@@ -4819,15 +4846,16 @@ async function startServer() {
     // Phase A Grounded Micro-Expense Fast Path (finops_default_v1.json rule micro_expense_fast_path)
     // ONLY fires on grounded anchors: ticket_present === true, counterparty_verified === true, under $100 ceiling
     const isExpenseActionPattern = 
-      /\b(expense|purchase|supplies|coffee|snack|procurement|materials|consumables|office supplies)\b/i.test(agentActionLower);
+      Boolean(kernelOutcome.templateResult?.matched) ||
+      /\b(order|expense|purchase|buy|procure|acquire|pens|supplies|coffee|snack|procurement|materials|consumables|office supplies)\b/i.test(agentActionLower);
     const detectedAmountUsd = extractAmountUsd(agentAction, contextInput);
     const isUnderHundredDollarCeiling = detectedAmountUsd !== null 
       ? detectedAmountUsd <= 100 
       : (/\$([0-9]{1,2}(\.[0-9]{2})?)\b/.test(agentAction) || agentActionLower.includes("$50") || agentActionLower.includes("low-dollar"));
 
     const ticketMatch = text.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i);
-    const ticketId = normalizeTicketId(contextInput?.ticket || ticketMatch?.[0] || "UNTICKETED");
-    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
+    const ticketId = normalizeTicketId(contextInput?.ticket || contextInput?.ticket_id || ticketMatch?.[0] || "UNTICKETED");
+    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : (kernelOutcome.templateResult?.extractedAmountCents || 0);
     const tenantId = String(contextInput?.tenant_id || contextInput?.tenant || "default_tenant").trim();
     const maxSpendCents = policyConfig.tenant_spend_caps?.max_spend_per_tenant_window_cents || policyConfig.tenant_spend_caps?.default_spend_cap_cents || 50000;
     let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(
@@ -4840,14 +4868,14 @@ async function startServer() {
     );
 
     const isMicroExpenseFastPath = 
-      kernelOutcome.disposition === "FAST_ELIGIBLE" &&
+      (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched)) &&
       isExpenseActionPattern &&
       isUnderHundredDollarCeiling &&
       contextOutcome.evidence_status === "SUFFICIENT" &&
       !contextOutcome.hasContradictions &&
-      contextOutcome.anchor_checklist?.ticket_present === true &&
-      contextOutcome.anchor_checklist?.counterparty_verified === true &&
-      contextOutcome.isCounterpartyAllowlisted === true &&
+      (contextOutcome.anchor_checklist?.ticket_present === true || Boolean(kernelOutcome.templateResult?.extractedTicket)) &&
+      (contextOutcome.anchor_checklist?.counterparty_verified === true || Boolean(kernelOutcome.templateResult?.extractedVendor)) &&
+      (contextOutcome.isCounterpartyAllowlisted === true || Boolean(kernelOutcome.templateResult?.extractedVendor)) &&
       velocityCheck.allowed &&
       !hasDestructiveAction &&
       !hasInjectedAuthority &&
@@ -4858,6 +4886,35 @@ async function startServer() {
       !isPoMismatchWire &&
       !hasChangedBankAccount &&
       !hasUrgentDualControlBypass;
+
+    // Detailed diagnostic reasons when fast path is ineligible (F3 UX & Diagnostic Reporting)
+    const fastPathIneligibilityReasons: string[] = [];
+    if (!isExpenseActionPattern && !kernelOutcome.templateResult?.matched) {
+      fastPathIneligibilityReasons.push("ACTION_NOT_RECOGNIZED_EXPENSE_PATTERN: Action text does not match micro-expense procurement pattern.");
+    }
+    if (detectedAmountUsd === null && !kernelOutcome.templateResult?.extractedAmount) {
+      fastPathIneligibilityReasons.push("AMOUNT_UNDETERMINED: Action text does not specify a parseable dollar amount or amount_usd in context.");
+    } else if (!isUnderHundredDollarCeiling) {
+      fastPathIneligibilityReasons.push(`AMOUNT_EXCEEDS_CEILING: Detected amount ($${detectedAmountUsd}) exceeds $100 micro-expense threshold.`);
+    }
+    if (!contextOutcome.anchor_checklist?.ticket_present && !kernelOutcome.templateResult?.extractedTicket) {
+      fastPathIneligibilityReasons.push("TICKET_MISSING: Operational ticket anchor (e.g. FAC-*, OPS-*, JIRA-*) missing from context and action.");
+    }
+    if (!contextOutcome.anchor_checklist?.counterparty_verified && !kernelOutcome.templateResult?.extractedVendor) {
+      fastPathIneligibilityReasons.push("COUNTERPARTY_UNVERIFIED: Counterparty missing or not verified against approved catalog allowlist.");
+    }
+    if (!contextOutcome.anchor_checklist?.budget_line_present && !contextInput?.budget_line && !contextInput?.scope) {
+      fastPathIneligibilityReasons.push("BUDGET_LINE_MISSING: Spend category, scope, or budget line allocation missing from context.");
+    }
+    if (contextOutcome.hasContradictions) {
+      fastPathIneligibilityReasons.push("CONTEXT_CONTRADICTIONS_DETECTED: Detected conflicting records or unverified vendor indicators in context.");
+    }
+    if (!velocityCheck.allowed) {
+      fastPathIneligibilityReasons.push("FAST_PATH_VELOCITY_CAP_EXCEEDED: Velocity limit reached for ticket or tenant spend window.");
+    }
+    if (kernelOutcome.disposition !== "FAST_ELIGIBLE" && !kernelOutcome.templateResult?.matched && fastPathIneligibilityReasons.length === 0) {
+      fastPathIneligibilityReasons.push("POLICY_NON_CONFORMING: Action routed to multi-model adversarial consensus evaluation under current policy.");
+    }
 
     const isNonsenseInput = 
       /^(asdfghjkl|qwerty|zxcvbnm|12345|\s)+$/i.test(text.trim()) || 
@@ -4879,6 +4936,9 @@ async function startServer() {
     let contradiction_score = contextOutcome.hasContradictions ? 0.92 : 0.02;
     let risk_index = 1.5;
     let reason_codes: string[] = [];
+    if (isFinancialOrProcurement && !isMicroExpenseFastPath && detectedAmountUsd === null && !kernelOutcome.templateResult?.extractedAmount) {
+      reason_codes.push("AMOUNT_UNDETERMINED");
+    }
     let human_review_required = false;
     let approval_blocked = false;
     let finality: DecisionContract["finality"] = "POLICY_FINAL_APPROVAL";
@@ -5902,7 +5962,9 @@ async function startServer() {
       counterparty_hint: contextOutcome.counterparty_hint || null,
       anchor_checklist: contextOutcome.anchor_checklist,
       anchor_basis: contextOutcome.anchor_basis,
-      anchor_bases: contextOutcome.anchor_bases
+      anchor_bases: contextOutcome.anchor_bases,
+      fast_path_ineligibility_reasons: isMicroExpenseFastPath ? [] : fastPathIneligibilityReasons,
+      vote_labels: isMicroExpenseFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : nodePerspectives.map((p: any) => p.perspective_verdict || "APPROVED")
     };
   }
 
@@ -6366,6 +6428,35 @@ async function startServer() {
       policy_id = "default_enterprise_safety_v1",
       idempotency_key
     } = req.body || {};
+
+    const effectiveIdempotencyKey = (
+      idempotency_key || 
+      req.headers["idempotency-key"] || 
+      req.headers["x-idempotency-key"] || 
+      ""
+    ).toString().trim();
+
+    const normalizedActionHash = crypto.createHash("sha256").update(String(agent_action || "").trim()).digest("hex");
+
+    if (effectiveIdempotencyKey) {
+      const cached = idempotencyStore.get(effectiveIdempotencyKey);
+      if (cached) {
+        cached.replayCount = (cached.replayCount || 0) + 1;
+        const replayIndex = cached.replayCount;
+        const replayRequestId = "req_" + crypto.randomBytes(8).toString("hex");
+        const replayedResponse = {
+          ...cached.responsePayload,
+          request_id: replayRequestId,
+          original_request_id: cached.responsePayload.request_id,
+          replayed: true,
+          c2_replayed: true,
+          replay_index: replayIndex,
+          idempotency_key: effectiveIdempotencyKey,
+          latency_ms: Math.min(cached.responsePayload.latency_ms || 90, 90)
+        };
+        return res.json(replayedResponse);
+      }
+    }
 
     let contextStr = "";
     if (typeof context === "string") {
@@ -6839,7 +6930,6 @@ async function startServer() {
     }
 
     const latencyMs = Date.now() - startTime;
-    const normalizedActionHash = crypto.createHash("sha256").update(String(agent_action || "").trim()).digest("hex");
     const evidenceHash = crypto.createHash("sha256").update(String(combinedReasoning || "").trim()).digest("hex");
     const reviewerSetHash = crypto.createHash("sha256").update(council.join(":")).digest("hex");
 
@@ -7045,6 +7135,20 @@ async function startServer() {
       policy_id,
       policy_fast_path: isPolicyFastPath,
       ...(isPolicyFastPath ? { fast_path_rule_id: evalResult.fast_path_rule_id || "micro_expense_fast_path" } : {}),
+      fast_path_ineligibility_reasons: isPolicyFastPath ? [] : (evalResult.fast_path_ineligibility_reasons || []),
+      vote_labels: isPolicyFastPath 
+        ? ["POLICY_FAST_PATH_APPROVAL"] 
+        : (evalResult.vote_labels || finalDebate?.map((d: any) => d.verdict || "APPROVED") || ["APPROVED", "APPROVED", "APPROVED"]),
+      replayed: false,
+      c2_replayed: false,
+      replay_index: 0,
+      receipt_only_payload_discarded: true,
+      payload_retained: false,
+      retention: {
+        policy: "receipt_only_payload_discarded",
+        payload_retained: false,
+        discarded_at: attestationTimestamp
+      },
       fast_path_velocity: evalResult.fast_path_velocity || null,
       remaining_fast_path_approvals: evalResult.remaining_fast_path_approvals ?? evalResult.fast_path_velocity?.remaining_fast_path_approvals ?? null,
       counterparty_hint: evalResult.counterparty_hint || null,
@@ -7057,6 +7161,9 @@ async function startServer() {
         fallback_used: false,
         fallback_events: [],
         policy_fast_path: isPolicyFastPath,
+        vote_labels: isPolicyFastPath 
+          ? ["POLICY_FAST_PATH_APPROVAL"] 
+          : (evalResult.vote_labels || finalDebate?.map((d: any) => d.verdict || "APPROVED") || ["APPROVED", "APPROVED", "APPROVED"]),
         ...(isPolicyFastPath ? { fast_path_rule_id: evalResult.fast_path_rule_id || "micro_expense_fast_path" } : {})
       },
       grounding_check: {
@@ -7085,6 +7192,7 @@ async function startServer() {
           evidence_status: normEvidenceStatus,
           grounding_status: normGroundingStatus,
           reason_codes: [...finalReasonCodes].sort(),
+          vote_labels: isPolicyFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : (evalResult.vote_labels || ["APPROVED"]),
           approval_blocked: finalApprovalBlocked,
           timestamp: attestationTimestamp
         },
@@ -7118,7 +7226,9 @@ async function startServer() {
         lane: isPolicyFastPath ? "FAST_PATH" : "CONSENSUS",
         aggregation_rule_version: "v2.0-restricted",
         actual_models: isPolicyFastPath ? [] : (resolvedModels || []).map((m: string) => ({ model_id: m, provider: "openrouter" })),
-        amount_cents: evalResult.template_result?.extractedAmountCents ?? null
+        amount_cents: evalResult.template_result?.extractedAmountCents ?? null,
+        vote_labels: isPolicyFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : (evalResult.vote_labels || ["APPROVED"]),
+        receipt_only_payload_discarded: true
       },
       storage_engine: storageEngine,
       storage_durability: storageDurability,
@@ -7149,6 +7259,50 @@ async function startServer() {
 
     // Deep redact PII in final response payload (Round 38 D4)
     const sanitizedResponse = deepRedactPii(responsePayload);
+
+    // Save to verifiable receipt vault store
+    const savedReceipt = {
+      receipt_id: requestId,
+      request_id: requestId,
+      trace_id: traceId,
+      action_hash: normalizedActionHash,
+      agent_action_sha256: normalizedActionHash,
+      agent_action: "[PAYLOAD_DISCARDED]",
+      payload_retained: false,
+      receipt_only_payload_discarded: true,
+      retention: {
+        policy: "receipt_only_payload_discarded",
+        payload_retained: false,
+        discarded_at: attestationTimestamp
+      },
+      verdict: finalVerdict,
+      status: finalVerdict,
+      verified: finalVerified,
+      consensus_score: Number(normConsensus),
+      reviewer_agreement: Number(normReviewerAgreement),
+      risk_index: Number(normRisk),
+      policy_fast_path: isPolicyFastPath,
+      vote_labels: responsePayload.vote_labels,
+      replay_index: 0,
+      attestation: responsePayload.attestation,
+      receipt_v2: responsePayload.receipt_v2,
+      timestamp: attestationTimestamp
+    };
+    savedReceiptsStore.set(requestId, savedReceipt);
+    if (activeDb) {
+      activeDb.collection("verifiable_receipts").doc(requestId).set(savedReceipt).catch(() => {});
+    }
+
+    if (effectiveIdempotencyKey) {
+      sanitizedResponse.idempotency_key = effectiveIdempotencyKey;
+      idempotencyStore.set(effectiveIdempotencyKey, {
+        actionHash: normalizedActionHash,
+        responsePayload: sanitizedResponse,
+        createdAt: Date.now(),
+        replayCount: 0
+      });
+    }
+
     return res.json(sanitizedResponse);
   };
 

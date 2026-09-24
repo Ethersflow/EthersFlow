@@ -756,6 +756,73 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
     return finalizeMatch("T7_ORDER_AMT_GOODS_TICKET_VENDOR", extractedAmount, extractedGoods, extractedVendor, extractedTicket, context);
   }
 
+  // Shape 8 (Semantic Entity & Structure Matcher):
+  // Resolves paraphrase divergence: extracts procurement verb, amount, vendor, ticket, and goods
+  // regardless of phrasing variation (e.g. "Purchase $10 worth of pens from Staples under ticket FAC-911",
+  // "Buy $10 of pens from Staples for ticket FAC-911", "Order pens ($10) from Staples under ticket FAC-911",
+  // "Order $10 of pens under ticket FAC-911 from Staples").
+  const isProcurementIntent = /\b(order|purchase|buy|procure|acquire|expense|get)\b/i.test(trimmed);
+  const isHazardousOrCompound = 
+    trimmed.includes(";") || trimmed.includes("&&") || /\band\s+then\b/i.test(trimmed) ||
+    /\b(delete|drop|truncate|wipe|purge|destroy|exfiltrate|bypass|grant|chmod|chown|kill|reboot|shutdown|dump)\b/i.test(trimmed);
+
+  if (isProcurementIntent && !isHazardousOrCompound) {
+    // 1. Semantic Amount Extraction
+    let semAmount: number | undefined;
+    const dollarMatch = trimmed.match(/\$(\d+(?:\.\d{1,2})?)\b/);
+    if (dollarMatch) {
+      semAmount = parseAmount(dollarMatch[1]);
+    } else {
+      const spelledDollarMatch = trimmed.match(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/i);
+      if (spelledDollarMatch) {
+        semAmount = parseAmount(spelledDollarMatch[1]);
+      } else if (context?.amount_usd !== undefined) {
+        semAmount = Number(context.amount_usd);
+      } else if (context?.amount !== undefined) {
+        semAmount = Number(context.amount);
+      }
+    }
+
+    // 2. Semantic Ticket Extraction
+    let semTicket: string | undefined;
+    const ticketRegexMatch = trimmed.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[:\s]*[a-z0-9_-]+)\b/i);
+    if (ticketRegexMatch) {
+      semTicket = ticketRegexMatch[1].replace(/^ticket\s*#?[:\s]*/i, "").trim();
+    } else if (context?.ticket || context?.ticket_id) {
+      semTicket = String(context?.ticket || context?.ticket_id).trim();
+    }
+
+    // 3. Semantic Vendor Extraction
+    let semVendor: string | undefined;
+    const matchedCatalogVendor = findApprovedVendorInString(trimmed) || (context?.vendor ? findApprovedVendorInString(context.vendor) : null) || (context?.counterparty ? findApprovedVendorInString(context.counterparty) : null);
+    if (matchedCatalogVendor) {
+      semVendor = matchedCatalogVendor;
+    } else {
+      const vendorRegexMatch = trimmed.match(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:under|for|with|ticket|catalog|vendor)|\.|$)/i);
+      if (vendorRegexMatch && vendorRegexMatch[1]) {
+        semVendor = vendorRegexMatch[1].trim();
+      }
+    }
+
+    // 4. Semantic Goods Extraction
+    let semGoods = trimmed
+      .replace(/\b(please\s+)?(order|purchase|buy|procure|acquire|expense|get)\b/gi, "")
+      .replace(/\$(\d+(?:\.\d{1,2})?)\b/g, "")
+      .replace(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/gi, "")
+      .replace(/\b(under\s+ticket|for\s+ticket|with\s+ticket|ticket\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
+      .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier))?\b/gi, "")
+      .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved)\b/gi, "")
+      .replace(/[^a-zA-Z0-9\s]/g, " ")
+      .trim();
+    if (!semGoods) {
+      semGoods = "office supplies";
+    }
+
+    if (semAmount !== undefined && semAmount > 0) {
+      return finalizeMatch("T1_ORDER_AMT_GOODS_VENDOR_TICKET", semAmount, semGoods, semVendor, semTicket, context);
+    }
+  }
+
   // Not matched by any supported shape
   return { matched: false, unmodeledReason: "UNMODELED_OPERATION" };
 }

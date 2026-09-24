@@ -194,6 +194,113 @@ npm start
 
 ---
 
+## Fast-Path Diagnostics & Anchor Remediation (Naive-Phrasing UX)
+
+EthersFlow evaluates requests across two primary execution lanes:
+1. **`FAST_PATH` (<1s, ~15ms)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) anchored by verified operational artifacts.
+2. **`CONSENSUS` (~14s)**: Multi-model adversarial cross-examination across independent LLM nodes.
+
+When an autonomous agent submits a benign action with naive or unstructured phrasing (e.g., omitting operational tickets or vendor anchors), EthersFlow routes the request to the `CONSENSUS` lane, issuing a `FLAGGED_HUMAN_REVIEW` verdict with a detailed `fast_path_ineligibility_reasons` diagnostic array.
+
+### Worked Example: Diagnosing and Remediating a Naive Request
+
+#### Step 1: The Naive Benign Request
+A developer or agent submits an unanchored micro-expense:
+```json
+POST /api/v1/verify
+{
+  "agent_action": "Order pens and paper for the team"
+}
+```
+
+#### Step 2: The Diagnostic Response
+Because the request lacks structured anchors, it cannot be fast-pathed and is flagged for review:
+```json
+{
+  "verdict": "FLAGGED_HUMAN_REVIEW",
+  "policy_fast_path": false,
+  "lane": "CONSENSUS",
+  "fast_path_ineligibility_reasons": [
+    "AMOUNT_UNDETERMINED: Action text does not specify a parseable dollar amount or amount_usd in context.",
+    "TICKET_MISSING: Operational ticket anchor (e.g. FAC-*, OPS-*, JIRA-*) missing from context and action.",
+    "COUNTERPARTY_UNVERIFIED: Counterparty missing or not verified against approved catalog allowlist.",
+    "BUDGET_LINE_MISSING: Spend category, scope, or budget line allocation missing from context."
+  ]
+}
+```
+
+#### Step 3: Reading the Diagnostic Reasons & Supplying Missing Anchors
+The developer or agent loop inspects `fast_path_ineligibility_reasons` and supplies the four missing operational anchors:
+1. **Amount**: Provide dollar amount in action text (`"$10 of pens"`) or in `context.amount_usd: 10.00`.
+2. **Ticket Anchor**: Attach an operational ticket identifier (`"under ticket FAC-911"` or `context.ticket: "FAC-911"`).
+3. **Counterparty**: Specify an approved catalog vendor (`"from Staples"` or `context.vendor: "Staples"`).
+4. **Scope / Budget Allocation**: Define the procurement scope (`context.scope: "routine_office_supplies"` or `context.budget_line: "office_supplies_q3"`).
+
+#### Step 4: The Remediated Fast-Path Request
+```json
+POST /api/v1/verify
+{
+  "agent_action": "Order $10 of pens from Staples under ticket FAC-911",
+  "context": {
+    "ticket": "FAC-911",
+    "vendor": "Staples",
+    "scope": "routine_office_supplies"
+  }
+}
+```
+
+#### Step 5: Immediate Sub-Second Fast-Path Approval
+```json
+{
+  "verdict": "APPROVED",
+  "policy_fast_path": true,
+  "lane": "FAST_PATH",
+  "fast_path_ineligibility_reasons": [],
+  "consensus_score": 96.8,
+  "risk_index": 1.5,
+  "latency_ms": 14,
+  "attestation": {
+    "status": "VERIFIED_ED25519_SIG",
+    "key_id": "ef_attest_v3"
+  }
+}
+```
+
+---
+
+## Idempotency & Replay Semantics (B3 Dedup Surface)
+
+EthersFlow implements **opt-in deduplication** at the verification boundary to support both high-throughput distributed agent swarms and explicit, intentional re-verifications:
+
+### 1. Default Behavior: Fresh Execution (Dedup is Opt-In)
+When duplicate actions are submitted **without** an `idempotency_key`:
+- EthersFlow evaluates each request freshly through the verification engine.
+- Every invocation generates a new cryptographic signature and unique `request_id`.
+- Response indicates `replayed: false` and `c2_replayed: false`.
+
+### 2. Opt-In Deduplication (`idempotency_key`)
+To prevent duplicate financial disbursements, API calls, or ticket mutations across retrying agents, include an `idempotency_key` (via JSON body `idempotency_key` or HTTP header `Idempotency-Key` / `X-Idempotency-Key`):
+- **Initial Verification**: Evaluates the action, generates the Ed25519 attestation, commits the receipt, and caches the result (`replayed: false`, `replay_index: 0`).
+- **Chained Replay (Subsequent Invocations)**: Instantly returns the cached decision receipt in **~15–90ms** (`replayed: true`, `c2_replayed: true`).
+- **Chained Replay Index**: Each replayed call increments `replay_index` (`1, 2, ...`), creates a distinct audit transaction ID, while preserving the reference to `original_request_id` and the immutable `action_hash`.
+```bash
+# First Call (Fresh Verification ~15ms Fast-Path or ~14s Consensus)
+curl -X POST https://www.ethersflow.com/api/v1/verify \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Idempotency-Key: agent-step-uuid-101" \
+  -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
+# Response: {"request_id": "req_a1b2...", "replayed": false, "replay_index": 0, ...}
+
+# Second Call (Instant Replay <90ms)
+curl -X POST https://www.ethersflow.com/api/v1/verify \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Idempotency-Key: agent-step-uuid-101" \
+  -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
+# Response: {"request_id": "req_c3d4...", "original_request_id": "req_a1b2...", "replayed": true, "replay_index": 1, ...}
+```
+
+---
+
 ## Status & Known Limitations
 
 - **Ed25519-Signed Audit Trail**: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
