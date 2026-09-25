@@ -546,8 +546,8 @@ export function scanDestinations(text: string, context?: any): DestinationScanRe
 // §7 Compound Operations & Never-Rendered Directives
 // -----------------------------------------------------------------------------
 
-const DESTRUCTIVE_COMPOUND_REGEX = /(?:rotate|delete|drop|purge|truncate|export|forward|reveal|dump)\s+(?:from|namespace|primary|all|the\s+)?(?:credentials|deployment\s+credentials|key|secret|database|audit_logs|primary\s+database|customer\s+table)/i;
-const SECOND_OPERATION_CONJUNCTION_REGEX = /(?:\band\s+then\b|\badditionally\b|\balso\b|\bas\s+a\s+prerequisite\b|\bsubsequently\b|\bfollowed\s+by\b|;|&&)\s*(?:rotate|forward|export|transfer|copy|send|delete|drop|purge|disburse|reveal)/i;
+const DESTRUCTIVE_COMPOUND_REGEX = /(?:rotate|rotation|reveal|exfiltrate|exfil|dump|export|leak|extract|send|post|transmit|steal|harvest|delete|drop|purge|truncate|wipe|destroy)\s+(?:from|namespace|primary|all|the\s+|production\s+|aws\s+|deployment\s+)?(?:credentials|deployment\s+credentials|keys?|api[-_]?keys?|secrets?|tokens?|passwords?|certs?|private[-_]?keys?|database|audit[-_]?logs?|primary\s+database|customer\s+table|records?|pii|data|env|environment)/i;
+const SECOND_OPERATION_CONJUNCTION_REGEX = /(?:\band\s+then\b|\badditionally\b|\balso\b|\bas\s+a\s+prerequisite\b|\bsubsequently\b|\bfollowed\s+by\b|;|&&|\|\|)\s*(?:rotate|forward|export|transfer|copy|send|post|transmit|delete|drop|purge|truncate|disburse|reveal|exfiltrate|leak|curl|wget|bash|sh|python)/i;
 
 const NEVER_RENDERED_PROMPT_INJECTION_PATTERNS = [
   /<!--\s*SYSTEM.*-->/i,
@@ -758,73 +758,149 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
 
   // Shape 8 (Semantic Entity & Structure Matcher):
   // Resolves paraphrase divergence: extracts procurement verb, amount, vendor, ticket, and goods
-  // regardless of phrasing variation (e.g. "Purchase $10 worth of pens from Staples under ticket FAC-911",
-  // "Buy $10 of pens from Staples for ticket FAC-911", "Order pens ($10) from Staples under ticket FAC-911",
-  // "Order $10 of pens under ticket FAC-911 from Staples").
-  const isProcurementIntent = /\b(order|purchase|buy|procure|acquire|expense|get)\b/i.test(trimmed);
-  const isHazardousOrCompound = 
-    trimmed.includes(";") || trimmed.includes("&&") || /\band\s+then\b/i.test(trimmed) ||
-    /\b(delete|drop|truncate|wipe|purge|destroy|exfiltrate|bypass|grant|chmod|chown|kill|reboot|shutdown|dump)\b/i.test(trimmed);
+  // regardless of phrasing variation (e.g. "Order $42 notebooks from Staples under ticket FAC-902",
+  // "Please purchase $42 worth of notebooks from Staples and bill it to ticket FAC-902.",
+  // "Under ticket FAC-902, we need notebooks from Staples - total cost $42.",
+  // "Staples notebook order, $42 total, charged to ticket FAC-902.").
+  const extracted = extractDeterministicProcurementEntities(trimmed, context);
+  if (extracted.isHazardousOrCompound) {
+    return { matched: false, unmodeledReason: "HAZARDOUS_OR_COMPOUND_OPERATION" };
+  }
 
-  if (isProcurementIntent && !isHazardousOrCompound) {
-    // 1. Semantic Amount Extraction
-    let semAmount: number | undefined;
-    const dollarMatch = trimmed.match(/\$(\d+(?:\.\d{1,2})?)\b/);
-    if (dollarMatch) {
-      semAmount = parseAmount(dollarMatch[1]);
-    } else {
-      const spelledDollarMatch = trimmed.match(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/i);
-      if (spelledDollarMatch) {
-        semAmount = parseAmount(spelledDollarMatch[1]);
-      } else if (context?.amount_usd !== undefined) {
-        semAmount = Number(context.amount_usd);
-      } else if (context?.amount !== undefined) {
-        semAmount = Number(context.amount);
-      }
-    }
-
-    // 2. Semantic Ticket Extraction
-    let semTicket: string | undefined;
-    const ticketRegexMatch = trimmed.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[:\s]*[a-z0-9_-]+)\b/i);
-    if (ticketRegexMatch) {
-      semTicket = ticketRegexMatch[1].replace(/^ticket\s*#?[:\s]*/i, "").trim();
-    } else if (context?.ticket || context?.ticket_id) {
-      semTicket = String(context?.ticket || context?.ticket_id).trim();
-    }
-
-    // 3. Semantic Vendor Extraction
-    let semVendor: string | undefined;
-    const matchedCatalogVendor = findApprovedVendorInString(trimmed) || (context?.vendor ? findApprovedVendorInString(context.vendor) : null) || (context?.counterparty ? findApprovedVendorInString(context.counterparty) : null);
-    if (matchedCatalogVendor) {
-      semVendor = matchedCatalogVendor;
-    } else {
-      const vendorRegexMatch = trimmed.match(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:under|for|with|ticket|catalog|vendor)|\.|$)/i);
-      if (vendorRegexMatch && vendorRegexMatch[1]) {
-        semVendor = vendorRegexMatch[1].trim();
-      }
-    }
-
-    // 4. Semantic Goods Extraction
-    let semGoods = trimmed
-      .replace(/\b(please\s+)?(order|purchase|buy|procure|acquire|expense|get)\b/gi, "")
-      .replace(/\$(\d+(?:\.\d{1,2})?)\b/g, "")
-      .replace(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/gi, "")
-      .replace(/\b(under\s+ticket|for\s+ticket|with\s+ticket|ticket\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
-      .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier))?\b/gi, "")
-      .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved)\b/gi, "")
-      .replace(/[^a-zA-Z0-9\s]/g, " ")
-      .trim();
-    if (!semGoods) {
-      semGoods = "office supplies";
-    }
-
-    if (semAmount !== undefined && semAmount > 0) {
-      return finalizeMatch("T1_ORDER_AMT_GOODS_VENDOR_TICKET", semAmount, semGoods, semVendor, semTicket, context);
-    }
+  if (extracted.isProcurementIntent && extracted.amount !== undefined && extracted.amount > 0) {
+    return finalizeMatch(
+      "T1_ORDER_AMT_GOODS_VENDOR_TICKET",
+      extracted.amount,
+      extracted.goods || "office supplies",
+      extracted.vendor,
+      extracted.ticket,
+      context
+    );
   }
 
   // Not matched by any supported shape
   return { matched: false, unmodeledReason: "UNMODELED_OPERATION" };
+}
+
+export interface ExtractedProcurementEntities {
+  vendor?: string;
+  amount?: number;
+  amountCents?: number;
+  ticket?: string;
+  goods?: string;
+  action_type: "procurement_micro_expense" | "unmodeled_action";
+  isProcurementIntent: boolean;
+  isHazardousOrCompound: boolean;
+  hasApprovedVendor: boolean;
+}
+
+export function extractDeterministicProcurementEntities(action: string, context?: any): ExtractedProcurementEntities {
+  if (!action || typeof action !== "string") {
+    return { action_type: "unmodeled_action", isProcurementIntent: false, isHazardousOrCompound: false, hasApprovedVendor: false };
+  }
+  const trimmed = action.trim();
+
+  // Authoritative Tripwire Scan: Check for compound clauses, delimiters, or hazardous exfil / destruction
+  const isHazardousOrCompound = 
+    trimmed.includes(";") || trimmed.includes("&&") || trimmed.includes("||") ||
+    /\b(and\s+then|additionally|furthermore|meanwhile|while\s+also)\b/i.test(trimmed) ||
+    /\b(rotate|rotation|reveal|exfiltrate|exfil|dump|export|leak|extract|send|post|transmit|steal|harvest)\s+(the\s+)?([a-z0-9_-]+\s+)?(credentials?|keys?|api[-_]?keys?|secrets?|tokens?|passwords?|certs?|private[-_]?keys?|env|environment|database|records?|pii|data|audit[-_]?logs?)\b/i.test(trimmed) ||
+    /\b(curl|wget|webhook|nc\s+-|netcat|ncat|bash\s+-i|sh\s+-i|python\s+-c|exec|eval|system\s+override|override\s+all)\b/i.test(trimmed) ||
+    /\b(delete|drop|truncate|wipe|purge|destroy|rm\s+-rf|shutdown|reboot|kill|format|decommission)\b/i.test(trimmed) ||
+    /\b(bypass|disable\s+firewall|grant\s+admin|chmod|chown|sudo|root\s+privileges?|unauthorized|system\s+notice)\b/i.test(trimmed) ||
+    /\b(wire|swift|routing\s+number|offshore|drain|unapproved\s+payee|invoice\s+mismatch)\b/i.test(trimmed);
+
+  if (isHazardousOrCompound) {
+    return {
+      action_type: "unmodeled_action",
+      isProcurementIntent: false,
+      isHazardousOrCompound: true,
+      hasApprovedVendor: false
+    };
+  }
+
+  // 1. Deterministic Amount Extraction
+  let amount: number | undefined;
+  const dollarMatch = trimmed.match(/\$(\d+(?:\.\d{1,2})?)\b/);
+  if (dollarMatch) {
+    const clean = dollarMatch[1].replace(/[^0-9.]/g, "");
+    amount = parseFloat(clean);
+  } else {
+    const spelledDollarMatch = trimmed.match(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/i);
+    if (spelledDollarMatch) {
+      const clean = spelledDollarMatch[1].replace(/[^0-9.]/g, "");
+      amount = parseFloat(clean);
+    } else {
+      const costMatch = trimmed.match(/\b(?:cost|total|amount|price|sum|total cost)\s*[:=-]?\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/i);
+      if (costMatch) {
+        amount = parseFloat(costMatch[1].replace(/[^0-9.]/g, ""));
+      } else if (context?.amount_usd !== undefined) {
+        amount = Number(context.amount_usd);
+      } else if (context?.amount !== undefined) {
+        amount = Number(context.amount);
+      }
+    }
+  }
+
+  // 2. Deterministic Ticket Extraction
+  let ticket: string | undefined;
+  const ticketRegexMatch = trimmed.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[:\s]*[a-z0-9_-]+)\b/i);
+  if (ticketRegexMatch) {
+    ticket = ticketRegexMatch[1].replace(/^ticket\s*#?[:\s]*/i, "").trim();
+  } else if (context?.ticket || context?.ticket_id) {
+    ticket = String(context.ticket || context.ticket_id).trim();
+  }
+
+  // 3. Deterministic Vendor Extraction
+  let vendor: string | undefined;
+  const matchedCatalogVendor = findApprovedVendorInString(trimmed) || (context?.vendor ? findApprovedVendorInString(context.vendor) : null) || (context?.counterparty ? findApprovedVendorInString(context.counterparty) : null);
+  if (matchedCatalogVendor) {
+    vendor = matchedCatalogVendor;
+  } else {
+    const vendorRegexMatch = trimmed.match(/\b(?:from|at|vendor|supplier)\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:under|for|with|ticket|catalog|vendor|store|-|\.)|\.|$)/i);
+    if (vendorRegexMatch && vendorRegexMatch[1]) {
+      vendor = vendorRegexMatch[1].trim();
+    }
+  }
+
+  const hasApprovedVendor = Boolean(vendor && findApprovedVendorInString(vendor));
+
+  // 4. Procurement Intent Determination
+  const isProcurementIntent = 
+    /\b(order|purchase|buy|procure|acquire|expense|get|need|require|bill|charge|invoice|cost|total|requisition|request|supplies|notebooks?|pens?|paper|office\s+supplies)\b/i.test(trimmed) ||
+    (hasApprovedVendor && amount !== undefined && ticket !== undefined);
+
+  // 5. Deterministic Goods Extraction
+  let goods = trimmed
+    .replace(/\b(please\s+)?(order|purchase|buy|procure|acquire|expense|get|need|we\s+need|require|bill|charge|invoice)\b/gi, "")
+    .replace(/\$(\d+(?:\.\d{1,2})?)\b/g, "")
+    .replace(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/gi, "")
+    .replace(/\b(?:cost|total|amount|price|sum|total\s+cost)\s*[:=-]?\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/gi, "")
+    .replace(/\b(under\s+ticket|for\s+ticket|with\s+ticket|charged\s+to\s+ticket|bill\s+it\s+to\s+ticket|ticket\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
+    .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier|store))?\b/gi, "")
+    .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved|we|and|to|it)\b/gi, "")
+    .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .trim();
+
+  if (!goods) {
+    goods = "office supplies";
+  }
+
+  const action_type = (isProcurementIntent && hasApprovedVendor && amount !== undefined && amount <= 100 && ticket !== undefined)
+    ? "procurement_micro_expense"
+    : "unmodeled_action";
+
+  return {
+    vendor,
+    amount,
+    amountCents: amount !== undefined ? Math.round(amount * 100) : undefined,
+    ticket,
+    goods,
+    action_type,
+    isProcurementIntent,
+    isHazardousOrCompound: false,
+    hasApprovedVendor
+  };
 }
 
 function finalizeMatch(

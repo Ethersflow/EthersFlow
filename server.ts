@@ -35,7 +35,8 @@ import {
   computeTemplateHash,
   computePromptHash,
   computePacketHash,
-  APPROVED_CATALOG_COUNTERPARTIES
+  APPROVED_CATALOG_COUNTERPARTIES,
+  extractDeterministicProcurementEntities
 } from "./safetyKernel.js";
 import _pdf from "pdf-parse";
 let pdf: any = _pdf;
@@ -1640,6 +1641,16 @@ async function startServer() {
       return "FLAGGED_HUMAN_REVIEW";
     }
 
+    // Model Refusal Detection (I-21): An LLM safety refusal (e.g. OpenAI clinical_safety refusal)
+    // must NEVER be stamped ALIGNED and must not inflate alignment_score.
+    const isModelRefusal = 
+      /\b(i cannot (fulfill|comply|assist|process|evaluate|provide|help|recommend)|i am unable to (assist|fulfill|provide|comply|process)|as an ai language model|as an ai|i am sorry, but i cannot|i must decline|cannot fulfill this request|against my safety guidelines|safety policy prevents|i refuse to)\b/i.test(lower) ||
+      (/\b(i cannot|i am unable to|i must decline)\b/i.test(lower) && /\b(request|action|directive|harmful|unsafe|policy)\b/i.test(lower));
+
+    if (isModelRefusal) {
+      return "FLAGGED_HUMAN_REVIEW";
+    }
+
     // DIRECTIVE (1) NODE CALIBRATION:
     // Privilege-hazard codes reserved for escalation/mutation.
     // Read-only + ticketed + scoped actions = low-risk stance across personas.
@@ -1811,7 +1822,7 @@ async function startServer() {
     let sanitized = text;
 
     // Non-person nouns, system entities, status labels, and domains to protect from name redaction
-    const nonPersonNoun = /\b(NorthStar|Logistics|Apex|Global|Google|Cloud|Amazon|AWS|Azure|EthersFlow|Council|Production|Staging|Database|Namespace|Kubernetes|Cluster|Slack|Discord|GitHub|GitLab|Jira|ServiceNow|PagerDuty|Datadog|Splunk|Salesforce|Workday|HubSpot|Zendesk|Oracle|SAP|Postgres|PostgreSQL|MySQL|Redis|MongoDB|Elasticsearch|Kafka|RabbitMQ|ActiveMQ|Nginx|Apache|Cloudflare|Fastly|Akamai|Docker|Vault|Consul|Terraform|Ansible|Jenkins|CircleCI|ArgoCD|Prometheus|Grafana|USD|EUR|GBP|BTC|ETH|SOL|PO-\d+|INV-\d+|OPS-\d+|Human\s+Review|Operator\s+Review|Manual\s+Review|Human\s+Oversight|Review|Audit|Node|Evaluation|Decision|Protocol|Verification|Status|Report|Analysis|Guideline|Guidelines|Policy|Directive|Directives|Action|Actions|Execution|Requirement|Requirements|Finding|Findings|Summary|Recommendation|Recommendations|Pre-approved|System\s+Notice|Pharmacology\s+Skeptic|Clinical\s+Safety|HIPAA\s+Compliance|Compliance\s+Officer)\b/i;
+    const nonPersonNoun = /\b(NorthStar|Logistics|Apex|Global|Google|Cloud|Amazon|AWS|Azure|EthersFlow|Council|Production|Staging|Database|Namespace|Kubernetes|Cluster|Slack|Discord|GitHub|GitLab|Jira|ServiceNow|PagerDuty|Datadog|Splunk|Salesforce|Workday|HubSpot|Zendesk|Oracle|SAP|Postgres|PostgreSQL|MySQL|Redis|MongoDB|Elasticsearch|Kafka|RabbitMQ|ActiveMQ|Nginx|Apache|Cloudflare|Fastly|Akamai|Docker|Vault|Consul|Terraform|Ansible|Jenkins|CircleCI|ArgoCD|Prometheus|Grafana|USD|EUR|GBP|BTC|ETH|SOL|PO-\d+|INV-\d+|OPS-\d+|FAC-\d+|Staples|Office\s*Depot|OfficeMax|Grainger|Fastenal|CDW|SHI|Dell|Apple|BlueBottle|Notebooks?|Pens?|Supplies|Materials|Paper|Envelopes?|Human\s+Review|Operator\s+Review|Manual\s+Review|Human\s+Oversight|Review|Audit|Node|Evaluation|Decision|Protocol|Verification|Status|Report|Analysis|Guideline|Guidelines|Policy|Directive|Directives|Action|Actions|Execution|Requirement|Requirements|Finding|Findings|Summary|Recommendation|Recommendations|Pre-approved|System\s+Notice|Pharmacology\s+Skeptic|Clinical\s+Safety|HIPAA\s+Compliance|Compliance\s+Officer)\b/i;
     
     // SSN / Gov IDs: e.g. 123-45-6789 or SSN: 123456789
     sanitized = sanitized.replace(/\b(?:SSN:?\s*)?(\d{3}-\d{2}-\d{4})\b/gi, "[REDACTED_SSN_1]");
@@ -2075,11 +2086,15 @@ async function startServer() {
         const defaultPerspectiveText = evalNode ? (evalNode.perspective || evalNode.content || `VERIFIED (${analystName}): Rigorous cross-examination confirms directive alignment under enterprise safety policies.`) : `VERIFIED (${analystName}): Rigorous cross-examination confirms directive alignment under enterprise safety policies.`;
         const fallbackModel = (idx % 3 === 0) ? "openrouter/qwen/qwen3.8-27b" : (idx % 3 === 1) ? "qwen/qwen3.6-27b" : "openrouter/meta-llama/llama-3.3-70b-instruct";
 
-        const stanceAnchor = evalResult?.status === "APPROVED"
+        let stanceAnchor = evalResult?.status === "APPROVED"
           ? "STANCE ANCHOR: The proposed action has verified operational anchors with zero privilege escalation or state mutation. Maintain an ALIGNED stance under policy boundaries."
           : evalResult?.status === "REJECTED"
           ? "STANCE ANCHOR: Contradiction or hard security violation exposed. Maintain a CONTRADICTION_EXPOSED or REJECTED stance."
           : "STANCE ANCHOR: Context deficiency or authority anomaly detected. Scrutinize boundaries.";
+
+        if (/notebooks?|pens?|paper|office\s+supplies|staples|office\s*depot|procurement|supplies|fac-\d+/i.test(prompt)) {
+          stanceAnchor += " DOMAIN BINDING: Enterprise Procurement & Office Operations under FinOps policy (Vendor allowlisting, ticket reference, spend limits). Do NOT apply cryptocurrency, blockchain oracle, or market manipulation criteria to routine enterprise procurement.";
+        }
 
         try {
           // If Groq API Key is present, make live high-speed call via Groq using active Qwen / LPUs models
@@ -4440,12 +4455,24 @@ async function startServer() {
          (/\b(fault injection|volatile storage|terminate retry loop)\b/i.test(combinedAll) && /\b(degraded signal|not_found)\b/i.test(combinedAll)));
     }
 
+    const sanitizeVendorForHint = (vendor: string | null | undefined): string | null => {
+      if (!vendor) return null;
+      const v = String(vendor).trim();
+      if (/@|\/|\\|;|http:\/\/|https:\/\/|www\./i.test(v) || v.length > 30 || v.split(/\s+/).length > 3) {
+        return null;
+      }
+      return v;
+    };
+    const safeVendorForHint = sanitizeVendorForHint(detectedVendorName);
+
     if (hasContradictions) {
       let specificCodes = ["EVIDENCE_CONFLICT_DETECTED"];
       let counterpartyHint: string | null = null;
       if (hasUnapprovedVendorIndicator) {
         specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
-        counterpartyHint = `Vendor '${detectedVendorName || "unapproved vendor"}' not recognized in FinOps catalog. Use an approved catalog vendor.`;
+        counterpartyHint = safeVendorForHint 
+          ? `Vendor '${safeVendorForHint}' not recognized in FinOps catalog. Use an approved catalog vendor.`
+          : "Specify an explicit approved catalog vendor (e.g., Staples, Office Depot, Amazon Business, Grainger, Fastenal, CDW, SHI, Dell, Apple) in agent_action or context.counterparty.";
       }
       if (isTicketScopeMismatch) specificCodes.push("TICKET_SCOPE_MISMATCH", "MUTATION_ACTION_READONLY_MISMATCH");
       if (isBulkDataEgressContent) specificCodes.push("DATA_EGRESS_EXFILTRATION_HAZARD", "HIGH_RISK_EXTERNAL_DESTINATION");
@@ -4459,7 +4486,9 @@ async function startServer() {
         reasonCodes: specificCodes,
         counterparty_hint: counterpartyHint,
         explanation: hasUnapprovedVendorIndicator
-          ? `Contextual evidence specifies vendor '${detectedVendorName || "unapproved vendor"}' not found in policy approved counterparties catalog.`
+          ? (safeVendorForHint 
+              ? `Contextual evidence specifies vendor '${safeVendorForHint}' not found in policy approved counterparties catalog.` 
+              : "Contextual evidence specifies unapproved or invalid vendor. Approved catalog counterparty required.")
           : "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims.",
         anchor_checklist: {
           ...anchorChecklist,
@@ -4468,7 +4497,7 @@ async function startServer() {
         anchor_basis: overallAnchorBasis,
         anchor_bases: anchorChecklist.anchor_bases,
         isCounterpartyAllowlisted,
-        detectedVendor: detectedVendorName
+        detectedVendor: safeVendorForHint || detectedVendorName
       };
     }
 
@@ -4478,14 +4507,14 @@ async function startServer() {
       let counterpartyHint: string | null = null;
 
       if (isFinancialOrProcurement && !isCounterpartyAllowlisted) {
-        if (!detectedVendorName) {
+        if (!detectedVendorName || !safeVendorForHint) {
           specificCodes.push("NAMED_COUNTERPARTY_REQUIRED");
           specificExplanation = "Named counterparty required: Action or context specifies procurement/financial directive but omits an explicit approved catalog vendor name (e.g. Staples, Office Depot, Amazon Business). Generic phrasing like 'approved catalog' or 'counterparty_verified: true' is not accepted without a named entity.";
           counterpartyHint = "Specify an explicit approved catalog vendor (e.g., Staples, Office Depot, Amazon Business, Grainger, Fastenal, CDW, SHI, Dell, Apple) in agent_action or context.counterparty.";
         } else {
           specificCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT", "VENDOR_NOT_IN_APPROVED_CATALOG");
-          specificExplanation = `Contextual evidence specifies vendor '${detectedVendorName}' not found in policy approved counterparties catalog.`;
-          counterpartyHint = `Vendor '${detectedVendorName}' not recognized in FinOps catalog. Use an approved catalog vendor.`;
+          specificExplanation = `Contextual evidence specifies vendor '${safeVendorForHint}' not found in policy approved counterparties catalog.`;
+          counterpartyHint = `Vendor '${safeVendorForHint}' not recognized in FinOps catalog. Use an approved catalog vendor.`;
         }
       }
 
@@ -4845,17 +4874,21 @@ async function startServer() {
 
     // Phase A Grounded Micro-Expense Fast Path (finops_default_v1.json rule micro_expense_fast_path)
     // ONLY fires on grounded anchors: ticket_present === true, counterparty_verified === true, under $100 ceiling
+    const extractedProcurement = extractDeterministicProcurementEntities(agentAction, contextInput);
     const isExpenseActionPattern = 
       Boolean(kernelOutcome.templateResult?.matched) ||
-      /\b(order|expense|purchase|buy|procure|acquire|pens|supplies|coffee|snack|procurement|materials|consumables|office supplies)\b/i.test(agentActionLower);
-    const detectedAmountUsd = extractAmountUsd(agentAction, contextInput);
+      extractedProcurement.isProcurementIntent ||
+      /\b(order|expense|purchase|buy|procure|acquire|pens|supplies|coffee|snack|procurement|materials|consumables|office supplies|notebooks?|paper|envelopes?)\b/i.test(agentActionLower);
+    const detectedAmountUsd = extractedProcurement.amount !== undefined 
+      ? extractedProcurement.amount 
+      : extractAmountUsd(agentAction, contextInput);
     const isUnderHundredDollarCeiling = detectedAmountUsd !== null 
       ? detectedAmountUsd <= 100 
       : (/\$([0-9]{1,2}(\.[0-9]{2})?)\b/.test(agentAction) || agentActionLower.includes("$50") || agentActionLower.includes("low-dollar"));
 
     const ticketMatch = text.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i);
-    const ticketId = normalizeTicketId(contextInput?.ticket || contextInput?.ticket_id || ticketMatch?.[0] || "UNTICKETED");
-    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : (kernelOutcome.templateResult?.extractedAmountCents || 0);
+    const ticketId = normalizeTicketId(contextInput?.ticket || contextInput?.ticket_id || extractedProcurement.ticket || ticketMatch?.[0] || "UNTICKETED");
+    const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : (kernelOutcome.templateResult?.extractedAmountCents || extractedProcurement.amountCents || 0);
     const tenantId = String(contextInput?.tenant_id || contextInput?.tenant || "default_tenant").trim();
     const maxSpendCents = policyConfig.tenant_spend_caps?.max_spend_per_tenant_window_cents || policyConfig.tenant_spend_caps?.default_spend_cap_cents || 50000;
     let velocityCheck = injectedVelocityCheck || checkFastPathVelocity(
@@ -4868,14 +4901,15 @@ async function startServer() {
     );
 
     const isMicroExpenseFastPath = 
-      (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched)) &&
+      (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched) || extractedProcurement.action_type === "procurement_micro_expense") &&
+      !extractedProcurement.isHazardousOrCompound &&
       isExpenseActionPattern &&
       isUnderHundredDollarCeiling &&
       contextOutcome.evidence_status === "SUFFICIENT" &&
       !contextOutcome.hasContradictions &&
-      (contextOutcome.anchor_checklist?.ticket_present === true || Boolean(kernelOutcome.templateResult?.extractedTicket)) &&
-      (contextOutcome.anchor_checklist?.counterparty_verified === true || Boolean(kernelOutcome.templateResult?.extractedVendor)) &&
-      (contextOutcome.isCounterpartyAllowlisted === true || Boolean(kernelOutcome.templateResult?.extractedVendor)) &&
+      (contextOutcome.anchor_checklist?.ticket_present === true || Boolean(kernelOutcome.templateResult?.extractedTicket) || Boolean(extractedProcurement.ticket)) &&
+      (contextOutcome.anchor_checklist?.counterparty_verified === true || Boolean(kernelOutcome.templateResult?.extractedVendor) || Boolean(extractedProcurement.hasApprovedVendor)) &&
+      (contextOutcome.isCounterpartyAllowlisted === true || Boolean(kernelOutcome.templateResult?.extractedVendor) || Boolean(extractedProcurement.hasApprovedVendor)) &&
       velocityCheck.allowed &&
       !hasDestructiveAction &&
       !hasInjectedAuthority &&
@@ -4892,18 +4926,18 @@ async function startServer() {
     if (!isExpenseActionPattern && !kernelOutcome.templateResult?.matched) {
       fastPathIneligibilityReasons.push("ACTION_NOT_RECOGNIZED_EXPENSE_PATTERN: Action text does not match micro-expense procurement pattern.");
     }
-    if (detectedAmountUsd === null && !kernelOutcome.templateResult?.extractedAmount) {
+    if (detectedAmountUsd === null && !kernelOutcome.templateResult?.extractedAmount && extractedProcurement.amount === undefined) {
       fastPathIneligibilityReasons.push("AMOUNT_UNDETERMINED: Action text does not specify a parseable dollar amount or amount_usd in context.");
     } else if (!isUnderHundredDollarCeiling) {
       fastPathIneligibilityReasons.push(`AMOUNT_EXCEEDS_CEILING: Detected amount ($${detectedAmountUsd}) exceeds $100 micro-expense threshold.`);
     }
-    if (!contextOutcome.anchor_checklist?.ticket_present && !kernelOutcome.templateResult?.extractedTicket) {
+    if (!contextOutcome.anchor_checklist?.ticket_present && !kernelOutcome.templateResult?.extractedTicket && !extractedProcurement.ticket) {
       fastPathIneligibilityReasons.push("TICKET_MISSING: Operational ticket anchor (e.g. FAC-*, OPS-*, JIRA-*) missing from context and action.");
     }
-    if (!contextOutcome.anchor_checklist?.counterparty_verified && !kernelOutcome.templateResult?.extractedVendor) {
+    if (!contextOutcome.anchor_checklist?.counterparty_verified && !kernelOutcome.templateResult?.extractedVendor && !extractedProcurement.hasApprovedVendor) {
       fastPathIneligibilityReasons.push("COUNTERPARTY_UNVERIFIED: Counterparty missing or not verified against approved catalog allowlist.");
     }
-    if (!contextOutcome.anchor_checklist?.budget_line_present && !contextInput?.budget_line && !contextInput?.scope) {
+    if (!contextOutcome.anchor_checklist?.budget_line_present && !contextInput?.budget_line && !contextInput?.scope && !extractedProcurement.hasApprovedVendor) {
       fastPathIneligibilityReasons.push("BUDGET_LINE_MISSING: Spend category, scope, or budget line allocation missing from context.");
     }
     if (contextOutcome.hasContradictions) {
@@ -4912,7 +4946,10 @@ async function startServer() {
     if (!velocityCheck.allowed) {
       fastPathIneligibilityReasons.push("FAST_PATH_VELOCITY_CAP_EXCEEDED: Velocity limit reached for ticket or tenant spend window.");
     }
-    if (kernelOutcome.disposition !== "FAST_ELIGIBLE" && !kernelOutcome.templateResult?.matched && fastPathIneligibilityReasons.length === 0) {
+    if (extractedProcurement.isHazardousOrCompound) {
+      fastPathIneligibilityReasons.push("PROHIBITED_COMPOUND_OPERATION: Action directive contains compound or hazardous operational clauses requiring manual review.");
+    }
+    if (kernelOutcome.disposition !== "FAST_ELIGIBLE" && !kernelOutcome.templateResult?.matched && extractedProcurement.action_type !== "procurement_micro_expense" && fastPathIneligibilityReasons.length === 0) {
       fastPathIneligibilityReasons.push("POLICY_NON_CONFORMING: Action routed to multi-model adversarial consensus evaluation under current policy.");
     }
 
@@ -6688,8 +6725,18 @@ async function startServer() {
       finalExplanation = evalResult.decision_explanation;
       finalSummary = evalResult.verdict_summary;
     } else {
+      // Extract deterministic procurement facts for consensus lane anchoring
+      const structuredProcurement = extractDeterministicProcurementEntities(agent_action, context);
+      const structuredFactsBlock = structuredProcurement.isProcurementIntent ? `\n\nSTRUCTURED OPERATIONAL FACTS (ANCHORING):
+- Action Category: ${structuredProcurement.action_type === "procurement_micro_expense" ? "Approved Catalog Micro-Expense" : "General Procurement"}
+- Approved Counterparty: ${structuredProcurement.vendor || "UNSPECIFIED"}
+- Extracted Amount: ${structuredProcurement.amount !== undefined ? `$${structuredProcurement.amount.toFixed(2)}` : "UNDETERMINED"}
+- Operational Ticket Identifier: ${structuredProcurement.ticket || "NONE"}
+- Procured Items / Supplies: ${structuredProcurement.goods || "supplies"}
+- Evaluation Policy Domain: Enterprise Procurement & Office Operations (FinOps Allowlist & Spend Ceiling)` : "";
+
       // Run underlying multi-agent consensus engine call if non-deterministic
-      const promptText = `AGENT ACTION PROPOSED: ${agent_action}\nCONTEXT & REASONING: ${combinedReasoning || "Direct autonomous execution request."}\n\nEVALUATION DIRECTIVE: Subject this proposed action to rigorous adversarial cross-examination across ${actualCount} specialized audit nodes (${council.join(", ")}). Examine factual veracity, authority legitimacy, and enterprise policy boundaries.`;
+      const promptText = `AGENT ACTION PROPOSED: ${agent_action}\nCONTEXT & REASONING: ${combinedReasoning || "Direct autonomous execution request."}${structuredFactsBlock}\n\nEVALUATION DIRECTIVE: Subject this proposed action to rigorous adversarial cross-examination across ${actualCount} specialized audit nodes (${council.join(", ")}). Examine factual veracity, authority legitimacy, and enterprise policy boundaries.${structuredProcurement.isProcurementIntent ? " DOMAIN BINDING: The proposed action relates to enterprise operational purchasing. Audit against corporate procurement rules, budget caps, and ticket authorization. Do NOT apply off-domain cryptocurrency, blockchain oracle, or market manipulation criteria to standard enterprise operational purchasing." : ""}`;
 
       const geminiResult = await runB2bAdversarialConsensus(promptText, council, false).catch(() => null);
 
@@ -7145,8 +7192,14 @@ async function startServer() {
       receipt_only_payload_discarded: true,
       payload_retained: false,
       retention: {
-        policy: "receipt_only_payload_discarded",
+        policy: isPolicyFastPath 
+          ? "receipt_only_payload_discarded" 
+          : (finalVerdict === "APPROVED" ? "receipt_only_payload_discarded" : "flagged_audit_review_perspectives_retained"),
         payload_retained: false,
+        raw_action_discarded: true,
+        perspectives_retained: !isPolicyFastPath && finalDebate.length > 0,
+        derived_metadata_retained: true,
+        ...(isPolicyFastPath ? {} : { retention_scope: "submitter_audit_resolution" }),
         discarded_at: attestationTimestamp
       },
       fast_path_velocity: evalResult.fast_path_velocity || null,
@@ -7271,8 +7324,14 @@ async function startServer() {
       payload_retained: false,
       receipt_only_payload_discarded: true,
       retention: {
-        policy: "receipt_only_payload_discarded",
+        policy: isPolicyFastPath 
+          ? "receipt_only_payload_discarded" 
+          : (finalVerdict === "APPROVED" ? "receipt_only_payload_discarded" : "flagged_audit_review_perspectives_retained"),
         payload_retained: false,
+        raw_action_discarded: true,
+        perspectives_retained: !isPolicyFastPath && finalDebate.length > 0,
+        derived_metadata_retained: true,
+        ...(isPolicyFastPath ? {} : { retention_scope: "submitter_audit_resolution" }),
         discarded_at: attestationTimestamp
       },
       verdict: finalVerdict,
@@ -7286,6 +7345,7 @@ async function startServer() {
       replay_index: 0,
       attestation: responsePayload.attestation,
       receipt_v2: responsePayload.receipt_v2,
+      adversarial_debate: isPolicyFastPath ? [] : finalDebate,
       timestamp: attestationTimestamp
     };
     savedReceiptsStore.set(requestId, savedReceipt);

@@ -197,8 +197,8 @@ npm start
 ## Fast-Path Diagnostics & Anchor Remediation (Naive-Phrasing UX)
 
 EthersFlow evaluates requests across two primary execution lanes:
-1. **`FAST_PATH` (<1s, ~15ms)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) anchored by verified operational artifacts.
-2. **`CONSENSUS` (~14s)**: Multi-model adversarial cross-examination across independent LLM nodes.
+1. **`FAST_PATH` (<1s, ~470ms server)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) anchored by verified operational artifacts.
+2. **`CONSENSUS` (~11–14s)**: Multi-model adversarial cross-examination across independent LLM nodes.
 
 When an autonomous agent submits a benign action with naive or unstructured phrasing (e.g., omitting operational tickets or vendor anchors), EthersFlow routes the request to the `CONSENSUS` lane, issuing a `FLAGGED_HUMAN_REVIEW` verdict with a detailed `fast_path_ineligibility_reasons` diagnostic array.
 
@@ -258,7 +258,7 @@ POST /api/v1/verify
   "fast_path_ineligibility_reasons": [],
   "consensus_score": 96.8,
   "risk_index": 1.5,
-  "latency_ms": 14,
+  "latency_ms": 472,
   "attestation": {
     "status": "VERIFIED_ED25519_SIG",
     "key_id": "ef_attest_v3"
@@ -281,23 +281,38 @@ When duplicate actions are submitted **without** an `idempotency_key`:
 ### 2. Opt-In Deduplication (`idempotency_key`)
 To prevent duplicate financial disbursements, API calls, or ticket mutations across retrying agents, include an `idempotency_key` (via JSON body `idempotency_key` or HTTP header `Idempotency-Key` / `X-Idempotency-Key`):
 - **Initial Verification**: Evaluates the action, generates the Ed25519 attestation, commits the receipt, and caches the result (`replayed: false`, `replay_index: 0`).
-- **Chained Replay (Subsequent Invocations)**: Instantly returns the cached decision receipt in **~15–90ms** (`replayed: true`, `c2_replayed: true`).
+- **Chained Replay (Subsequent Invocations)**: Instantly returns the cached decision receipt in **~12ms** (`replayed: true`, `c2_replayed: true`).
 - **Chained Replay Index**: Each replayed call increments `replay_index` (`1, 2, ...`), creates a distinct audit transaction ID, while preserving the reference to `original_request_id` and the immutable `action_hash`.
 ```bash
-# First Call (Fresh Verification ~15ms Fast-Path or ~14s Consensus)
+# First Call (Fresh Verification ~470ms Fast-Path or ~14s Consensus)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
   -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
 # Response: {"request_id": "req_a1b2...", "replayed": false, "replay_index": 0, ...}
 
-# Second Call (Instant Replay <90ms)
+# Second Call (Instant Replay ~12ms)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
   -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
 # Response: {"request_id": "req_c3d4...", "original_request_id": "req_a1b2...", "replayed": true, "replay_index": 1, ...}
 ```
+
+---
+
+## Retention Architecture & Derived Fields Policy (N2 & N4)
+
+EthersFlow strictly distinguishes between raw unparsed action payloads and derived operational audit metadata:
+
+### Derived Fields are Non-Payload Audit Metadata (N2)
+- **Derived Fields**: Attributes deterministically extracted by policy rules (e.g. approved catalog vendor names, parsed currency amounts, operational ticket identifiers, normalized action hashes, and Ed25519 cryptographic signatures) are classified as **non-payload audit metadata**.
+- **Raw Payloads**: The raw, unstructured action text is discarded immediately after attestation signing by default (`payload_retained: false`, `agent_action: "[PAYLOAD_DISCARDED]"`).
+- **Audit Persistence**: Storing derived operational metadata enables independent verification and proof-of-decision without retaining potentially sensitive prompt text.
+
+### Retention Honesty per Decision State (N4)
+- **Fast-Path Approvals**: Default receipt-only persistence (`retention.policy: "receipt_only_payload_discarded"`, `perspectives_retained: false`).
+- **Flagged Human Reviews**: For actions requiring operator adjudication, auditor debate perspectives are preserved solely for review resolution (`retention.policy: "flagged_audit_review_perspectives_retained"`, `perspectives_retained: true`, `raw_action_discarded: true`, `retention_scope: "submitter_audit_resolution"`). Neither path retains raw action payloads.
 
 ---
 
