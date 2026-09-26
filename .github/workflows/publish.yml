@@ -10,6 +10,10 @@ on:
         required: false
         default: '0.1.0'
 
+permissions:
+  contents: read
+  id-token: write
+
 jobs:
   publish-npm-mcp:
     name: Publish @ethersflow/mcp-server to npm
