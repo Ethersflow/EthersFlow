@@ -2,7 +2,7 @@
 
 Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI outputs through adversarial consensus. MCP server, SDKs, and API docs.
 
-[![API Status](https://img.shields.io/badge/API-0.2.2-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.2.4-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
@@ -46,15 +46,17 @@ EthersFlow issues cryptographically signed, independently verifiable trust verdi
 
 ## Latency Profile & Performance Benchmarks
 
-EthersFlow operates a dual-lane execution engine balancing sub-millisecond determinism with multi-model adversarial deliberation:
+EthersFlow operates a dual-lane execution engine balancing rapid determinism (~20-30x speedup) with multi-model adversarial deliberation:
 
 | Execution Lane | p50 Latency | p95 Latency | Mechanism | Guarantee & Finality |
 | :--- | :--- | :--- | :--- | :--- |
-| **Policy Fast Path** | **5.8 ms** | **9.3 ms** | Pre-compiled deterministic safety kernel & catalog matcher (<$100, allowlisted vendor, operational ticket). | `POLICY_FAST_PATH_APPROVAL` |
+| **Policy Fast Path** | **0.45 s** | **2.4 s** | Deterministic safety kernel & catalog matcher (<$100, allowlisted vendor, operational ticket, pre-fast-path intent screen). | `POLICY_FAST_PATH_APPROVAL` |
 | **Idempotent Replay** | **3.2 ms** | **4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
-| **Adversarial Consensus** | **12.4 s** | **13.0 s** | Live multi-model debate across heterogeneous frontier models (Qwen, Llama, Gemini) with cryptographic node attestations. | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+| **Adversarial Consensus** | **11.2 s** | **28.6 s** | Live multi-model debate across heterogeneous frontier models (Qwen, Llama, Gemini) with cryptographic node attestations. | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 
-> **Velocity Capping Protection**: Operational tickets (e.g. `FAC-101`) have an automated allowance of **5 fast-path approvals per 24 hours** ($500 cap). When this threshold is reached, subsequent requests automatically fall back to the live multi-model consensus lane to prevent micro-expense structuring attacks. Full empirical data is published in [`docs/calibration-benchmark.md`](docs/calibration-benchmark.md).
+> **Velocity Capping & Preconditions**: Operational tickets (e.g. `FAC-101`) have an automated allowance of **5 fast-path approvals per 24 hours** ($500 cap). **The velocity cap counts attempts (stateful)**, requiring a proper 5-purchase precondition on a fresh ticket for verification. When this threshold is reached, subsequent requests automatically fall back to the live multi-model consensus lane to prevent micro-expense structuring attacks. Full empirical data is published in [`docs/calibration-benchmark.md`](docs/calibration-benchmark.md).
+
+> **Launch Architecture Principle**: "The deterministic fast path plus signed receipt is the provable core; consensus is escalation telemetry whose semantic detection is confirmed (3/3 on kernel-invisible attacks) but conditionally reachable — under measurement, published."
 
 ---
 

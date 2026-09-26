@@ -36,7 +36,8 @@ import {
   computePromptHash,
   computePacketHash,
   APPROVED_CATALOG_COUNTERPARTIES,
-  extractDeterministicProcurementEntities
+  extractDeterministicProcurementEntities,
+  detectCredentialExfiltrationIntent
 } from "./safetyKernel.js";
 import _pdf from "pdf-parse";
 let pdf: any = _pdf;
@@ -51,7 +52,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.2";
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.4";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
@@ -1674,9 +1675,14 @@ async function startServer() {
       .replace(/\bzero\s+privilege\s+hazard\b/g, "SAFE_STATEMENT")
       .replace(/\bzero[-_]privilege[-_]hazard\b/g, "SAFE_STATEMENT");
 
+    // If actionContext or perspective exhibits credential exfiltration intent
+    if (detectCredentialExfiltrationIntent(actionContext) || detectCredentialExfiltrationIntent(contentText)) {
+      return "FLAGGED_HUMAN_REVIEW";
+    }
+
     // Only flag true risk violations (e.g. unverified wallet addresses, phishing, sanctions violations, unverified wire recipients)
     const hasUnaddressedConcern = 
-      /\b(phishing|malicious\s+payload|c2\s+beacon|unverified\s+wallet|unverified\s+address\s+0x|unverified\s+counterparty|unverified\s+vendor|unverified\s+recipient|unverified\s+contract|suspicious\s+transaction|sanctions?\s+violation|cdd\s+violation|blast\s+radius\s+risk|pending\s+kyc|data\s+exfiltration|unauthorized\s+privilege|flagged?\s+for\s+(compliance|security|fraud|human)\s+review|requires?\s+(formal\s+compliance\s+review|security\s+team\s+approval|soc\s+authorization|human\s+review|operator\s+sign-?off)|mandatory\s+human\s+oversight)\b/.test(cleanedForConcern);
+      /\b(phishing|malicious\s+payload|c2\s+beacon|unverified\s+wallet|unverified\s+address\s+0x|unverified\s+counterparty|unverified\s+vendor|unverified\s+recipient|unverified\s+contract|suspicious\s+transaction|sanctions?\s+violation|cdd\s+violation|blast\s+radius\s+risk|pending\s+kyc|data\s+exfiltration|credential\s+exfiltration|information\s+barrier|unauthorized\s+privilege|flagged?\s+for\s+(compliance|security|fraud|human)\s+review|requires?\s+(formal\s+compliance\s+review|security\s+team\s+approval|soc\s+authorization|human\s+review|operator\s+sign-?off)|mandatory\s+human\s+oversight)\b/.test(cleanedForConcern);
 
     if (hasUnaddressedConcern) {
       return "FLAGGED_HUMAN_REVIEW";
@@ -4250,7 +4256,10 @@ async function startServer() {
       // Phrases like "from the approved Office Depot catalog", "from Staples", etc.
       const fromMatch = combinedAll.match(/\bfrom\s+(?:the\s+)?(?:approved\s+|authorized\s+|official\s+)?([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3})/i);
       if (fromMatch && fromMatch[1]) {
-        const cleaned = fromMatch[1].replace(/\b(catalog|supplier|vendor|store)\b.*$/i, "").trim();
+        const cleaned = fromMatch[1]
+          .replace(/\b(catalog|supplier|vendor|store)\b.*$/i, "")
+          .replace(/[-–—].*$/, "")
+          .trim();
         if (cleaned) {
           candidateVendor = cleaned;
         }
@@ -4434,8 +4443,8 @@ async function startServer() {
     };
 
     const isFinancialOrProcurement = 
-      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting|order|spend|buy|checkout|cart)\b/i.test(actionLower) ||
-      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|\$|usd|credit card|reimburse|accounting|catalog vendor|approved catalog)\b/i.test(combinedAll) ||
+      /(?:\b(?:expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|dollars|usd|credit\s+card|reimburse|accounting|order|spend|buy|checkout|cart|notebooks?|pens?|toner|paper|stationery)\b|\$\d+)/i.test(actionLower) ||
+      /(?:\b(?:expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|dollars|usd|credit\s+card|reimburse|accounting|catalog vendor|approved catalog|notebooks?|pens?|toner|paper)\b|\$\d+)/i.test(combinedAll) ||
       Boolean(contextInput?.budget_line);
 
     // Verifiable domain anchors check (excluding unverified prior-approval claims, scope mismatches, and unapproved vendors)
@@ -4448,7 +4457,7 @@ async function startServer() {
         !hasPriorApprovalLaundering &&
         !isTicketScopeMismatch &&
         !isBulkDataEgressContent &&
-        (/\b(po-\d+|inv-\d+|ticket\s*#?\d+|(ops|jira|sec|inc|chg|rfc|dev|ci)-[a-z0-9]+|pr-\d+|pull\s+request\s+#?\d+|commit\s+[0-9a-f]{7,40}|sha256:[0-9a-f]{64}|runbook-[a-z0-9-]+)\b/i.test(combinedAll) ||
+        (/\b(po-\d+|inv-\d+|ticket\s*#?\d+|ticket\s*[:#-]?\s*[a-z0-9_-]+|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|pr-\d+|pull\s+request\s+#?\d+|commit\s+[0-9a-f]{7,40}|sha256:[0-9a-f]{64}|runbook-[a-z0-9-]+)\b/i.test(combinedAll) ||
          (/\b(read-only|read only)\b/i.test(combinedAll) && /\b(ci|pipeline|report|artifact|telemetry|metrics|observability|log|failed\s+ci|test\s+run)\b/i.test(combinedAll) && !isMutationActionContent) ||
          (/\b(peer-approved|passing tests|rollback image|staging environment only)\b/i.test(combinedAll) && /\b(vault|isolated)\b/i.test(combinedAll)) ||
          (/\b(30\s*minutes?|support-center url|official url)\b/i.test(combinedAll) && /\b(password-reset|reset link)\b/i.test(combinedAll)) ||
@@ -4900,9 +4909,16 @@ async function startServer() {
       maxSpendCents
     );
 
+    const isCredentialOrExternalSurfaceExfil = 
+      detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) ||
+      ((/\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(text)) &&
+       (/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site|\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address)\b|attacker/i.test(text))) ||
+      /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|env)\b/i.test(text);
+
     const isMicroExpenseFastPath = 
       (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched) || extractedProcurement.action_type === "procurement_micro_expense") &&
       !extractedProcurement.isHazardousOrCompound &&
+      !isCredentialOrExternalSurfaceExfil &&
       isExpenseActionPattern &&
       isUnderHundredDollarCeiling &&
       contextOutcome.evidence_status === "SUFFICIENT" &&
@@ -4923,6 +4939,9 @@ async function startServer() {
 
     // Detailed diagnostic reasons when fast path is ineligible (F3 UX & Diagnostic Reporting)
     const fastPathIneligibilityReasons: string[] = [];
+    if (isCredentialOrExternalSurfaceExfil) {
+      fastPathIneligibilityReasons.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN: Detected credential noun pattern with external recipient surface or exfiltration hazard.");
+    }
     if (!isExpenseActionPattern && !kernelOutcome.templateResult?.matched) {
       fastPathIneligibilityReasons.push("ACTION_NOT_RECOGNIZED_EXPENSE_PATTERN: Action text does not match micro-expense procurement pattern.");
     }
@@ -5755,8 +5774,19 @@ async function startServer() {
         approval_blocked = true;
         finality = "NON_FINAL_ADVISORY";
         const kernelCodes = kernelOutcome.reason_codes.length > 0 ? kernelOutcome.reason_codes : ["UNMODELED_OPERATION"];
-        reason_codes = Array.from(new Set([...kernelCodes, "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"]));
-        decision_explanation = `FLAGGED FOR HUMAN REVIEW: Proposed purchase action does not satisfy full-consumption template matching (${reason_codes.join(", ")}). Automated approval blocked.`;
+        if (isCredentialOrExternalSurfaceExfil) {
+          reason_codes = Array.from(new Set([
+            "CREDENTIAL_EXFILTRATION_RISK",
+            "DATA_EXFILTRATION_HAZARD",
+            "INFORMATION_BARRIER_VIOLATION",
+            ...kernelCodes,
+            "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+          ]));
+          decision_explanation = `FLAGGED FOR HUMAN REVIEW: Sensitive credential noun pattern combined with external recipient surface or exfiltration hazard detected (data exfiltration risk, violation of information barrier policies). Automated execution blocked; routed to consensus review.`;
+        } else {
+          reason_codes = Array.from(new Set([...kernelCodes, "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"]));
+          decision_explanation = `FLAGGED FOR HUMAN REVIEW: Proposed purchase action does not satisfy full-consumption template matching (${reason_codes.join(", ")}). Automated approval blocked.`;
+        }
         verdict_summary = decision_explanation;
       } else {
         // Only actions with validated substantive evidence anchors that pass all deterministic gates may be approved
@@ -7136,10 +7166,39 @@ async function startServer() {
       registerDispatcherBinding(executionBinding);
     }
 
+    const scoreAttribution = {
+      score_type: isPolicyFastPath ? "policy_fast_path" : (
+        finalConsensusScore === 31.5 || finalConsensusScore === 35.0 || finalConsensusScore === 42.0 || finalConsensusScore === 48.0 || finalConsensusScore === 50.0
+          ? "deterministic_rule_band"
+          : (finalDebate.length > 0 ? "model_aggregate" : "composite")
+      ),
+      rule_band: isPolicyFastPath 
+        ? "POLICY_FAST_PATH_SATISFIED"
+        : (
+          finalConsensusScore === 31.5 ? "BARE_HAZARDOUS_OR_EVIDENCE_CONFLICT" :
+          finalConsensusScore === 35.0 ? "COUNTERPARTY_OR_COMPLIANCE_DEFICIT" :
+          finalConsensusScore === 42.0 ? "EXFILTRATION_OR_TEMPLATE_NONCONSUMPTION" :
+          finalConsensusScore === 48.0 ? "EVIDENCE_ANCHOR_DEFICIT" :
+          finalConsensusScore === 50.0 ? "FAST_PATH_VELOCITY_CAP_EXCEEDED" :
+          "COUNCIL_AGGREGATE"
+        ),
+      rule_id: isPolicyFastPath 
+        ? (evalResult.fast_path_rule_id || "micro_expense_fast_path")
+        : (finalReasonCodes[0] || "consensus_rule"),
+      calibrated_score: finalConsensusScore,
+      risk_index: finalRiskIndex,
+      node_level_scores: isPolicyFastPath ? [] : finalDebate.map((n: any) => ({
+        role: n.role,
+        node_status: n.node_status,
+        assigned_score: n.node_status === "ALIGNED" ? 95.0 : (n.node_status === "CONTRADICTION_EXPOSED" ? 12.0 : 48.0)
+      }))
+    };
+
     // Build the Versioned Multi-Dimensional Decision Object Contract
     const responsePayload = {
       verification_schema_version: 3,
       request_id: requestId,
+      score_attribution: scoreAttribution,
       trace_id: traceId,
       idempotency_key: idempotency_key || null,
       verdict: finalVerdict,
@@ -7281,7 +7340,8 @@ async function startServer() {
         actual_models: isPolicyFastPath ? [] : (resolvedModels || []).map((m: string) => ({ model_id: m, provider: "openrouter" })),
         amount_cents: evalResult.template_result?.extractedAmountCents ?? null,
         vote_labels: isPolicyFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : (evalResult.vote_labels || ["APPROVED"]),
-        receipt_only_payload_discarded: true
+        receipt_only_payload_discarded: true,
+        score_attribution: scoreAttribution
       },
       storage_engine: storageEngine,
       storage_durability: storageDurability,

@@ -74,8 +74,8 @@
   "UNTICKETED": {
     "timestamps": [],
     "spend_records": [],
-    "total_spend_cents": 26000,
-    "tenant_id": "tenant-default"
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
   },
   "FAC-PROXY-1790281462666": {
     "timestamps": [
@@ -207,41 +207,29 @@
   },
   "FAC-902": {
     "timestamps": [
-      1790357768200,
-      1790357768208,
-      1790357768217,
-      1790357866291,
-      1790358648296
+      1790446827105,
+      1790446957780,
+      1790453299253
     ],
     "spend_records": [
       {
-        "timestamp": 1790357768200,
+        "timestamp": 1790446827105,
         "amount_cents": 4200,
-        "tenant_id": "tenant-default"
+        "tenant_id": "default_tenant"
       },
       {
-        "timestamp": 1790357768208,
+        "timestamp": 1790446957780,
         "amount_cents": 4200,
-        "tenant_id": "tenant-default"
+        "tenant_id": "default_tenant"
       },
       {
-        "timestamp": 1790357768217,
+        "timestamp": 1790453299253,
         "amount_cents": 4200,
-        "tenant_id": "tenant-default"
-      },
-      {
-        "timestamp": 1790357866291,
-        "amount_cents": 4200,
-        "tenant_id": "tenant-default"
-      },
-      {
-        "timestamp": 1790358648296,
-        "amount_cents": 4200,
-        "tenant_id": "tenant-default"
+        "tenant_id": "default_tenant"
       }
     ],
-    "total_spend_cents": 26000,
-    "tenant_id": "tenant-default"
+    "total_spend_cents": 12600,
+    "tenant_id": "default_tenant"
   },
   "FAC-PROXY-1790359181439": {
     "timestamps": [
@@ -365,34 +353,6 @@
     "total_spend_cents": 5000,
     "tenant_id": "default_tenant"
   },
-  "FAC-HARNESS-101": {
-    "timestamps": [
-      1790360021434
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790360021434,
-        "amount_cents": 4500,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 4500,
-    "tenant_id": "default_tenant"
-  },
-  "FAC-HARNESS-205": {
-    "timestamps": [
-      1790360021435
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790360021435,
-        "amount_cents": 3250,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 3250,
-    "tenant_id": "default_tenant"
-  },
   "FAC-PROXY-1790360021448": {
     "timestamps": [
       1790360021465
@@ -501,20 +461,6 @@
     "total_spend_cents": 5000,
     "tenant_id": "default_tenant"
   },
-  "FAC-101": {
-    "timestamps": [
-      1790360054464
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790360054464,
-        "amount_cents": 5000,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 5000,
-    "tenant_id": "default_tenant"
-  },
   "FAC-RICH-1790360054468": {
     "timestamps": [
       1790360054470
@@ -527,6 +473,170 @@
       }
     ],
     "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-PROXY-1790452313898": {
+    "timestamps": [
+      1790452313916
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452313916,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-ANCHOR-1790452335516": {
+    "timestamps": [
+      1790452335519
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452335519,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-VELOCITY-1790452335525": {
+    "timestamps": [
+      1790452335528,
+      1790452335535,
+      1790452335543,
+      1790452335551,
+      1790452335558
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452335528,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1790452335535,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1790452335543,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1790452335551,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      },
+      {
+        "timestamp": 1790452335558,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 17500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-NATURAL-1790452348221": {
+    "timestamps": [
+      1790452348224
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452348224,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-EXPLICIT-1790452348230": {
+    "timestamps": [
+      1790452348232
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452348232,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-STRUCT-1790452348237": {
+    "timestamps": [
+      1790452348240
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452348240,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-101": {
+    "timestamps": [
+      1790452348251
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452348251,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-RICH-1790452348256": {
+    "timestamps": [
+      1790452348258
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790452348258,
+        "amount_cents": 5000,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 5000,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-HARNESS-101": {
+    "timestamps": [
+      1790453397819
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790453397819,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-HARNESS-205": {
+    "timestamps": [
+      1790453397820
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790453397820,
+        "amount_cents": 3250,
+        "tenant_id": "default_tenant"
+      }
+    ],
+    "total_spend_cents": 3250,
     "tenant_id": "default_tenant"
   }
 }

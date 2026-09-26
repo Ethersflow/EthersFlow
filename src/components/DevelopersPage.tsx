@@ -404,7 +404,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
             </div>
             <span className="font-black text-white tracking-tight">Developers Hub</span>
             <span className="text-[10px] text-slate-400 font-bold px-2 py-0.5 bg-slate-800/80 border border-slate-700/60 rounded uppercase tracking-wider">
-              v0.2.2 (REST & MCP)
+              v0.2.4 (REST & MCP)
             </span>
           </div>
 

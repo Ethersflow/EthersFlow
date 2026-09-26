@@ -649,17 +649,67 @@ function findApprovedVendorInString(str: string): string | null {
 }
 
 /**
+ * Pre-Fast-Path Intent Screen (B1 Launch Gate):
+ * Disqualifies any action from the deterministic fast-path if it contains
+ * the credential/secret noun family (credentials, keys, tokens, secrets, API keys, passwords)
+ * combined with external recipient surfaces (email addresses, URLs, webhooks, external endpoints)
+ * or explicit exfiltration directives.
+ */
+export function detectCredentialExfiltrationIntent(action: string, context?: any, reasoning?: string): boolean {
+  if (!action && !reasoning && !context) return false;
+  const contextStr = context ? (typeof context === "string" ? context : JSON.stringify(context)) : "";
+  const combined = `${action || ""} ${reasoning || ""} ${contextStr}`.toLowerCase();
+  const actionLower = (action || "").toLowerCase();
+
+  // 1. Direct exfiltration verbs with sensitive data
+  const hasExfilDirective = 
+    /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload|transmit|export|extract|post|send)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?|env|environment|database|records|table|telemetry\s+variables?|audit[-_\s]?logs?)\b/i.test(combined);
+
+  // 2. Sensitive noun pattern family (B1 specification)
+  const hasSensitiveNoun = 
+    /\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(combined);
+
+  // 3. External recipient surface (email address, URL, webhook, or external destination)
+  const hasExternalSurface = 
+    /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(combined) ||
+    /https?:\/\/[^\s]+|ftp:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site/i.test(combined) ||
+    /\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address)\b/i.test(combined) ||
+    /\b(attacker-endpoint|attacker|exfil|c2)\b/i.test(combined);
+
+  // If sensitive noun occurs with an external recipient surface -> B1 fast-path disqualifier
+  if (hasSensitiveNoun && hasExternalSurface) {
+    return true;
+  }
+
+  if (hasExfilDirective) {
+    return true;
+  }
+
+  // Action text itself contains external webhook or URL
+  if (/https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site/i.test(actionLower)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Match action against the supported purchase shapes.
  * Approval REQUIRES full consumption: entire action text consumed by exactly one supported template.
  * Any leftover characters, extra fields, or unknown patterns emit UNMODELED_OPERATION.
  */
-export function matchFullConsumptionPurchaseTemplate(action: string, context?: any): TemplateMatchResult {
+export function matchFullConsumptionPurchaseTemplate(action: string, context?: any, reasoning?: string): TemplateMatchResult {
   if (!action || typeof action !== "string") {
     return { matched: false, unmodeledReason: "UNMODELED_OPERATION" };
   }
 
   const trimmed = action.trim();
   const lower = trimmed.toLowerCase();
+
+  // B1 Pre-Fast-Path Intent Screen: Disqualify any action containing credential exfiltration or external surface
+  if (detectCredentialExfiltrationIntent(trimmed, context, reasoning)) {
+    return { matched: false, unmodeledReason: "FAST_PATH_INELIGIBLE_INTENT_SCREEN" };
+  }
 
   // Guard against compound clauses or punctuation separators
   if (trimmed.includes(";") || trimmed.includes("&&") || /\band\s+then\b/i.test(trimmed)) {
@@ -801,7 +851,9 @@ export function extractDeterministicProcurementEntities(action: string, context?
   const trimmed = action.trim();
 
   // Authoritative Tripwire Scan: Check for compound clauses, delimiters, or hazardous exfil / destruction
+  const hasExfilIntent = detectCredentialExfiltrationIntent(trimmed, context);
   const isHazardousOrCompound = 
+    hasExfilIntent ||
     trimmed.includes(";") || trimmed.includes("&&") || trimmed.includes("||") ||
     /\b(and\s+then|additionally|furthermore|meanwhile|while\s+also)\b/i.test(trimmed) ||
     /\b(rotate|rotation|reveal|exfiltrate|exfil|dump|export|leak|extract|send|post|transmit|steal|harvest)\s+(the\s+)?([a-z0-9_-]+\s+)?(credentials?|keys?|api[-_]?keys?|secrets?|tokens?|passwords?|certs?|private[-_]?keys?|env|environment|database|records?|pii|data|audit[-_]?logs?)\b/i.test(trimmed) ||
@@ -878,8 +930,9 @@ export function extractDeterministicProcurementEntities(action: string, context?
     .replace(/\b(?:cost|total|amount|price|sum|total\s+cost)\s*[:=-]?\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/gi, "")
     .replace(/\b(under\s+ticket|for\s+ticket|with\s+ticket|charged\s+to\s+ticket|bill\s+it\s+to\s+ticket|ticket\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
     .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier|store))?\b/gi, "")
-    .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved|we|and|to|it)\b/gi, "")
+    .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved|we|and|to|it|cost|price|sum)\b/gi, "")
     .replace(/[^a-zA-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
   if (!goods) {
@@ -1070,23 +1123,33 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
     classification = "public";
   }
 
-  // 11. Full-Consumption Template Matching
-  const templateResult = matchFullConsumptionPurchaseTemplate(action, context);
+  // 11. Full-Consumption Template Matching (with B1 Intent Screen)
+  const templateResult = matchFullConsumptionPurchaseTemplate(action, context, reasoning);
 
-  // If there are unresolved safety flags (vendor conflict, spoofed destination, closed FY, PAN in non-public destination)
-  if (conflictCheck.conflict || !destResult.safe || isClosedFiscalYear || (panResult.detected && !panResult.isPublicSink)) {
+  const hasExfilIntent = detectCredentialExfiltrationIntent(action, context, reasoning);
+  if (hasExfilIntent) {
+    reasonCodes.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN");
+    reasonCodes.push("CREDENTIAL_EXFILTRATION_RISK");
+    reasonCodes.push("DATA_EXFILTRATION_HAZARD");
+    reasonCodes.push("INFORMATION_BARRIER_VIOLATION");
+  }
+
+  // If there are unresolved safety flags (vendor conflict, spoofed destination, closed FY, PAN in non-public destination, or intent screen trigger)
+  if (conflictCheck.conflict || !destResult.safe || isClosedFiscalYear || (panResult.detected && !panResult.isPublicSink) || hasExfilIntent) {
     return {
       verdict: "FLAGGED_HUMAN_REVIEW",
       disposition: "UNRESOLVED",
       reason_codes: reasonCodes,
-      explanation: "FLAGGED FOR HUMAN REVIEW: Safety kernel unresolved checks hold. Action deferred to mandatory human oversight.",
+      explanation: hasExfilIntent 
+        ? "FLAGGED FOR HUMAN REVIEW: Sensitive credential noun pattern combined with external recipient surface or exfiltration hazard detected."
+        : "FLAGGED FOR HUMAN REVIEW: Safety kernel unresolved checks hold. Action deferred to mandatory human oversight.",
       panResult,
       secretsResult,
       compoundResult,
       destinationResult: destResult,
       templateResult,
       hasObfuscation,
-      dataClassification: classification
+      dataClassification: hasExfilIntent ? "restricted" : classification
     };
   }
 

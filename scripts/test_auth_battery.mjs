@@ -477,7 +477,7 @@ async function runAuthBattery() {
     console.error(`[FAIL] Case 12 (MCP Auth Battery Burned): Network error`, err);
   }
 
-  // Test 13: Gateway Version 0.2.2 Consistency Check (/api/health, GET /api/mcp, initialize, /.well-known/mcp.json)
+  // Test 13: Gateway Version 0.2.4 Consistency Check (/api/health, GET /api/mcp, initialize, /.well-known/mcp.json)
   total++;
   try {
     const health = await request({ hostname: "localhost", port: 3000, path: "/api/health", method: "GET" });
@@ -491,14 +491,14 @@ async function runAuthBattery() {
       headers: { "Content-Type": "application/json" }
     }, { jsonrpc: "2.0", id: "init-test", method: "initialize" });
 
-    const expectedVersion = "0.2.2";
+    const expectedVersion = "0.2.4";
     const vHealth = health.body?.version === expectedVersion;
     const vMcp = mcpRoot.body?.version === expectedVersion;
     const vWellKnown = wellKnown.body?.version === expectedVersion;
     const vInit = initRpc.body?.result?.serverInfo?.version === expectedVersion;
 
     if (vHealth && vMcp && vWellKnown && vInit) {
-      console.log(`[PASS] Case 13 (Version 0.2.2 Consistency): /api/health=${health.body?.version}, GET /api/mcp=${mcpRoot.body?.version}, /.well-known/mcp.json=${wellKnown.body?.version}, initialize=${initRpc.body?.result?.serverInfo?.version}`);
+      console.log(`[PASS] Case 13 (Version 0.2.4 Consistency): /api/health=${health.body?.version}, GET /api/mcp=${mcpRoot.body?.version}, /.well-known/mcp.json=${wellKnown.body?.version}, initialize=${initRpc.body?.result?.serverInfo?.version}`);
       passed++;
     } else {
       console.error(`[FAIL] Case 13 (Version 0.2.2 Consistency):`, {

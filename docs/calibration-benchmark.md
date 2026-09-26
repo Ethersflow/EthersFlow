@@ -23,11 +23,11 @@ All latencies measured under live production network conditions.
 
 | Verification Mode | p50 Latency | p95 Latency | Description | Execution Guarantee |
 | :--- | :--- | :--- | :--- | :--- |
-| **Policy Fast Path** | **5.8 ms** | **9.3 ms** | Grounded micro-expense (<$100, allowlisted vendor, operational ticket). Dual-control consensus safely waived. | `POLICY_FAST_PATH_APPROVAL` |
+| **Policy Fast Path** | **0.45 s** | **2.4 s** | Grounded micro-expense (<$100, allowlisted vendor, operational ticket, pre-fast-path intent screen). Dual-control consensus safely waived (~20-30x speedup). | `POLICY_FAST_PATH_APPROVAL` |
 | **Idempotent Replay** | **3.2 ms** | **4.5 ms** | Replay of previously verified request using matching `idempotency_key` and action hash. Cached verdict returned instantly. | `replayed: true` |
-| **Adversarial Consensus** | **12.4 s** | **13.0 s** | Live multi-model debate across heterogeneous frontier models (Qwen, Llama, Gemini) with cryptographic node attestations. | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+| **Adversarial Consensus** | **11.2 s** | **28.6 s** | Live multi-model debate across heterogeneous frontier models (Qwen, Llama, Gemini) with cryptographic node attestations. | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 
-> **Note on Fast Path Velocity**: To prevent micro-expense structuring attacks, each operational ticket (e.g. `FAC-101`) is strictly capped at **5 fast-path approvals per 24-hour window** with a $500 total window ceiling. Once capped (`allowance_exhausted: true`), subsequent requests automatically fall back to the live multi-model consensus lane.
+> **Note on Fast Path Velocity & Statefulness**: To prevent micro-expense structuring attacks, each operational ticket (e.g. `FAC-101`) is strictly capped at **5 fast-path approvals per 24-hour window** with a $500 total window ceiling. **The velocity cap counts attempts (stateful)**, requiring a proper 5-purchase precondition on a fresh ticket for verification. Once capped (`allowance_exhausted: true`), subsequent requests automatically fall back to the live multi-model consensus lane.
 
 ---
 
