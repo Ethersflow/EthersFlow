@@ -4,13 +4,13 @@
   "title": "EthersFlow — Trust Gate for AI Agents",
   "description": "Trust gate for AI agents: multi-model adversarial consensus, signed and verifiable verdicts.",
   "repository": { "url": "https://github.com/Ethersflow/EthersFlow", "source": "github" },
-  "version": "0.2.2",
+  "version": "0.2.3",
   "websiteUrl": "https://www.ethersflow.com",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@ethersflow/mcp-server",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "transport": { "type": "stdio" },
       "environmentVariables": [
         { "description": "EthersFlow API key for authenticating consensus requests", "isRequired": true, "isSecret": true, "name": "ETHERSFLOW_TOKEN" }
