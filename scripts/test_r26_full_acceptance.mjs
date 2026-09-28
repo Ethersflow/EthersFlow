@@ -79,7 +79,7 @@ async function runR26Acceptance() {
   console.log("================================================================================");
 
   // ---------------------------------------------------------------------------
-  // Oracle: MCP Initialize Version Check (Must return 0.2.5)
+  // Oracle: MCP Initialize Version Check (Must return 0.2.6)
   // ---------------------------------------------------------------------------
   console.log("\n[ORACLE] MCP Initialize Version Oracle:");
   const initRes = await post("/api/mcp", {
@@ -92,10 +92,10 @@ async function runR26Acceptance() {
     }
   });
   const mcpVersion = initRes.body?.result?.serverInfo?.version;
-  assert(mcpVersion === "0.2.5", `MCP initialize returns version oracle '0.2.5' (got: '${mcpVersion}')`);
+  assert(mcpVersion === "0.2.6", `MCP initialize returns version oracle '0.2.6' (got: '${mcpVersion}')`);
 
   const healthRes = await get("/api/health");
-  assert(healthRes.body?.version === "0.2.5", `Gateway health returns version '0.2.5' (got: '${healthRes.body?.version}')`);
+  assert(healthRes.body?.version === "0.2.6", `Gateway health returns version '0.2.6' (got: '${healthRes.body?.version}')`);
 
   // ---------------------------------------------------------------------------
   // Change 1: Unified Context Screen (Closes F1)

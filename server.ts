@@ -40,6 +40,7 @@ import {
   detectCredentialExfiltrationIntent,
   resolveCounterpartyIdentity,
   extractCandidateVendorFromText,
+  findApprovedVendorInString,
   screenIntentAndRisk,
   normalizeVendorString
 } from "./safetyKernel.js";
@@ -56,7 +57,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.5";
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.6";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
@@ -3210,6 +3211,15 @@ async function startServer() {
     lastSeenAt: number;
     count: number;
     firstRequestId: string;
+    originalVerdict?: string;
+    originalStatus?: string;
+    originalConsensusScore?: number;
+    originalRiskIndex?: number;
+    originalReasonCodes?: string[];
+    originalScoreAttribution?: any;
+    originalDecisionExplanation?: string;
+    originalVerdictSummary?: string;
+    firstResponsePayload?: any;
   }
   const contentHashStore = new Map<string, ContentHashEntry>();
 
@@ -3420,10 +3430,10 @@ async function startServer() {
     const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
 
     for (const rec of fastPathTicketVelocity.values()) {
-      const recTenant = rec.tenant_id || "default_tenant";
-      if (recTenant === normTenant) {
-        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-        for (const s of validRecSpends) {
+      const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+      for (const s of validRecSpends) {
+        const sTenant = s.tenant_id || rec.tenant_id || "default_tenant";
+        if (sTenant === normTenant) {
           const amt = Number(s.amount_cents) || 0;
           tenantSpendCents += amt;
           if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
@@ -3439,7 +3449,7 @@ async function startServer() {
       record.timestamps = validTimestamps;
       record.spend_records = validSpendRecords;
       record.total_spend_cents = ticketSpendCents;
-      record.tenant_id = normTenant;
+      record.tenant_id = record.tenant_id || normTenant;
       fastPathTicketVelocity.set(normTicket, record);
       saveDurableVelocity(fastPathTicketVelocity);
     }
@@ -3452,11 +3462,13 @@ async function startServer() {
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
     const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
-    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
-    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
-    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
-    const allowed = !isVelocityCapped && !isSpendCapped;
+    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isSpendCapped = isTicketSpendCapped;
+    const tenantMax = 250000;
+    const vendorMax = 50000;
+    const isTenantSpendCapped = tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax);
+    const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
 
     return { 
       allowed, 
@@ -3539,10 +3551,10 @@ async function startServer() {
     const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
 
     for (const rec of fastPathTicketVelocity.values()) {
-      const recTenant = rec.tenant_id || "default_tenant";
-      if (recTenant === normTenant) {
-        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-        for (const s of validRecSpends) {
+      const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+      for (const s of validRecSpends) {
+        const sTenant = s.tenant_id || rec.tenant_id || "default_tenant";
+        if (sTenant === normTenant) {
           const amt = Number(s.amount_cents) || 0;
           tenantSpendCents += amt;
           if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
@@ -3554,11 +3566,12 @@ async function startServer() {
 
     const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
 
+    const existingRec = fastPathTicketVelocity.get(normTicket);
     fastPathTicketVelocity.set(normTicket, {
       timestamps: validTimestamps,
       spend_records: validSpendRecords,
       total_spend_cents: ticketSpendCents,
-      tenant_id: normTenant
+      tenant_id: existingRec?.tenant_id || normTenant
     });
     saveDurableVelocity(fastPathTicketVelocity);
 
@@ -3570,11 +3583,13 @@ async function startServer() {
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
     const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
-    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
-    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
-    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
-    const allowed = !isVelocityCapped && !isSpendCapped;
+    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isSpendCapped = isTicketSpendCapped;
+    const tenantMax = 250000;
+    const vendorMax = 50000;
+    const isTenantSpendCapped = tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax);
+    const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
 
     return {
       allowed,
@@ -3623,10 +3638,10 @@ async function startServer() {
     const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
 
     for (const rec of fastPathTicketVelocity.values()) {
-      const recTenant = rec.tenant_id || "default_tenant";
-      if (recTenant === normTenant) {
-        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-        for (const s of validRecSpends) {
+      const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+      for (const s of validRecSpends) {
+        const sTenant = s.tenant_id || rec.tenant_id || "default_tenant";
+        if (sTenant === normTenant) {
           const amt = Number(s.amount_cents) || 0;
           tenantSpendCents += amt;
           if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
@@ -3638,10 +3653,12 @@ async function startServer() {
 
     const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
     const isVelocityCapped = validTimestamps.length >= maxApprovals;
-    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
-    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
-    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
-    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
+    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isSpendCapped = isTicketSpendCapped;
+    const tenantMax = 250000;
+    const vendorMax = 50000;
+    const isTenantSpendCapped = tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax);
+    const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
 
     const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
     const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
@@ -3789,10 +3806,10 @@ async function startServer() {
           const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
 
           for (const rec of fastPathTicketVelocity.values()) {
-            const recTenant = rec.tenant_id || "default_tenant";
-            if (recTenant === normTenant) {
-              const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-              for (const s of validRecSpends) {
+            const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+            for (const s of validRecSpends) {
+              const sTenant = s.tenant_id || rec.tenant_id || "default_tenant";
+              if (sTenant === normTenant) {
                 const amt = Number(s.amount_cents) || 0;
                 tenantSpendCents += amt;
                 if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
@@ -3805,10 +3822,12 @@ async function startServer() {
           const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
 
           const isVelocityCapped = validTimestamps.length >= maxApprovals;
-          const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
-          const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
-          const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
-          const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
+          const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+          const isSpendCapped = isTicketSpendCapped;
+          const tenantMax = 250000;
+          const vendorMax = 50000;
+          const isTenantSpendCapped = tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax);
+          const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
 
           const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
           const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
@@ -3941,8 +3960,8 @@ async function startServer() {
     }
 
     const trackedTickets: Record<string, any> = {};
-    for (const [tId] of fastPathTicketVelocity.entries()) {
-      const check = await checkFastPathVelocityAsync(tId, maxApprovals, windowSeconds);
+    for (const [tId, rec] of fastPathTicketVelocity.entries()) {
+      const check = await checkFastPathVelocityAsync(tId, maxApprovals, windowSeconds, 0, rec.tenant_id || "default_tenant");
       trackedTickets[tId] = {
         allowed: check.allowed,
         current_approvals: check.current_approvals,
@@ -4379,8 +4398,35 @@ async function startServer() {
       }
     }
 
-    let candidateVendor: string | null = structuredVendor;
-    // 2. Natural language pattern matching if no structured vendor was provided
+    // 2. Prose vendor extraction:
+    // Parse named vendor from agent_action text (case-insensitive, catalog-name list)
+    let proseCatalogVendor: string | null = null;
+    const sortedCatalog = [...approvedCounterparties].sort((a, b) => b.length - a.length);
+    for (const vendor of sortedCatalog) {
+      const escaped = vendor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const reg = new RegExp(`\\b${escaped}\\b`, "i");
+      if (reg.test(String(agentAction || ""))) {
+        proseCatalogVendor = vendor;
+        break;
+      }
+    }
+    if (!proseCatalogVendor) {
+      for (const vendor of sortedCatalog) {
+        const escaped = vendor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reg = new RegExp(`\\b${escaped}\\b`, "i");
+        if (reg.test(combinedAll)) {
+          proseCatalogVendor = vendor;
+          break;
+        }
+      }
+    }
+
+    // 3. Fallback candidate extraction from prose patterns (explicit label, from XYZ, or extractor)
+    // for unapproved vendors, typosquats (e.g. "Stap1es.com"), or unlisted entities
+    let candidateVendor: string | null = structuredVendor || proseCatalogVendor;
+    if (!candidateVendor) {
+      candidateVendor = extractCandidateVendorFromText(String(agentAction || "")) || extractCandidateVendorFromText(combinedAll);
+    }
     if (!candidateVendor) {
       // Explicit labels like "vendor: Office Depot", "supplier: Office Depot"
       const explicitLabelMatch = combinedAll.match(/\b(?:vendor|supplier|counterparty|merchant|payee)\s*[:=-]\s*([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3})/i);
@@ -4402,16 +4448,12 @@ async function startServer() {
       }
     }
 
-    // F3 Deterministic Counterparty Identity Resolution
-    // Runs BEFORE council aggregation: resolve counterparty against the catalog.
-    // Exact match -> verified
-    // Normalized fuzzy match (edit distance <= 2, digit/letter confusions, homoglyph folding e.g. "Stap1es" -> "Staples") -> suspected_impersonation
-    // No match -> unknown
-    let candidateToResolve = structuredVendor || candidateVendor;
-    if (!candidateToResolve) {
-      candidateToResolve = extractCandidateVendorFromText(combinedAll);
-    }
-
+    // F3 & B3: Identity Resolution Chain:
+    // (1) structured context.counterparty if present;
+    // (2) else exact-catalog match from prose vendor extraction -> identity=verified, source=catalog;
+    // (3) else normalized fuzzy/homoglyph folding -> suspected_impersonation (keep);
+    // (4) else unknown -> review (keep). Catalog match MUST count as kernel-verified.
+    let candidateToResolve = structuredVendor || proseCatalogVendor || candidateVendor;
     const idResolution = resolveCounterpartyIdentity(candidateToResolve, approvedCounterparties);
 
     let isCounterpartyAllowlisted = false;
@@ -6700,44 +6742,64 @@ async function startServer() {
     if (existingContentEntry && (nowIdem - existingContentEntry.firstSeenAt < replayWindowMs)) {
       existingContentEntry.count += 1;
       existingContentEntry.lastSeenAt = nowIdem;
+      const currentReplayIndex = existingContentEntry.count;
       const duplicateRequestId = "req_" + crypto.randomBytes(8).toString("hex");
       const duplicateExplanation = `FLAGGED FOR HUMAN REVIEW: Content-hash idempotency window detected identical duplicate submission within 24h window for tenant '${tenantIdForIdem}'. Silent re-approval blocked; mandatory human review required.`;
-      
+
+      // BUG 5 determinism: If original was a denial/flagged review, replay original verdict, score, and codes
+      // with explicit cached marker "deterministic_rule_band_cached" so audits distinguish fresh deliberation from cache hit.
+      // If original was APPROVED, return IDEMPOTENT_REPLAY_DETECTED band with score 45.0.
+      const isOriginalApproved = existingContentEntry.originalVerdict === "APPROVED";
+      const replayVerdict = isOriginalApproved ? "FLAGGED_HUMAN_REVIEW" : (existingContentEntry.originalVerdict || "FLAGGED_HUMAN_REVIEW");
+      const replayStatus = isOriginalApproved ? "FLAGGED_HUMAN_REVIEW" : (existingContentEntry.originalStatus || "FLAGGED_HUMAN_REVIEW");
+      const replayScore = isOriginalApproved ? 45.0 : (existingContentEntry.originalConsensusScore ?? 45.0);
+      const replayRiskIndex = isOriginalApproved ? 55.0 : (existingContentEntry.originalRiskIndex ?? 55.0);
+      const replayReasonCodes = isOriginalApproved 
+        ? ["IDEMPOTENT_REPLAY_DETECTED", "DUPLICATE_SUBMISSION_PREVENTED", "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"]
+        : (existingContentEntry.originalReasonCodes && existingContentEntry.originalReasonCodes.length > 0 
+            ? existingContentEntry.originalReasonCodes 
+            : ["IDEMPOTENT_REPLAY_DETECTED", "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"]);
+      const replayExplanation = isOriginalApproved ? duplicateExplanation : (existingContentEntry.originalDecisionExplanation || duplicateExplanation);
+      const replaySummary = isOriginalApproved ? duplicateExplanation : (existingContentEntry.originalVerdictSummary || duplicateExplanation);
+      const replayRuleBand = isOriginalApproved 
+        ? "IDEMPOTENT_REPLAY_DETECTED" 
+        : (existingContentEntry.originalScoreAttribution?.rule_band || "IDEMPOTENT_REPLAY_DETECTED");
+
       const duplicatePayload = {
         verification_schema_version: 3,
         request_id: duplicateRequestId,
         original_request_id: existingContentEntry.firstRequestId,
-        verdict: "FLAGGED_HUMAN_REVIEW",
-        status: "FLAGGED_HUMAN_REVIEW",
+        verdict: replayVerdict,
+        status: replayStatus,
         verified: false,
         action_eligible: false,
         policy_status: "FAIL",
-        evidence_status: "CONFLICTING",
-        reviewer_agreement: 0.45,
-        reviewer_agreement_score: 0.45,
-        consensus_score: 45.0,
+        evidence_status: isOriginalApproved ? "CONFLICTING" : "MISSING",
+        reviewer_agreement: isOriginalApproved ? 0.45 : (replayScore / 100),
+        reviewer_agreement_score: isOriginalApproved ? 0.45 : (replayScore / 100),
+        consensus_score: replayScore,
         policy_compliance_score: 0.0,
         evidence_sufficiency_score: 0.5,
         contradiction_score: 0.5,
-        risk_index: 55.0,
+        risk_index: replayRiskIndex,
         human_review_required: true,
         approval_blocked: true,
         finality: "NON_FINAL_ADVISORY",
-        decision_explanation: duplicateExplanation,
-        verdict_summary: duplicateExplanation,
-        reason_codes: [
-          "IDEMPOTENT_REPLAY_DETECTED",
-          "DUPLICATE_SUBMISSION_PREVENTED",
-          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
-        ],
+        decision_explanation: replayExplanation,
+        verdict_summary: replaySummary,
+        reason_codes: replayReasonCodes,
         score_attribution: {
-          score_type: "deterministic_rule_band",
-          rule_band: "IDEMPOTENT_REPLAY_DETECTED",
-          rule_id: "IDEMPOTENT_REPLAY_DETECTED",
-          calibrated_score: 45.0,
-          risk_index: 55.0,
-          node_level_scores: []
+          ...(existingContentEntry.originalScoreAttribution || {}),
+          score_type: "deterministic_rule_band_cached",
+          rule_band: replayRuleBand,
+          rule_id: isOriginalApproved ? "IDEMPOTENT_REPLAY_DETECTED" : (existingContentEntry.originalScoreAttribution?.rule_id || "IDEMPOTENT_REPLAY_DETECTED"),
+          calibrated_score: replayScore,
+          risk_index: replayRiskIndex,
+          node_level_scores: existingContentEntry.originalScoreAttribution?.node_level_scores || []
         },
+        replayed: true,
+        replay_index: currentReplayIndex,
+        c2_replayed: false,
         idempotency_key: effectiveIdempotencyKey || null,
         latency_ms: 25,
         server_version: ETHERSFLOW_RELEASE_VERSION,
@@ -6745,6 +6807,17 @@ async function startServer() {
       };
       return res.json(duplicatePayload);
     }
+
+    // First sight: store immediately at ingress before lane selection (Bug 4)
+    const firstSeenEntry: ContentHashEntry = {
+      hash: contentHash,
+      tenantId: tenantIdForIdem,
+      firstSeenAt: nowIdem,
+      lastSeenAt: nowIdem,
+      count: 0,
+      firstRequestId: requestId
+    };
+    contentHashStore.set(tenantContentHashKey, firstSeenEntry);
 
     let contextStr = "";
     if (typeof context === "string") {
@@ -6892,8 +6965,8 @@ async function startServer() {
     const finopsPolicy = loadFinopsPolicy();
     const detectedAmountUsd = extractAmountUsd(String(agent_action), context);
     const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
-    const tenantId = String(context?.tenant_id || context?.tenant || "default_tenant").trim();
-    const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_tenant_window_cents || finopsPolicy.tenant_spend_caps?.default_spend_cap_cents || 50000;
+    const tenantId = String((context && typeof context === "object" ? (context.tenant_id || context.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
+    const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_ticket_cents || 50000;
     const candidateVendorForVelocity = extractCandidateVendorFromText(String(agent_action)) || (context && typeof context === "object" ? (context.vendor || context.counterparty || context.supplier || context.merchant || context.payee) : null);
 
     const liveVelocityCheck = await checkFastPathVelocityAsync(
@@ -7094,11 +7167,9 @@ async function startServer() {
 
     const isIdentityGroundedVerified = 
       evalResult.anchor_checklist?.counterparty_verified === true &&
-      evalResult.anchor_bases?.counterparty === "catalog_verified" &&
-      evalResult.anchor_basis !== "client_attested";
+      evalResult.anchor_bases?.counterparty === "catalog_verified";
 
     const noLoadBearingClientAttestation = 
-      (finalEvidenceStatus === "SUFFICIENT" || evalResult.evidence_status === "SUFFICIENT") &&
       isIdentityGroundedVerified &&
       evalResult.anchor_checklist?.ticket_present === true;
 
@@ -7726,14 +7797,16 @@ async function startServer() {
       activeDb.collection("verifiable_receipts").doc(requestId).set(savedReceipt).catch(() => {});
     }
 
-    contentHashStore.set(tenantContentHashKey, {
-      hash: contentHash,
-      tenantId: tenantIdForIdem,
-      firstSeenAt: nowIdem,
-      lastSeenAt: nowIdem,
-      count: 1,
-      firstRequestId: requestId
-    });
+    firstSeenEntry.originalVerdict = finalVerdict;
+    firstSeenEntry.originalStatus = finalStatus;
+    firstSeenEntry.originalConsensusScore = finalConsensusScore;
+    firstSeenEntry.originalRiskIndex = finalRiskIndex;
+    firstSeenEntry.originalReasonCodes = [...finalReasonCodes];
+    firstSeenEntry.originalScoreAttribution = scoreAttribution;
+    firstSeenEntry.originalDecisionExplanation = finalExplanation;
+    firstSeenEntry.originalVerdictSummary = finalSummary;
+    firstSeenEntry.firstResponsePayload = sanitizedResponse;
+    contentHashStore.set(tenantContentHashKey, firstSeenEntry);
 
     if (effectiveIdempotencyKey) {
       sanitizedResponse.idempotency_key = effectiveIdempotencyKey;

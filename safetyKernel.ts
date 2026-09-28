@@ -813,11 +813,12 @@ export function extractCandidateVendorFromText(str: string): string | null {
   return null;
 }
 
-function findApprovedVendorInString(str: string): string | null {
+export function findApprovedVendorInString(str: string, catalog: string[] = APPROVED_CATALOG_COUNTERPARTIES): string | null {
   if (!str) return null;
-  const lower = str.toLowerCase();
-  for (const vendor of APPROVED_CATALOG_COUNTERPARTIES) {
-    if (lower.includes(vendor.toLowerCase())) {
+  for (const vendor of catalog) {
+    const escaped = vendor.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const reg = new RegExp(`\\b${escaped}\\b`, "i");
+    if (reg.test(str)) {
       return vendor;
     }
   }

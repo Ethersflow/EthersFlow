@@ -491,14 +491,14 @@ async function runAuthBattery() {
       headers: { "Content-Type": "application/json" }
     }, { jsonrpc: "2.0", id: "init-test", method: "initialize" });
 
-    const expectedVersion = "0.2.5";
+    const expectedVersion = "0.2.6";
     const vHealth = health.body?.version === expectedVersion;
     const vMcp = mcpRoot.body?.version === expectedVersion;
     const vWellKnown = wellKnown.body?.version === expectedVersion;
     const vInit = initRpc.body?.result?.serverInfo?.version === expectedVersion;
 
     if (vHealth && vMcp && vWellKnown && vInit) {
-      console.log(`[PASS] Case 13 (Version 0.2.5 Consistency): /api/health=${health.body?.version}, GET /api/mcp=${mcpRoot.body?.version}, /.well-known/mcp.json=${wellKnown.body?.version}, initialize=${initRpc.body?.result?.serverInfo?.version}`);
+      console.log(`[PASS] Case 13 (Version 0.2.6 Consistency): /api/health=${health.body?.version}, GET /api/mcp=${mcpRoot.body?.version}, /.well-known/mcp.json=${wellKnown.body?.version}, initialize=${initRpc.body?.result?.serverInfo?.version}`);
       passed++;
     } else {
       console.error(`[FAIL] Case 13 (Version 0.2.2 Consistency):`, {
