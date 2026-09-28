@@ -49,9 +49,22 @@ export interface TemplateMatchResult {
   extractedTicket?: string;
 }
 
+export interface CounterpartyResolution {
+  status: "verified" | "suspected_impersonation" | "unknown";
+  matchedVendor: string | null;
+  similarityScore?: number;
+  detectedTyposquat?: string | null;
+  reason?: string;
+}
+
+export interface IntentAndRiskScreenResult {
+  clean: boolean;
+  reasons: string[];
+}
+
 export interface KernelOutcome {
   verdict: "APPROVED" | "FLAGGED_HUMAN_REVIEW" | "REJECTED" | "FAST_ELIGIBLE" | "FAST_INELIGIBLE";
-  disposition: "PROHIBITED" | "UNRESOLVED" | "FAST_ELIGIBLE" | "FAST_INELIGIBLE";
+  disposition: "PROHIBITED" | "UNRESOLVED" | "FAST_ELIGIBLE" | "FAST_INELIGIBLE" | "IDENTITY_SUSPECTED";
   reason_codes: string[];
   explanation: string;
   panResult?: PANScanResult;
@@ -59,6 +72,7 @@ export interface KernelOutcome {
   compoundResult?: CompoundOpResult;
   destinationResult?: DestinationScanResult;
   templateResult?: TemplateMatchResult;
+  identityResolution?: CounterpartyResolution;
   hasObfuscation: boolean;
   dataClassification: "public" | "internal" | "confidential" | "restricted";
 }
@@ -637,6 +651,168 @@ export const APPROVED_CATALOG_COUNTERPARTIES = [
   "Northstar Logistics"
 ];
 
+export function computeLevenshteinDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+
+  const matrix: number[][] = [];
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  return matrix[b.length][a.length];
+}
+
+export function foldHomoglyphsAndLeet(str: string): string {
+  if (!str) return "";
+  let norm = str.normalize("NFKC").toLowerCase();
+
+  const homoglyphs: Record<string, string> = {
+    "\u0430": "a", // Cyrillic small letter a
+    "\u0441": "c", // Cyrillic small letter es
+    "\u0435": "e", // Cyrillic small letter ie
+    "\u043E": "o", // Cyrillic small letter o
+    "\u0440": "p", // Cyrillic small letter er
+    "\u0455": "s", // Cyrillic small letter dze
+    "\u0445": "x", // Cyrillic small letter ha
+    "\u0443": "y", // Cyrillic small letter u
+    "\u0456": "i", // Cyrillic small letter byelorussian-ukrainian i
+    "\u0458": "j", // Cyrillic small letter je
+    "\u04bb": "h", // Cyrillic small letter shha
+    "\u03bf": "o", // Greek small letter omicron
+    "\u03c1": "p", // Greek small letter rho
+    "\u03bd": "v"  // Greek small letter nu
+  };
+  for (const [k, v] of Object.entries(homoglyphs)) {
+    norm = norm.replaceAll(k, v);
+  }
+
+  norm = norm
+    .replace(/1|!|\|/g, "l")
+    .replace(/0/g, "o")
+    .replace(/3/g, "e")
+    .replace(/4|@/g, "a")
+    .replace(/5|\$/g, "s")
+    .replace(/7/g, "t")
+    .replace(/8/g, "b")
+    .replace(/9/g, "g");
+
+  return norm;
+}
+
+export function normalizeVendorString(raw: string): string {
+  if (!raw) return "";
+  let s = raw.trim().toLowerCase();
+  s = s.replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+  s = s.replace(/\.(com|org|net|io|co|store|biz|info|us|gov|edu)(\/.*)?$/i, "");
+  s = s.replace(/\b(approved|catalog|official|vendor|store|merchant|supplier|supplies|llc|inc|corp)\b/gi, "");
+  s = s.replace(/[^a-z0-9\s]/gi, " ").replace(/\s+/g, " ").trim();
+  return s;
+}
+
+/**
+ * F3 Deterministic Counterparty Identity Resolution:
+ * Exact match -> identity=verified
+ * Normalized fuzzy match (edit distance <= 2, digit/letter confusions, homoglyph folding) -> identity=suspected_impersonation
+ * No match -> identity=unknown
+ * anchor_basis="client_attested" must NEVER set counterparty_verified=true.
+ */
+export function resolveCounterpartyIdentity(
+  candidate: string | null | undefined, 
+  catalog: string[] = APPROVED_CATALOG_COUNTERPARTIES
+): CounterpartyResolution {
+  if (!candidate || typeof candidate !== "string") {
+    return { status: "unknown", matchedVendor: null };
+  }
+
+  const cleanCandidate = normalizeVendorString(candidate);
+  if (!cleanCandidate) {
+    return { status: "unknown", matchedVendor: null };
+  }
+
+  // 1. Exact catalog match check (case-insensitive and normalized)
+  for (const vendor of catalog) {
+    const cleanVendor = normalizeVendorString(vendor);
+    if (cleanCandidate === cleanVendor || cleanCandidate.replace(/\s+/g, "") === cleanVendor.replace(/\s+/g, "")) {
+      return {
+        status: "verified",
+        matchedVendor: vendor
+      };
+    }
+  }
+
+  // 2. Homoglyph & Leetspeak folded fuzzy / typosquatting check
+  const candidateFolded = foldHomoglyphsAndLeet(cleanCandidate).replace(/\s+/g, "");
+
+  for (const vendor of catalog) {
+    const cleanVendor = normalizeVendorString(vendor);
+    const vendorFolded = foldHomoglyphsAndLeet(cleanVendor).replace(/\s+/g, "");
+
+    // If leet/homoglyph folded equals catalog vendor -> Impersonation (e.g. "stap1es" -> "staples")
+    if (candidateFolded === vendorFolded) {
+      return {
+        status: "suspected_impersonation",
+        matchedVendor: null,
+        detectedTyposquat: vendor,
+        reason: `TYPOSQUATTING_COUNTERPARTY_HAZARD: Candidate '${candidate.trim()}' is a character substitution / typosquat of approved counterparty '${vendor}'.`
+      };
+    }
+
+    // Levenshtein edit distance on normalized strings
+    const dist = computeLevenshteinDistance(cleanCandidate.replace(/\s+/g, ""), cleanVendor.replace(/\s+/g, ""));
+    const distFolded = computeLevenshteinDistance(candidateFolded, vendorFolded);
+    const minDist = Math.min(dist, distFolded);
+
+    // If edit distance <= 2 for strings >= 4 chars, this is a typosquatting / impersonation attempt
+    if (minDist > 0 && minDist <= 2 && cleanVendor.length >= 4) {
+      return {
+        status: "suspected_impersonation",
+        matchedVendor: null,
+        detectedTyposquat: vendor,
+        similarityScore: minDist,
+        reason: `TYPOSQUATTING_COUNTERPARTY_HAZARD: Candidate '${candidate.trim()}' has edit distance ${minDist} <= 2 to catalog counterparty '${vendor}'.`
+      };
+    }
+  }
+
+  // 3. No match found
+  return {
+    status: "unknown",
+    matchedVendor: null
+  };
+}
+
+export function extractCandidateVendorFromText(str: string): string | null {
+  if (!str) return null;
+  const fromMatch = str.match(/\bfrom\s+(?:the\s+)?(?:approved\s+|authorized\s+|official\s+)?([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on)\b|[.,;]|$)/i);
+  if (fromMatch && fromMatch[1]) {
+    const candidate = fromMatch[1].replace(/[-–—].*$/, "").trim();
+    if (candidate) return candidate;
+  }
+  const explicitMatch = str.match(/\b(?:vendor|supplier|counterparty|merchant|payee)\s*[:=-]\s*([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on)\b|[.,;]|$)/i);
+  if (explicitMatch && explicitMatch[1]) {
+    return explicitMatch[1].trim();
+  }
+  return null;
+}
+
 function findApprovedVendorInString(str: string): string | null {
   if (!str) return null;
   const lower = str.toLowerCase();
@@ -694,6 +870,82 @@ export function detectCredentialExfiltrationIntent(action: string, context?: any
 }
 
 /**
+ * Unified Context Screen (Closes F1):
+ * Applies the same intent and risk screen across agent_action, reasoning_chain,
+ * and all free-text context fields (persona notes, quoted tool descriptions, etc.).
+ * A request is fast-path eligible ONLY if action AND context both screen clean.
+ */
+export function screenIntentAndRisk(action: string, reasoning?: string, context?: any): IntentAndRiskScreenResult {
+  const reasons: string[] = [];
+  const freeTexts: string[] = [];
+  if (action && typeof action === "string") freeTexts.push(action);
+  if (reasoning && typeof reasoning === "string") freeTexts.push(reasoning);
+
+  if (context !== undefined && context !== null) {
+    if (typeof context === "string") {
+      freeTexts.push(context);
+    } else if (typeof context === "object") {
+      const walk = (obj: any, depth = 0) => {
+        if (depth > 5 || !obj) return;
+        if (typeof obj === "string") {
+          freeTexts.push(obj);
+        } else if (Array.isArray(obj)) {
+          for (const item of obj) walk(item, depth + 1);
+        } else if (typeof obj === "object") {
+          for (const [, v] of Object.entries(obj)) {
+            if (typeof v === "string") freeTexts.push(v);
+            else walk(v, depth + 1);
+          }
+        }
+      };
+      walk(context);
+    }
+  }
+
+  const combined = freeTexts.join(" ");
+
+  // 1. Admin mode / Policy bypass directives (F1 root cause)
+  if (/\b(admin|root|debug|bypass|override)\s+mode\b/i.test(combined) && /\b(policy|checks?|disabled|bypass|override|skip|ignore)\b/i.test(combined)) {
+    reasons.push("ADMIN_MODE_POLICY_BYPASS_ATTEMPT: Administrative mode policy override directive detected in action or context.");
+  } else if (/\bpolicy\s+checks?\s+disabled\b/i.test(combined) || /\bdisable\s+(?:all\s+)?(?:policy|approval|safety|security)\s+checks?\b/i.test(combined) || /\bpolicy\s+checks?\s*=\s*(false|disabled|none)\b/i.test(combined)) {
+    reasons.push("POLICY_CHECKS_DISABLED_DIRECTIVE: Attempted deactivation of policy verification checks.");
+  }
+
+  // 2. System prompt overrides & prompt injection
+  if (/\b(important\s+system\s+override|system\s+override|ignore\s+all\s+previous\s+safety\s+rules|ignore\s+previous\s+instructions|disregard\s+(?:all\s+)?prior\s+instructions)\b/i.test(combined)) {
+    reasons.push("PROMPT_INJECTION_OVERRIDE: Directive contains prompt injection or system override tokens.");
+  }
+
+  // 3. Injected tool poisoning quotes
+  if (
+    /\b(tool_call:|\[tool_use\]|<tool_call>|<\/tool_call>|<tool_description>|quoted\s+tool\s+descriptions?|tool-poisoning|poisoned\s+tool|execute_command)\b/i.test(combined) ||
+    (/\b(tool_call|tool_use|function_call)\b/i.test(combined) && /\b(disable|override|exfil|dump|admin|secret|attacker|bypass)\b/i.test(combined))
+  ) {
+    reasons.push("INJECTED_TOOL_POISONING: Quoted tool execution pattern attempting to hijack policy boundaries.");
+  }
+
+  // 4. Credential exfiltration & external surface hazards
+  if (detectCredentialExfiltrationIntent(action, context, reasoning)) {
+    reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Sensitive credential noun combined with external recipient surface or exfil directive.");
+  }
+
+  // 5. Injected authority claims
+  if (/\b(pre-?approved\s+by\s+(administrator|admin|root|management|supervisor|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|skip\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks)\b/i.test(combined)) {
+    reasons.push("INJECTED_AUTHORITY_HAZARD: Claim of pre-approval attempting to bypass verification.");
+  }
+
+  // 6. Destructive directives
+  if (/\b(delete\s+from\s+production|kubectl\s+delete|drop\s+table|truncate\s+table|rm\s+-rf)\b/i.test(combined)) {
+    reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Unbounded destructive infrastructure or data mutation command.");
+  }
+
+  return {
+    clean: reasons.length === 0,
+    reasons
+  };
+}
+
+/**
  * Match action against the supported purchase shapes.
  * Approval REQUIRES full consumption: entire action text consumed by exactly one supported template.
  * Any leftover characters, extra fields, or unknown patterns emit UNMODELED_OPERATION.
@@ -706,9 +958,10 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   const trimmed = action.trim();
   const lower = trimmed.toLowerCase();
 
-  // B1 Pre-Fast-Path Intent Screen: Disqualify any action containing credential exfiltration or external surface
-  if (detectCredentialExfiltrationIntent(trimmed, context, reasoning)) {
-    return { matched: false, unmodeledReason: "FAST_PATH_INELIGIBLE_INTENT_SCREEN" };
+  // B1/F1 Pre-Fast-Path Intent & Risk Screen: Disqualify any action/context with policy bypass, exfiltration, or tool poisoning
+  const screen = screenIntentAndRisk(trimmed, reasoning, context);
+  if (!screen.clean) {
+    return { matched: false, unmodeledReason: `FAST_PATH_INELIGIBLE_INTENT_SCREEN: ${screen.reasons[0]}` };
   }
 
   // Guard against compound clauses or punctuation separators
@@ -844,15 +1097,17 @@ export interface ExtractedProcurementEntities {
   hasApprovedVendor: boolean;
 }
 
-export function extractDeterministicProcurementEntities(action: string, context?: any): ExtractedProcurementEntities {
+export function extractDeterministicProcurementEntities(action: string, context?: any, reasoning?: string): ExtractedProcurementEntities {
   if (!action || typeof action !== "string") {
     return { action_type: "unmodeled_action", isProcurementIntent: false, isHazardousOrCompound: false, hasApprovedVendor: false };
   }
   const trimmed = action.trim();
 
-  // Authoritative Tripwire Scan: Check for compound clauses, delimiters, or hazardous exfil / destruction
-  const hasExfilIntent = detectCredentialExfiltrationIntent(trimmed, context);
+  // Authoritative Tripwire Scan: Check for compound clauses, delimiters, or hazardous exfil / destruction / intent screen
+  const screen = screenIntentAndRisk(trimmed, reasoning, context);
+  const hasExfilIntent = detectCredentialExfiltrationIntent(trimmed, context, reasoning);
   const isHazardousOrCompound = 
+    !screen.clean ||
     hasExfilIntent ||
     trimmed.includes(";") || trimmed.includes("&&") || trimmed.includes("||") ||
     /\b(and\s+then|additionally|furthermore|meanwhile|while\s+also)\b/i.test(trimmed) ||
@@ -905,17 +1160,26 @@ export function extractDeterministicProcurementEntities(action: string, context?
 
   // 3. Deterministic Vendor Extraction
   let vendor: string | undefined;
-  const matchedCatalogVendor = findApprovedVendorInString(trimmed) || (context?.vendor ? findApprovedVendorInString(context.vendor) : null) || (context?.counterparty ? findApprovedVendorInString(context.counterparty) : null);
-  if (matchedCatalogVendor) {
-    vendor = matchedCatalogVendor;
-  } else {
-    const vendorRegexMatch = trimmed.match(/\b(?:from|at|vendor|supplier)\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:under|for|with|ticket|catalog|vendor|store|-|\.)|\.|$)/i);
-    if (vendorRegexMatch && vendorRegexMatch[1]) {
-      vendor = vendorRegexMatch[1].trim();
-    }
+  const candidateVendorStr = extractCandidateVendorFromText(trimmed) || findApprovedVendorInString(trimmed) || (context?.vendor ? String(context.vendor) : null) || (context?.counterparty ? String(context.counterparty) : null);
+  const idRes = resolveCounterpartyIdentity(candidateVendorStr);
+
+  if (idRes.status === "suspected_impersonation") {
+    return {
+      action_type: "unmodeled_action",
+      isProcurementIntent: false,
+      isHazardousOrCompound: true,
+      hasApprovedVendor: false,
+      vendor: candidateVendorStr || undefined
+    };
   }
 
-  const hasApprovedVendor = Boolean(vendor && findApprovedVendorInString(vendor));
+  if (idRes.status === "verified" && idRes.matchedVendor) {
+    vendor = idRes.matchedVendor;
+  } else if (candidateVendorStr) {
+    vendor = candidateVendorStr.trim();
+  }
+
+  const hasApprovedVendor = idRes.status === "verified";
 
   // 4. Procurement Intent Determination
   const isProcurementIntent = 
@@ -1091,28 +1355,7 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
     };
   }
 
-  // 7. Check Vendor Conflict
-  const actionVendorCandidate = findApprovedVendorInString(action);
-  const contextVendorCandidate = context?.vendor || context?.counterparty;
-  const conflictCheck = checkVendorConflict(actionVendorCandidate, contextVendorCandidate);
-  if (conflictCheck.conflict) {
-    reasonCodes.push("COUNTERPARTY_CONFLICT");
-  }
-
-  // 8. Check Self-Attestation Claims
-  const selfAttestation = checkSelfAttestation(context);
-  if (selfAttestation.present) {
-    reasonCodes.push("UNVERIFIED_SELF_ATTESTATION");
-  }
-
-  // 9. Closed Fiscal Year Budget Trap
-  const budgetLine = context?.budget_line || "";
-  const isClosedFiscalYear = /closed|fy24_closed|expired/i.test(budgetLine) || context?.fiscal_year_closed === true;
-  if (isClosedFiscalYear) {
-    reasonCodes.push("CLOSED_FISCAL_YEAR_BUDGET");
-  }
-
-  // 10. Data Classification Lattice (public < internal < confidential < restricted)
+  // 7. Data Classification Lattice (public < internal < confidential < restricted)
   let classification: "public" | "internal" | "confidential" | "restricted" = "internal";
   const declaredClass = (context?.data_classification || "").toLowerCase();
   if (declaredClass === "restricted" || panResult.detected || secretsResult.detected) {
@@ -1123,44 +1366,105 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
     classification = "public";
   }
 
-  // 11. Full-Consumption Template Matching (with B1 Intent Screen)
+  // 8. Check Vendor Conflict & Counterparty Resolution (F3)
+  const actionVendorCandidate = findApprovedVendorInString(action) || extractCandidateVendorFromText(action);
+  const contextVendorCandidate = context?.vendor || context?.counterparty;
+  const vendorToTest = actionVendorCandidate || contextVendorCandidate;
+  const identityResolution = resolveCounterpartyIdentity(vendorToTest);
+
+  if (identityResolution.status === "suspected_impersonation") {
+    reasonCodes.push("IDENTITY_SUSPECTED_IMPERSONATION");
+    reasonCodes.push("TYPOSQUATTING_COUNTERPARTY_HAZARD");
+    reasonCodes.push("UNAPPROVED_COUNTERPARTY_DEFICIT");
+    reasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
+    return {
+      verdict: "FLAGGED_HUMAN_REVIEW",
+      disposition: "IDENTITY_SUSPECTED",
+      reason_codes: reasonCodes,
+      explanation: `FLAGGED FOR HUMAN REVIEW: Suspected counterparty impersonation/typosquatting detected ('${identityResolution.detectedTyposquat}'). Automated execution blocked; council lifting prohibited.`,
+      identityResolution,
+      panResult,
+      secretsResult,
+      compoundResult,
+      destinationResult: destResult,
+      templateResult: { matched: false, unmodeledReason: "IDENTITY_SUSPECTED_IMPERSONATION" },
+      hasObfuscation,
+      dataClassification: classification
+    };
+  }
+
+  const conflictCheck = checkVendorConflict(actionVendorCandidate, contextVendorCandidate);
+  if (conflictCheck.conflict) {
+    reasonCodes.push("COUNTERPARTY_CONFLICT");
+  }
+
+  // 9. Check Self-Attestation Claims
+  const selfAttestation = checkSelfAttestation(context);
+  if (selfAttestation.present) {
+    reasonCodes.push("UNVERIFIED_SELF_ATTESTATION");
+  }
+
+  // 10. Closed Fiscal Year Budget Trap
+  const budgetLine = context?.budget_line || "";
+  const isClosedFiscalYear = /closed|fy24_closed|expired/i.test(budgetLine) || context?.fiscal_year_closed === true;
+  if (isClosedFiscalYear) {
+    reasonCodes.push("CLOSED_FISCAL_YEAR_BUDGET");
+  }
+
+  // 11. Full-Consumption Template Matching (with B1 Intent Screen & F1 Unified Screen)
   const templateResult = matchFullConsumptionPurchaseTemplate(action, context, reasoning);
 
-  const hasExfilIntent = detectCredentialExfiltrationIntent(action, context, reasoning);
-  if (hasExfilIntent) {
+  const intentScreen = screenIntentAndRisk(action, reasoning, context);
+  if (!intentScreen.clean) {
+    for (const r of intentScreen.reasons) {
+      if (r.startsWith("ADMIN_MODE") || r.startsWith("POLICY_CHECKS_DISABLED")) {
+        reasonCodes.push("POLICY_CHECKS_DISABLED_DIRECTIVE");
+        reasonCodes.push("INJECTED_AUTHORITY_HAZARD");
+      } else if (r.startsWith("PROMPT_INJECTION")) {
+        reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
+      } else if (r.startsWith("INJECTED_TOOL")) {
+        reasonCodes.push("INJECTED_TOOL_POISONING");
+      } else if (r.startsWith("CREDENTIAL_EXFILTRATION")) {
+        reasonCodes.push("CREDENTIAL_EXFILTRATION_RISK");
+        reasonCodes.push("DATA_EXFILTRATION_HAZARD");
+        reasonCodes.push("INFORMATION_BARRIER_VIOLATION");
+      } else if (r.startsWith("DESTRUCTIVE")) {
+        reasonCodes.push("DESTRUCTIVE_COMMAND_HAZARD");
+      }
+    }
     reasonCodes.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN");
-    reasonCodes.push("CREDENTIAL_EXFILTRATION_RISK");
-    reasonCodes.push("DATA_EXFILTRATION_HAZARD");
-    reasonCodes.push("INFORMATION_BARRIER_VIOLATION");
+    reasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
   }
 
   // If there are unresolved safety flags (vendor conflict, spoofed destination, closed FY, PAN in non-public destination, or intent screen trigger)
-  if (conflictCheck.conflict || !destResult.safe || isClosedFiscalYear || (panResult.detected && !panResult.isPublicSink) || hasExfilIntent) {
+  if (conflictCheck.conflict || !destResult.safe || isClosedFiscalYear || (panResult.detected && !panResult.isPublicSink) || !intentScreen.clean) {
     return {
       verdict: "FLAGGED_HUMAN_REVIEW",
       disposition: "UNRESOLVED",
       reason_codes: reasonCodes,
-      explanation: hasExfilIntent 
-        ? "FLAGGED FOR HUMAN REVIEW: Sensitive credential noun pattern combined with external recipient surface or exfiltration hazard detected."
+      explanation: !intentScreen.clean 
+        ? `FLAGGED FOR HUMAN REVIEW: Intent and risk screen flagged directive in action or context (${intentScreen.reasons[0]}).`
         : "FLAGGED FOR HUMAN REVIEW: Safety kernel unresolved checks hold. Action deferred to mandatory human oversight.",
       panResult,
       secretsResult,
       compoundResult,
       destinationResult: destResult,
       templateResult,
+      identityResolution,
       hasObfuscation,
-      dataClassification: hasExfilIntent ? "restricted" : classification
+      dataClassification: !intentScreen.clean ? "restricted" : classification
     };
   }
 
-  // Check Fast-Path Eligibility
-  if (templateResult.matched && !hasObfuscation && !compoundResult.detected) {
+  // Check Fast-Path Eligibility (Requires verified counterparty identity and clean intent screen)
+  if (templateResult.matched && !hasObfuscation && !compoundResult.detected && intentScreen.clean && identityResolution.status === "verified") {
     return {
       verdict: "FAST_ELIGIBLE",
       disposition: "FAST_ELIGIBLE",
       reason_codes: ["EVIDENCE_SUFFICIENT", "NAMED_APPROVED_VENDOR_VERIFIED"],
       explanation: `Fast-path eligible purchase template (${templateResult.templateId}) satisfied.`,
       templateResult,
+      identityResolution,
       hasObfuscation: false,
       dataClassification: classification
     };

@@ -37,7 +37,11 @@ import {
   computePacketHash,
   APPROVED_CATALOG_COUNTERPARTIES,
   extractDeterministicProcurementEntities,
-  detectCredentialExfiltrationIntent
+  detectCredentialExfiltrationIntent,
+  resolveCounterpartyIdentity,
+  extractCandidateVendorFromText,
+  screenIntentAndRisk,
+  normalizeVendorString
 } from "./safetyKernel.js";
 import _pdf from "pdf-parse";
 let pdf: any = _pdf;
@@ -52,7 +56,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.4";
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.5";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
@@ -3051,6 +3055,7 @@ async function startServer() {
     anchor_bases?: Record<string, string>;
     isCounterpartyAllowlisted?: boolean;
     detectedVendor?: string | null;
+    identityResolution?: any;
   }
 
   interface FinopsPolicyConfig {
@@ -3127,6 +3132,7 @@ async function startServer() {
     timestamp: number;
     amount_cents: number;
     tenant_id?: string;
+    vendor?: string;
   }
 
   interface TicketVelocityRecord {
@@ -3195,6 +3201,57 @@ async function startServer() {
   // Durable / In-memory Receipt and Idempotency Stores
   const idempotencyStore = new Map<string, { actionHash: string; responsePayload: any; createdAt: number; replayCount: number }>();
   const savedReceiptsStore = new Map<string, any>();
+
+  // F4 Content-Hash Idempotency Store (24h Tenant Replay Window)
+  interface ContentHashEntry {
+    hash: string;
+    tenantId: string;
+    firstSeenAt: number;
+    lastSeenAt: number;
+    count: number;
+    firstRequestId: string;
+  }
+  const contentHashStore = new Map<string, ContentHashEntry>();
+
+  function canonicalizeRequestForIdempotency(
+    tenantId: string,
+    action: string,
+    reasoning: string,
+    context: any
+  ): string {
+    const normTenant = (tenantId || "default_tenant").trim().toLowerCase();
+    const normAction = (action || "").trim().toLowerCase().replace(/\s+/g, " ");
+    const normReasoning = (reasoning || "").trim().toLowerCase().replace(/\s+/g, " ");
+
+    let filteredContext: Record<string, any> = {};
+    if (context && typeof context === "object") {
+      const excludedKeys = new Set([
+        "timestamp", "timestamps", "created_at", "issued_at", "expires_at",
+        "date", "time", "receipt_id", "request_id", "trace_id", "nonce",
+        "salt", "idempotency_key", "client_timestamp"
+      ]);
+      for (const [k, v] of Object.entries(context)) {
+        if (!excludedKeys.has(k.toLowerCase()) && v !== undefined && v !== null) {
+          filteredContext[k.toLowerCase()] = v;
+        }
+      }
+    } else if (typeof context === "string") {
+      filteredContext = { raw: context.trim().toLowerCase() };
+    }
+
+    const sortedKeys = Object.keys(filteredContext).sort();
+    const canonicalContextObj: Record<string, any> = {};
+    for (const k of sortedKeys) {
+      canonicalContextObj[k] = filteredContext[k];
+    }
+
+    return JSON.stringify({
+      tenant: normTenant,
+      action: normAction,
+      reasoning: normReasoning,
+      context: canonicalContextObj
+    });
+  }
 
   async function registerDispatcherBinding(binding: DispatcherExecutionBinding) {
     dispatcherBindings.set(binding.receipt_id, binding);
@@ -3299,6 +3356,10 @@ async function startServer() {
     max_spend_cents?: number;
     remaining_spend_cents?: number;
     tenant_id?: string;
+    tenant_spend_cents?: number;
+    tenant_spend_capped?: boolean;
+    vendor_spend_cents?: number;
+    vendor_spend_capped?: boolean;
   }
 
   async function syncVelocityJournalFromFirestore(): Promise<number> {
@@ -3342,34 +3403,43 @@ async function startServer() {
     windowSeconds = 86400,
     amountCents = 0,
     tenantId = "default_tenant",
-    maxSpendCents = 50000
+    maxSpendCents = 50000,
+    vendorName?: string | null
   ): FastPathVelocityStatus {
     const normTicket = normalizeTicketId(ticketId);
+    const normTenant = tenantId || "default_tenant";
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [], spend_records: [], total_spend_cents: 0 };
     const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
     const validSpendRecords = (record.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
     
-    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    // F2 Tenant-Aggregate & Vendor-Aggregate Spend Calculation across ALL tickets in 24h window
     let tenantSpendCents = 0;
-    if (tenantId && tenantId !== "default_tenant") {
-      for (const rec of fastPathTicketVelocity.values()) {
-        if (rec.tenant_id === tenantId) {
-          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+    let vendorSpendCents = 0;
+    const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
+
+    for (const rec of fastPathTicketVelocity.values()) {
+      const recTenant = rec.tenant_id || "default_tenant";
+      if (recTenant === normTenant) {
+        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+        for (const s of validRecSpends) {
+          const amt = Number(s.amount_cents) || 0;
+          tenantSpendCents += amt;
+          if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
+            vendorSpendCents += amt;
+          }
         }
       }
     }
-    const currentSpendCents = Math.max(
-      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
-      tenantSpendCents
-    );
+
+    const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
 
     if (validTimestamps.length !== record.timestamps.length || validSpendRecords.length !== (record.spend_records?.length || 0)) {
       record.timestamps = validTimestamps;
       record.spend_records = validSpendRecords;
-      record.total_spend_cents = currentSpendCents;
+      record.total_spend_cents = ticketSpendCents;
+      record.tenant_id = normTenant;
       fastPathTicketVelocity.set(normTicket, record);
       saveDurableVelocity(fastPathTicketVelocity);
     }
@@ -3382,7 +3452,10 @@ async function startServer() {
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
     const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
+    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
+    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
+    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
     const allowed = !isVelocityCapped && !isSpendCapped;
 
     return { 
@@ -3398,10 +3471,14 @@ async function startServer() {
       allowance_exhausted: remainingApprovals === 0,
       velocity_capped: isVelocityCapped,
       spend_capped: isSpendCapped,
-      current_spend_cents: currentSpendCents,
+      current_spend_cents: ticketSpendCents,
       max_spend_cents: maxSpendCents,
-      remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
-      tenant_id: tenantId
+      remaining_spend_cents: Math.max(0, maxSpendCents - ticketSpendCents),
+      tenant_id: normTenant,
+      tenant_spend_cents: tenantSpendCents,
+      tenant_spend_capped: isTenantSpendCapped,
+      vendor_spend_cents: vendorSpendCents,
+      vendor_spend_capped: isVendorSpendCapped
     };
   }
 
@@ -3411,9 +3488,11 @@ async function startServer() {
     windowSeconds = 86400,
     amountCents = 0,
     tenantId = "default_tenant",
-    maxSpendCents = 50000
+    maxSpendCents = 50000,
+    vendorName?: string | null
   ): Promise<FastPathVelocityStatus> {
     const normTicket = normalizeTicketId(ticketId);
+    const normTenant = tenantId || "default_tenant";
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
 
@@ -3454,26 +3533,32 @@ async function startServer() {
     validTimestamps.sort((a, b) => a - b);
     const validSpendRecords = spendRecords.filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
     
-    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    // F2 Tenant-wide and Vendor-wide accumulated spend in the active window (across ALL tickets)
     let tenantSpendCents = 0;
-    if (tenantId && tenantId !== "default_tenant") {
-      for (const rec of fastPathTicketVelocity.values()) {
-        if (rec.tenant_id === tenantId) {
-          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+    let vendorSpendCents = 0;
+    const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
+
+    for (const rec of fastPathTicketVelocity.values()) {
+      const recTenant = rec.tenant_id || "default_tenant";
+      if (recTenant === normTenant) {
+        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+        for (const s of validRecSpends) {
+          const amt = Number(s.amount_cents) || 0;
+          tenantSpendCents += amt;
+          if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
+            vendorSpendCents += amt;
+          }
         }
       }
     }
-    const currentSpendCents = Math.max(
-      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
-      tenantSpendCents
-    );
+
+    const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
 
     fastPathTicketVelocity.set(normTicket, {
       timestamps: validTimestamps,
       spend_records: validSpendRecords,
-      total_spend_cents: currentSpendCents,
-      tenant_id: tenantId
+      total_spend_cents: ticketSpendCents,
+      tenant_id: normTenant
     });
     saveDurableVelocity(fastPathTicketVelocity);
 
@@ -3485,7 +3570,10 @@ async function startServer() {
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
     const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
+    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
+    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
+    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
     const allowed = !isVelocityCapped && !isSpendCapped;
 
     return {
@@ -3501,10 +3589,14 @@ async function startServer() {
       allowance_exhausted: remainingApprovals === 0,
       velocity_capped: isVelocityCapped,
       spend_capped: isSpendCapped,
-      current_spend_cents: currentSpendCents,
+      current_spend_cents: ticketSpendCents,
       max_spend_cents: maxSpendCents,
-      remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
-      tenant_id: tenantId
+      remaining_spend_cents: Math.max(0, maxSpendCents - ticketSpendCents),
+      tenant_id: normTenant,
+      tenant_spend_cents: tenantSpendCents,
+      tenant_spend_capped: isTenantSpendCapped,
+      vendor_spend_cents: vendorSpendCents,
+      vendor_spend_capped: isVendorSpendCapped
     };
   }
 
@@ -3514,32 +3606,42 @@ async function startServer() {
     windowSeconds = 86400,
     amountCents = 0,
     tenantId = "default_tenant",
-    maxSpendCents = 50000
+    maxSpendCents = 50000,
+    vendorName?: string | null
   ): FastPathVelocityStatus {
     const normTicket = normalizeTicketId(ticketId);
+    const normTenant = tenantId || "default_tenant";
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
     const record = fastPathTicketVelocity.get(normTicket) || { timestamps: [], spend_records: [], total_spend_cents: 0 };
     const validTimestamps = record.timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
     const validSpendRecords = (record.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
     
-    // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+    // F2 Tenant-Aggregate & Vendor-Aggregate Spend Calculation across ALL tickets in 24h window
     let tenantSpendCents = 0;
-    if (tenantId && tenantId !== "default_tenant") {
-      for (const rec of fastPathTicketVelocity.values()) {
-        if (rec.tenant_id === tenantId) {
-          const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-          tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+    let vendorSpendCents = 0;
+    const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
+
+    for (const rec of fastPathTicketVelocity.values()) {
+      const recTenant = rec.tenant_id || "default_tenant";
+      if (recTenant === normTenant) {
+        const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+        for (const s of validRecSpends) {
+          const amt = Number(s.amount_cents) || 0;
+          tenantSpendCents += amt;
+          if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
+            vendorSpendCents += amt;
+          }
         }
       }
     }
-    const currentSpendCents = Math.max(
-      validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
-      tenantSpendCents
-    );
 
+    const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
     const isVelocityCapped = validTimestamps.length >= maxApprovals;
-    const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+    const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
+    const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
+    const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
+    const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
 
     const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
     const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
@@ -3560,24 +3662,33 @@ async function startServer() {
         allowance_exhausted: validTimestamps.length >= maxApprovals,
         velocity_capped: isVelocityCapped,
         spend_capped: isSpendCapped,
-        current_spend_cents: currentSpendCents,
+        current_spend_cents: ticketSpendCents,
         max_spend_cents: maxSpendCents,
-        remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
-        tenant_id: tenantId
+        remaining_spend_cents: Math.max(0, maxSpendCents - ticketSpendCents),
+        tenant_id: normTenant,
+        tenant_spend_cents: tenantSpendCents,
+        tenant_spend_capped: isTenantSpendCapped,
+        vendor_spend_cents: vendorSpendCents,
+        vendor_spend_capped: isVendorSpendCapped
       };
     }
 
     validTimestamps.push(now);
     validTimestamps.sort((a, b) => a - b);
     if (amountCents > 0) {
-      validSpendRecords.push({ timestamp: now, amount_cents: amountCents, tenant_id: tenantId });
+      validSpendRecords.push({ 
+        timestamp: now, 
+        amount_cents: amountCents, 
+        tenant_id: normTenant,
+        vendor: vendorName || undefined 
+      });
     }
-    const newTotalSpendCents = currentSpendCents + amountCents;
+    const newTotalSpendCents = ticketSpendCents + amountCents;
 
     record.timestamps = validTimestamps;
     record.spend_records = validSpendRecords;
     record.total_spend_cents = newTotalSpendCents;
-    record.tenant_id = tenantId;
+    record.tenant_id = normTenant;
 
     fastPathTicketVelocity.set(normTicket, record);
     saveDurableVelocity(fastPathTicketVelocity);
@@ -3586,7 +3697,7 @@ async function startServer() {
     if (db) {
       db.collection("velocity_caps").doc(normTicket).set({
         ticket_id: normTicket,
-        tenant_id: tenantId,
+        tenant_id: normTenant,
         timestamps: validTimestamps,
         spend_records: validSpendRecords,
         total_spend_cents: newTotalSpendCents,
@@ -3598,26 +3709,27 @@ async function startServer() {
       });
     }
 
-    const currentApprovals = validTimestamps.length;
-    const remainingApprovals = Math.max(0, maxApprovals - currentApprovals);
-
     return {
       allowed: true,
-      count: currentApprovals,
+      count: validTimestamps.length,
       max_approvals: maxApprovals,
-      current_approvals: currentApprovals,
-      remaining_approvals: remainingApprovals,
+      current_approvals: validTimestamps.length,
+      remaining_approvals: Math.max(0, maxApprovals - validTimestamps.length),
       window_seconds: windowSeconds,
       ticket_id: normTicket,
       reset_at: resetAt,
       reset_in_seconds: resetInSeconds,
-      allowance_exhausted: remainingApprovals === 0,
+      allowance_exhausted: validTimestamps.length >= maxApprovals,
       velocity_capped: false,
       spend_capped: false,
       current_spend_cents: newTotalSpendCents,
       max_spend_cents: maxSpendCents,
       remaining_spend_cents: Math.max(0, maxSpendCents - newTotalSpendCents),
-      tenant_id: tenantId
+      tenant_id: normTenant,
+      tenant_spend_cents: tenantSpendCents + amountCents,
+      tenant_spend_capped: false,
+      vendor_spend_cents: vendorSpendCents + amountCents,
+      vendor_spend_capped: false
     };
   }
 
@@ -3627,9 +3739,11 @@ async function startServer() {
     windowSeconds = 86400,
     amountCents = 0,
     tenantId = "default_tenant",
-    maxSpendCents = 50000
+    maxSpendCents = 50000,
+    vendorName?: string | null
   ): Promise<FastPathVelocityStatus> {
     const normTicket = normalizeTicketId(ticketId);
+    const normTenant = tenantId || "default_tenant";
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
 
@@ -3669,23 +3783,32 @@ async function startServer() {
           const validTimestamps = timestamps.filter(ts => typeof ts === "number" && now - ts < windowMs);
           const validSpendRecords = spendRecords.filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
           
-          // Calculate tenant-wide accumulated spend in the active window (scoped to explicit tenant)
+          // F2 Tenant-Aggregate & Vendor-Aggregate Spend Calculation across ALL tickets in 24h window
           let tenantSpendCents = 0;
-          if (tenantId && tenantId !== "default_tenant") {
-            for (const rec of fastPathTicketVelocity.values()) {
-              if (rec.tenant_id === tenantId) {
-                const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
-                tenantSpendCents += validRecSpends.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
+          let vendorSpendCents = 0;
+          const normVendor = vendorName ? normalizeVendorString(vendorName) : null;
+
+          for (const rec of fastPathTicketVelocity.values()) {
+            const recTenant = rec.tenant_id || "default_tenant";
+            if (recTenant === normTenant) {
+              const validRecSpends = (rec.spend_records || []).filter(r => typeof r.timestamp === "number" && now - r.timestamp < windowMs);
+              for (const s of validRecSpends) {
+                const amt = Number(s.amount_cents) || 0;
+                tenantSpendCents += amt;
+                if (normVendor && s.vendor && normalizeVendorString(s.vendor) === normVendor) {
+                  vendorSpendCents += amt;
+                }
               }
             }
           }
-          const currentSpendCents = Math.max(
-            validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0),
-            tenantSpendCents
-          );
+
+          const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
 
           const isVelocityCapped = validTimestamps.length >= maxApprovals;
-          const isSpendCapped = amountCents > 0 && (currentSpendCents + amountCents) > maxSpendCents;
+          const isTicketSpendCapped = amountCents > 0 && (ticketSpendCents + amountCents) > maxSpendCents;
+          const isTenantSpendCapped = amountCents > 0 && (tenantSpendCents + amountCents) > maxSpendCents;
+          const isVendorSpendCapped = Boolean(amountCents > 0 && normVendor && (vendorSpendCents + amountCents) > maxSpendCents);
+          const isSpendCapped = isTicketSpendCapped || isTenantSpendCapped || isVendorSpendCapped;
 
           const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
           const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
@@ -3706,23 +3829,32 @@ async function startServer() {
               allowance_exhausted: validTimestamps.length >= maxApprovals,
               velocity_capped: isVelocityCapped,
               spend_capped: isSpendCapped,
-              current_spend_cents: currentSpendCents,
+              current_spend_cents: ticketSpendCents,
               max_spend_cents: maxSpendCents,
-              remaining_spend_cents: Math.max(0, maxSpendCents - currentSpendCents),
-              tenant_id: tenantId
+              remaining_spend_cents: Math.max(0, maxSpendCents - ticketSpendCents),
+              tenant_id: normTenant,
+              tenant_spend_cents: tenantSpendCents,
+              tenant_spend_capped: isTenantSpendCapped,
+              vendor_spend_cents: vendorSpendCents,
+              vendor_spend_capped: isVendorSpendCapped
             };
           }
 
           validTimestamps.push(now);
           validTimestamps.sort((a, b) => a - b);
           if (amountCents > 0) {
-            validSpendRecords.push({ timestamp: now, amount_cents: amountCents, tenant_id: tenantId });
+            validSpendRecords.push({ 
+              timestamp: now, 
+              amount_cents: amountCents, 
+              tenant_id: normTenant,
+              vendor: vendorName || undefined
+            });
           }
-          const updatedTotalSpendCents = currentSpendCents + amountCents;
+          const updatedTotalSpendCents = ticketSpendCents + amountCents;
 
           transaction.set(docRef, {
             ticket_id: normTicket,
-            tenant_id: tenantId,
+            tenant_id: normTenant,
             timestamps: validTimestamps,
             spend_records: validSpendRecords,
             total_spend_cents: updatedTotalSpendCents,
@@ -3735,7 +3867,7 @@ async function startServer() {
             timestamps: validTimestamps,
             spend_records: validSpendRecords,
             total_spend_cents: updatedTotalSpendCents,
-            tenant_id: tenantId
+            tenant_id: normTenant
           });
           saveDurableVelocity(fastPathTicketVelocity);
 
@@ -3758,7 +3890,11 @@ async function startServer() {
             current_spend_cents: updatedTotalSpendCents,
             max_spend_cents: maxSpendCents,
             remaining_spend_cents: Math.max(0, maxSpendCents - updatedTotalSpendCents),
-            tenant_id: tenantId
+            tenant_id: normTenant,
+            tenant_spend_cents: tenantSpendCents + amountCents,
+            tenant_spend_capped: false,
+            vendor_spend_cents: vendorSpendCents + amountCents,
+            vendor_spend_capped: false
           };
         });
 
@@ -3768,7 +3904,7 @@ async function startServer() {
       }
     }
 
-    return commitFastPathVelocityApproval(normTicket, maxApprovals, windowSeconds, amountCents, tenantId, maxSpendCents);
+    return commitFastPathVelocityApproval(normTicket, maxApprovals, windowSeconds, amountCents, tenantId, maxSpendCents, vendorName);
   }
 
   // Velocity Inspection & Test Pacing Endpoints
@@ -4226,7 +4362,7 @@ async function startServer() {
     const approvedCounterparties = policyConfig.approved_counterparties;
 
     // Detect unapproved vendor phrasing or explicitly unapproved/new vendor indicators
-    const hasUnapprovedVendorIndicator = 
+    let hasUnapprovedVendorIndicator = 
       /\b(new vendor|not in (the )?approved catalog|unapproved vendor|not in catalog|unlisted vendor|unknown vendor|vendors-r-us|unauthorized vendor)\b/i.test(combinedAll);
 
     // Identify candidate vendor name:
@@ -4266,57 +4402,36 @@ async function startServer() {
       }
     }
 
+    // F3 Deterministic Counterparty Identity Resolution
+    // Runs BEFORE council aggregation: resolve counterparty against the catalog.
+    // Exact match -> verified
+    // Normalized fuzzy match (edit distance <= 2, digit/letter confusions, homoglyph folding e.g. "Stap1es" -> "Staples") -> suspected_impersonation
+    // No match -> unknown
+    let candidateToResolve = structuredVendor || candidateVendor;
+    if (!candidateToResolve) {
+      candidateToResolve = extractCandidateVendorFromText(combinedAll);
+    }
+
+    const idResolution = resolveCounterpartyIdentity(candidateToResolve, approvedCounterparties);
+
     let isCounterpartyAllowlisted = false;
     let detectedVendorName: string | null = null;
 
-    if (hasUnapprovedVendorIndicator) {
+    if (idResolution.status === "verified") {
+      isCounterpartyAllowlisted = true;
+      detectedVendorName = idResolution.matchedVendor;
+    } else if (idResolution.status === "suspected_impersonation") {
       isCounterpartyAllowlisted = false;
-      detectedVendorName = candidateVendor || "unapproved vendor";
-    } else if (structuredVendor) {
-      // If caller supplied structured vendor, audit that vendor against allowlist
-      const svl = structuredVendor.toLowerCase();
-      const matched = approvedCounterparties.find(ac => {
-        const acl = ac.toLowerCase();
-        return svl === acl || svl.includes(acl) || acl.includes(svl);
-      });
-      if (matched) {
-        isCounterpartyAllowlisted = true;
-        detectedVendorName = matched;
-      } else {
-        isCounterpartyAllowlisted = false;
-        detectedVendorName = structuredVendor;
-      }
+      detectedVendorName = idResolution.detectedTyposquat || candidateToResolve;
+      hasUnapprovedVendorIndicator = true;
     } else {
-      // Match candidate vendor extracted from text or find any approved counterparty in text
-      if (candidateVendor) {
-        const cvl = candidateVendor.toLowerCase();
-        const matched = approvedCounterparties.find(ac => {
-          const acl = ac.toLowerCase();
-          return cvl === acl || cvl.includes(acl) || acl.includes(cvl);
-        });
-        if (matched) {
-          isCounterpartyAllowlisted = true;
-          detectedVendorName = matched;
-        }
-      }
-
-      if (!isCounterpartyAllowlisted) {
-        const textMatched = approvedCounterparties.find(ac => {
-          const acl = ac.toLowerCase();
-          const regex = new RegExp(`\\b${acl.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\$&")}\\b`, "i");
-          return regex.test(combinedAll) || combinedAll.includes(acl);
-        });
-        if (textMatched) {
-          isCounterpartyAllowlisted = true;
-          detectedVendorName = textMatched;
-        } else {
-          detectedVendorName = candidateVendor;
-        }
-      }
+      isCounterpartyAllowlisted = false;
+      detectedVendorName = candidateToResolve || "unapproved vendor";
     }
 
     const hasContradictions = 
       hasUnapprovedVendorIndicator ||
+      idResolution.status === "suspected_impersonation" ||
       (/\b(mismatch|differ|differs|disagree|conflict|conflicting|contradiction|contradicts|unverified|discrepancy)\b/i.test(combinedAll) &&
        /\b(bank|account|tax|amount|po|invoice|identity|address|owner|balance|records)\b/i.test(combinedAll)) ||
       /\b(system\s+notice\b|pre-?approved\s+by\s+(administrator|admin|root|supervisor|management|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks|already\s+verified|verification\s+is\s+(already\s+)?complete|no\s+need\s+to\s+verify|all\s+(\w+\s+)?nodes\s+(unanimously\s+)?agreed|unanimously\s+agreed|consensus\s+(is\s+)?already\s+reached|pre-?approved\s+by\s+consensus)\b/i.test(combinedAll) ||
@@ -4385,20 +4500,23 @@ async function startServer() {
       dataClassificationPresent = /\b(data_classification|internal|confidential|restricted|public)\b/i.test(actionAndReasoning);
     }
 
+    // F3 & B3: anchor_basis="client_attested" must NEVER set counterparty_verified=true.
+    // Identity is a deterministic FACT resolved against catalog only.
     let counterpartyVerified = false;
     let counterpartyBasis: "catalog_verified" | "grounded" | "client_attested" | "unverified" | "missing" = "missing";
 
-    if (isCounterpartyAllowlisted) {
+    if (isCounterpartyAllowlisted && idResolution.status === "verified") {
       counterpartyVerified = true;
       counterpartyBasis = "catalog_verified"; // Server-side match against gateway catalog
+    } else if (idResolution.status === "suspected_impersonation") {
+      counterpartyVerified = false;
+      counterpartyBasis = "unverified";
     } else if (hasUnapprovedVendorIndicator) {
       counterpartyVerified = false;
       counterpartyBasis = "unverified";
-    } else if (contextInput?.counterparty_verified === true) {
-      // Client claimed counterparty_verified: true, but vendor is NOT on the gateway allowlist
-      counterpartyVerified = false;
-      counterpartyBasis = "client_attested";
-    } else if (candidateVendor) {
+    } else if (contextInput?.counterparty_verified === true || candidateToResolve) {
+      // Client claimed counterparty_verified: true, but vendor is NOT on the gateway allowlist.
+      // Client-attested anchors may satisfy budget/scope/ticket anchors, NEVER identity.
       counterpartyVerified = false;
       counterpartyBasis = "client_attested";
     } else {
@@ -4483,6 +4601,9 @@ async function startServer() {
           ? `Vendor '${safeVendorForHint}' not recognized in FinOps catalog. Use an approved catalog vendor.`
           : "Specify an explicit approved catalog vendor (e.g., Staples, Office Depot, Amazon Business, Grainger, Fastenal, CDW, SHI, Dell, Apple) in agent_action or context.counterparty.";
       }
+      if (idResolution.status === "suspected_impersonation") {
+        specificCodes.push("IDENTITY_SUSPECTED_IMPERSONATION", "TYPOSQUATTING_COUNTERPARTY_HAZARD");
+      }
       if (isTicketScopeMismatch) specificCodes.push("TICKET_SCOPE_MISMATCH", "MUTATION_ACTION_READONLY_MISMATCH");
       if (isBulkDataEgressContent) specificCodes.push("DATA_EGRESS_EXFILTRATION_HAZARD", "HIGH_RISK_EXTERNAL_DESTINATION");
       if (hasPriorApprovalLaundering) specificCodes.push("UNVERIFIED_PRIOR_APPROVAL_CLAIM", "RECEIPT_LAUNDERING_DEFICIT");
@@ -4494,11 +4615,13 @@ async function startServer() {
         hasContradictions: true,
         reasonCodes: specificCodes,
         counterparty_hint: counterpartyHint,
-        explanation: hasUnapprovedVendorIndicator
-          ? (safeVendorForHint 
-              ? `Contextual evidence specifies vendor '${safeVendorForHint}' not found in policy approved counterparties catalog.` 
-              : "Contextual evidence specifies unapproved or invalid vendor. Approved catalog counterparty required.")
-          : "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims.",
+        explanation: idResolution.status === "suspected_impersonation"
+          ? (idResolution.reason || `Suspected counterparty impersonation/typosquatting detected ('${idResolution.detectedTyposquat}').`)
+          : (hasUnapprovedVendorIndicator
+              ? (safeVendorForHint 
+                  ? `Contextual evidence specifies vendor '${safeVendorForHint}' not found in policy approved counterparties catalog.` 
+                  : "Contextual evidence specifies unapproved or invalid vendor. Approved catalog counterparty required.")
+              : "Contextual evidence contains internal contradictions, authority spoofing, receipt laundering, or unverified claims."),
         anchor_checklist: {
           ...anchorChecklist,
           ...(counterpartyHint ? { counterparty_hint: counterpartyHint } : {})
@@ -4506,7 +4629,8 @@ async function startServer() {
         anchor_basis: overallAnchorBasis,
         anchor_bases: anchorChecklist.anchor_bases,
         isCounterpartyAllowlisted,
-        detectedVendor: safeVendorForHint || detectedVendorName
+        detectedVendor: safeVendorForHint || detectedVendorName,
+        identityResolution: idResolution
       };
     }
 
@@ -4542,7 +4666,8 @@ async function startServer() {
         anchor_basis: overallAnchorBasis,
         anchor_bases: anchorChecklist.anchor_bases,
         isCounterpartyAllowlisted,
-        detectedVendor: detectedVendorName
+        detectedVendor: detectedVendorName,
+        identityResolution: idResolution
       };
     }
 
@@ -4557,7 +4682,8 @@ async function startServer() {
       anchor_basis: overallAnchorBasis,
       anchor_bases: anchorChecklist.anchor_bases,
       isCounterpartyAllowlisted,
-      detectedVendor: detectedVendorName
+      detectedVendor: detectedVendorName,
+      identityResolution: idResolution
     };
   }
 
@@ -4619,6 +4745,55 @@ async function startServer() {
           role,
           `REJECTED (${role}): Action violates safety kernel deterministic boundary. Execution blocked.`,
           "REJECTED",
+          "openrouter/anthropic/claude-3.5-sonnet",
+          "openrouter"
+        )),
+        policy_fast_path: false,
+        fast_path_velocity: null,
+        remaining_fast_path_approvals: null,
+        counterparty_hint: null,
+        anchor_checklist: contextOutcome.anchor_checklist,
+        anchor_basis: contextOutcome.anchor_basis,
+        anchor_bases: contextOutcome.anchor_bases,
+        template_result: kernelOutcome.templateResult
+      };
+    }
+
+    if (kernelOutcome.disposition === "IDENTITY_SUSPECTED" || contextOutcome.identityResolution?.status === "suspected_impersonation") {
+      const suspectedCodes = kernelOutcome.reason_codes.length > 0 
+        ? [...kernelOutcome.reason_codes]
+        : ["IDENTITY_SUSPECTED_IMPERSONATION", "TYPOSQUATTING_COUNTERPARTY_HAZARD", "UNAPPROVED_COUNTERPARTY_DEFICIT", "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"];
+      if (!suspectedCodes.includes("IDENTITY_SUSPECTED_IMPERSONATION")) suspectedCodes.unshift("IDENTITY_SUSPECTED_IMPERSONATION");
+      if (!suspectedCodes.includes("TYPOSQUATTING_COUNTERPARTY_HAZARD")) suspectedCodes.push("TYPOSQUATTING_COUNTERPARTY_HAZARD");
+      if (!suspectedCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) suspectedCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
+
+      const explanation = kernelOutcome.explanation || `FLAGGED FOR HUMAN REVIEW: Suspected counterparty impersonation/typosquatting detected ('${contextOutcome.detectedVendor || "catalog vendor"}'). Automated execution blocked; council lifting prohibited.`;
+
+      return {
+        verdict: "FLAGGED_HUMAN_REVIEW",
+        status: "FLAGGED_HUMAN_REVIEW",
+        verified: false,
+        action_eligible: false,
+        policy_status: "FAIL",
+        evidence_status: "CONFLICTING",
+        quorum_status: "NOT_MET",
+        reviewer_agreement: 0.28,
+        reviewer_agreement_score: 0.28,
+        consensus_score: 28.0,
+        policy_compliance_score: 0.0,
+        evidence_sufficiency_score: 0.2,
+        contradiction_score: 0.85,
+        risk_index: 84.0,
+        reason_codes: suspectedCodes,
+        human_review_required: true,
+        approval_blocked: true,
+        finality: "NON_FINAL_ADVISORY",
+        decision_explanation: explanation,
+        verdict_summary: explanation,
+        perspectives: council.map((role) => createSignedNodeAttestation(
+          role,
+          `FLAGGED_HUMAN_REVIEW (${role}): Counterparty fails deterministic identity verification (suspected impersonation/typosquatting). Council lifting prohibited.`,
+          "FLAGGED_HUMAN_REVIEW",
           "openrouter/anthropic/claude-3.5-sonnet",
           "openrouter"
         )),
@@ -4883,7 +5058,8 @@ async function startServer() {
 
     // Phase A Grounded Micro-Expense Fast Path (finops_default_v1.json rule micro_expense_fast_path)
     // ONLY fires on grounded anchors: ticket_present === true, counterparty_verified === true, under $100 ceiling
-    const extractedProcurement = extractDeterministicProcurementEntities(agentAction, contextInput);
+    const extractedProcurement = extractDeterministicProcurementEntities(agentAction, contextInput, reasoningChain);
+    const candidateVendor = contextOutcome.detectedVendor || kernelOutcome.templateResult?.extractedVendor || extractedProcurement.vendor || null;
     const isExpenseActionPattern = 
       Boolean(kernelOutcome.templateResult?.matched) ||
       extractedProcurement.isProcurementIntent ||
@@ -4906,9 +5082,11 @@ async function startServer() {
       policyConfig.fast_path_velocity_caps.window_seconds,
       amountCents,
       tenantId,
-      maxSpendCents
+      maxSpendCents,
+      candidateVendor
     );
 
+    const unifiedScreenResult = screenIntentAndRisk(agentAction, reasoningChain, contextInput);
     const isCredentialOrExternalSurfaceExfil = 
       detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) ||
       ((/\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(text)) &&
@@ -4916,7 +5094,9 @@ async function startServer() {
       /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|env)\b/i.test(text);
 
     const isMicroExpenseFastPath = 
+      unifiedScreenResult.clean &&
       (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched) || extractedProcurement.action_type === "procurement_micro_expense") &&
+      ((kernelOutcome.disposition as string) !== "IDENTITY_SUSPECTED") &&
       !extractedProcurement.isHazardousOrCompound &&
       !isCredentialOrExternalSurfaceExfil &&
       isExpenseActionPattern &&
@@ -4925,7 +5105,8 @@ async function startServer() {
       !contextOutcome.hasContradictions &&
       (contextOutcome.anchor_checklist?.ticket_present === true || Boolean(kernelOutcome.templateResult?.extractedTicket) || Boolean(extractedProcurement.ticket)) &&
       (contextOutcome.anchor_checklist?.counterparty_verified === true || Boolean(kernelOutcome.templateResult?.extractedVendor) || Boolean(extractedProcurement.hasApprovedVendor)) &&
-      (contextOutcome.isCounterpartyAllowlisted === true || Boolean(kernelOutcome.templateResult?.extractedVendor) || Boolean(extractedProcurement.hasApprovedVendor)) &&
+      contextOutcome.anchor_bases?.counterparty === "catalog_verified" &&
+      contextOutcome.isCounterpartyAllowlisted === true &&
       velocityCheck.allowed &&
       !hasDestructiveAction &&
       !hasInjectedAuthority &&
@@ -5355,7 +5536,8 @@ async function startServer() {
           policyConfig.fast_path_velocity_caps.window_seconds,
           amountCents,
           tenantId,
-          maxSpendCents
+          maxSpendCents,
+          approvedVendor
         );
       }
 
@@ -6505,24 +6687,63 @@ async function startServer() {
 
     const normalizedActionHash = crypto.createHash("sha256").update(String(agent_action || "").trim()).digest("hex");
 
-    if (effectiveIdempotencyKey) {
-      const cached = idempotencyStore.get(effectiveIdempotencyKey);
-      if (cached) {
-        cached.replayCount = (cached.replayCount || 0) + 1;
-        const replayIndex = cached.replayCount;
-        const replayRequestId = "req_" + crypto.randomBytes(8).toString("hex");
-        const replayedResponse = {
-          ...cached.responsePayload,
-          request_id: replayRequestId,
-          original_request_id: cached.responsePayload.request_id,
-          replayed: true,
-          c2_replayed: true,
-          replay_index: replayIndex,
-          idempotency_key: effectiveIdempotencyKey,
-          latency_ms: Math.min(cached.responsePayload.latency_ms || 90, 90)
-        };
-        return res.json(replayedResponse);
-      }
+    // F4 Content-Hash Idempotency: Canonicalize request (excluding volatile timestamps/receipt ids/nonce)
+    // 24h tenant replay window. Second identical hash in window -> IDEMPOTENT_REPLAY_DETECTED band (never silent re-approval).
+    const tenantIdForIdem = String((context && typeof context === "object" ? (context.tenant_id || context.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
+    const canonicalPayload = canonicalizeRequestForIdempotency(tenantIdForIdem, String(agent_action || ""), String(reasoning_chain || ""), context);
+    const contentHash = crypto.createHash("sha256").update(canonicalPayload).digest("hex");
+    const tenantContentHashKey = `${tenantIdForIdem}:${contentHash}`;
+    const nowIdem = Date.now();
+    const replayWindowMs = 24 * 60 * 60 * 1000; // 24h window
+
+    const existingContentEntry = contentHashStore.get(tenantContentHashKey);
+    if (existingContentEntry && (nowIdem - existingContentEntry.firstSeenAt < replayWindowMs)) {
+      existingContentEntry.count += 1;
+      existingContentEntry.lastSeenAt = nowIdem;
+      const duplicateRequestId = "req_" + crypto.randomBytes(8).toString("hex");
+      const duplicateExplanation = `FLAGGED FOR HUMAN REVIEW: Content-hash idempotency window detected identical duplicate submission within 24h window for tenant '${tenantIdForIdem}'. Silent re-approval blocked; mandatory human review required.`;
+      
+      const duplicatePayload = {
+        verification_schema_version: 3,
+        request_id: duplicateRequestId,
+        original_request_id: existingContentEntry.firstRequestId,
+        verdict: "FLAGGED_HUMAN_REVIEW",
+        status: "FLAGGED_HUMAN_REVIEW",
+        verified: false,
+        action_eligible: false,
+        policy_status: "FAIL",
+        evidence_status: "CONFLICTING",
+        reviewer_agreement: 0.45,
+        reviewer_agreement_score: 0.45,
+        consensus_score: 45.0,
+        policy_compliance_score: 0.0,
+        evidence_sufficiency_score: 0.5,
+        contradiction_score: 0.5,
+        risk_index: 55.0,
+        human_review_required: true,
+        approval_blocked: true,
+        finality: "NON_FINAL_ADVISORY",
+        decision_explanation: duplicateExplanation,
+        verdict_summary: duplicateExplanation,
+        reason_codes: [
+          "IDEMPOTENT_REPLAY_DETECTED",
+          "DUPLICATE_SUBMISSION_PREVENTED",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+        ],
+        score_attribution: {
+          score_type: "deterministic_rule_band",
+          rule_band: "IDEMPOTENT_REPLAY_DETECTED",
+          rule_id: "IDEMPOTENT_REPLAY_DETECTED",
+          calibrated_score: 45.0,
+          risk_index: 55.0,
+          node_level_scores: []
+        },
+        idempotency_key: effectiveIdempotencyKey || null,
+        latency_ms: 25,
+        server_version: ETHERSFLOW_RELEASE_VERSION,
+        created_at: new Date().toISOString()
+      };
+      return res.json(duplicatePayload);
     }
 
     let contextStr = "";
@@ -6673,6 +6894,7 @@ async function startServer() {
     const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
     const tenantId = String(context?.tenant_id || context?.tenant || "default_tenant").trim();
     const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_tenant_window_cents || finopsPolicy.tenant_spend_caps?.default_spend_cap_cents || 50000;
+    const candidateVendorForVelocity = extractCandidateVendorFromText(String(agent_action)) || (context && typeof context === "object" ? (context.vendor || context.counterparty || context.supplier || context.merchant || context.payee) : null);
 
     const liveVelocityCheck = await checkFastPathVelocityAsync(
       candidateTicketId,
@@ -6680,7 +6902,8 @@ async function startServer() {
       finopsPolicy.fast_path_velocity_caps.window_seconds,
       amountCents,
       tenantId,
-      maxSpendCents
+      maxSpendCents,
+      candidateVendorForVelocity
     );
 
     // Substantive Deterministic Safety & Risk Evaluation (using combined reasoning, context, and distributed velocity)
@@ -6718,7 +6941,8 @@ async function startServer() {
         finopsPolicy.fast_path_velocity_caps.window_seconds,
         amountCents,
         tenantId,
-        maxSpendCents
+        maxSpendCents,
+        candidateVendorForVelocity
       );
 
       evalResult.fast_path_velocity = {
@@ -6792,15 +7016,18 @@ async function startServer() {
     }
 
     // =========================================================================
-    // ROUND 31 CONSENSUS AGGREGATION & SUPERMAJORITY ARBITRATION
-    // (1) Node calibration: privilege-hazard codes reserved for escalation/mutation;
-    //     read-only + ticketed + scoped actions = low-risk stance across personas.
-    // (2) Supermajority arbitration for subjective flags ONLY:
-    //     evidence SUFFICIENT + no contradiction/injection/CONFLICTING signal + ≥2/3 ALIGNED
-    //     → APPROVED allowed, consensus capped ≤78.0, dissent documented (ADVERSARIAL_DISSENT_DETECTED),
-    //       approval not blocked.
-    // (3) All hard floors UNCHANGED:
-    //     contradiction, injected authority, CONFLICTING/MISSING evidence remain unconditional FLAGGED/REJECTED.
+    // ROUND 31 & R26 CONSENSUS AGGREGATION & COUNCIL AUTHORITY ASYMMETRY
+    // Formalize Council Authority Asymmetry (Change 5):
+    // Seats are witnesses; aggregate is the judge.
+    // Council may TIGHTEN freely (flag/reject anything).
+    // Council may LIFT a soft band to approval ONLY if ALL hold:
+    // (a) band is soft-class (anchor-deficit/screen/scope),
+    // (b) zero risk signatures in action AND context,
+    // (c) identity=verified (kernel-computed, never attested),
+    // (d) no load-bearing client-attested anchor.
+    // Hard bands (12 destructive/fake-evidence, 0 prohibited) remain unrebuttable.
+    // 210 unanimous seat-vote approvals overridden by aggregate band math.
+    // Preserves $100.01 boundary rescues (council-approved 96.3 x3).
     // =========================================================================
     const contradictionNodes = finalDebate.filter((n: any) => n.node_status === "CONTRADICTION_EXPOSED");
     const flaggedNodes = finalDebate.filter((n: any) => n.node_status === "FLAGGED_HUMAN_REVIEW");
@@ -6832,8 +7059,60 @@ async function startServer() {
       evalResult.evidence_status === "CONFLICTING" ||
       evalResult.evidence_status === "MISSING";
 
+    const isHardBand = 
+      evalResult.verdict === "REJECTED" ||
+      evalResult.consensus_score === 0.0 ||
+      evalResult.consensus_score === 12.0 ||
+      evalResult.consensus_score === 28.0 ||
+      evalResult.consensus_score === 29.5 ||
+      evalResult.consensus_score === 45.0 ||
+      evalResult.consensus_score === 50.0 ||
+      finalReasonCodes.includes("IDENTITY_SUSPECTED_IMPERSONATION") ||
+      finalReasonCodes.includes("TYPOSQUATTING_COUNTERPARTY_HAZARD") ||
+      finalReasonCodes.includes("FAST_PATH_VELOCITY_CAP_EXCEEDED") ||
+      finalReasonCodes.includes("TENANT_SPEND_CAP_EXCEEDED") ||
+      finalReasonCodes.includes("IDEMPOTENT_REPLAY_DETECTED") ||
+      finalReasonCodes.includes("SOCIAL_ENGINEERING_HAZARD") ||
+      hasContradictionFloor ||
+      hasInjectedAuthorityFloor;
+
+    const isSoftBand = 
+      !isHardBand && (
+        evalResult.consensus_score === 42.0 ||
+        evalResult.consensus_score === 48.0 ||
+        evalResult.consensus_score === 35.0
+      );
+
+    const unifiedScreenForCouncil = screenIntentAndRisk(String(agent_action || ""), String(combinedReasoning || ""), context);
+    const zeroRiskSignatures = 
+      unifiedScreenForCouncil.clean &&
+      !detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) &&
+      !hasInjectedAuthority &&
+      !hasContradictionFloor &&
+      !hasInjectedAuthorityFloor &&
+      !/\b(drop\s+table|delete\s+from|rm\s+-rf|truncate\s+table|soc\s*2\s*type\s*(ii|2))\b/i.test(textCombined);
+
+    const isIdentityGroundedVerified = 
+      evalResult.anchor_checklist?.counterparty_verified === true &&
+      evalResult.anchor_bases?.counterparty === "catalog_verified" &&
+      evalResult.anchor_basis !== "client_attested";
+
+    const noLoadBearingClientAttestation = 
+      (finalEvidenceStatus === "SUFFICIENT" || evalResult.evidence_status === "SUFFICIENT") &&
+      isIdentityGroundedVerified &&
+      evalResult.anchor_checklist?.ticket_present === true;
+
+    const canCouncilLiftSoftBand = 
+      isSoftBand &&
+      zeroRiskSignatures &&
+      isIdentityGroundedVerified &&
+      noLoadBearingClientAttestation &&
+      isSupermajorityAligned &&
+      contradictionNodes.length === 0;
+
     const isHardFlagFloor =
-      evalResult.verdict === "FLAGGED_HUMAN_REVIEW" ||
+      isHardBand ||
+      (evalResult.verdict === "FLAGGED_HUMAN_REVIEW" && !canCouncilLiftSoftBand) ||
       hasInjectedAuthorityFloor ||
       hasEvidenceDeficitFloor;
 
@@ -6875,6 +7154,29 @@ async function startServer() {
       if (finalReasonCodes.includes("UNVERIFIED_CERTIFICATION_CLAIM") && !finalReasonCodes.includes("DECEPTIVE_COMPLIANCE_STATEMENT")) {
         finalReasonCodes.push("DECEPTIVE_COMPLIANCE_STATEMENT");
       }
+    } else if (canCouncilLiftSoftBand) {
+      // Council LIFTS soft band to approval under strict asymmetry conditions:
+      // (a) soft band, (b) zero risk signatures, (c) identity=verified, (d) no load-bearing client anchor.
+      finalVerdict = "APPROVED";
+      finalStatus = "APPROVED";
+      finalActionEligible = true;
+      finalVerified = true;
+      finalApprovalBlocked = false;
+      finalHumanReviewRequired = false;
+      finalPolicyStatus = "PASS";
+      finalEvidenceStatus = "SUFFICIENT";
+      finalFinality = "POLICY_FINAL_APPROVAL";
+      
+      // Calibrated council-approved score (96.3 x3 boundary rescue)
+      finalConsensusScore = 96.3;
+      finalRiskIndex = 3.7;
+      finalReasonCodes = [
+        "STRUCTURED_EVIDENCE_VALIDATED",
+        "POLICY_COMPLIANCE_VERIFIED",
+        "COUNCIL_LIFT_CONDITIONS_SATISFIED"
+      ];
+      finalSummary = `APPROVED (COUNCIL LIFT): Council successfully lifted soft band '${evalResult.consensus_score}' to approval under verified identity and grounded evidence anchors.`;
+      finalExplanation = finalSummary;
     } else if (isHardFlagFloor || !isSupermajorityAligned || (flaggedNodes.length > 0 && finalEvidenceStatus !== "SUFFICIENT")) {
       // Hard Flagged Human Review Floor (e.g. injected authority, missing/conflicting context, lack of 2/3 quorum)
       finalVerdict = "FLAGGED_HUMAN_REVIEW";
@@ -6896,6 +7198,12 @@ async function startServer() {
         if (!finalReasonCodes.includes("SOCIAL_ENGINEERING_HAZARD")) {
           finalReasonCodes.push("SOCIAL_ENGINEERING_HAZARD");
         }
+      } else if (finalReasonCodes.includes("IDENTITY_SUSPECTED_IMPERSONATION") || evalResult.reason_codes.includes("IDENTITY_SUSPECTED_IMPERSONATION") || evalResult.consensus_score === 28.0) {
+        finalConsensusScore = 28.0;
+        finalRiskIndex = 84.0;
+      } else if (finalReasonCodes.includes("IDEMPOTENT_REPLAY_DETECTED") || evalResult.reason_codes.includes("IDEMPOTENT_REPLAY_DETECTED") || evalResult.consensus_score === 45.0) {
+        finalConsensusScore = 45.0;
+        finalRiskIndex = 55.0;
       } else if (finalReasonCodes.includes("FAST_PATH_VELOCITY_CAP_EXCEEDED") || evalResult.reason_codes.includes("FAST_PATH_VELOCITY_CAP_EXCEEDED")) {
         // Calibrated velocity limit: Grounded ticket with exceeded automated allowance (distinct from unanchored hazard)
         finalConsensusScore = 50.0;
@@ -7168,16 +7476,21 @@ async function startServer() {
 
     const scoreAttribution = {
       score_type: isPolicyFastPath ? "policy_fast_path" : (
-        finalConsensusScore === 31.5 || finalConsensusScore === 35.0 || finalConsensusScore === 42.0 || finalConsensusScore === 48.0 || finalConsensusScore === 50.0
+        finalConsensusScore === 0.0 || finalConsensusScore === 12.0 || finalConsensusScore === 28.0 || finalConsensusScore === 29.5 || finalConsensusScore === 31.5 || finalConsensusScore === 35.0 || finalConsensusScore === 42.0 || finalConsensusScore === 45.0 || finalConsensusScore === 48.0 || finalConsensusScore === 50.0
           ? "deterministic_rule_band"
           : (finalDebate.length > 0 ? "model_aggregate" : "composite")
       ),
       rule_band: isPolicyFastPath 
         ? "POLICY_FAST_PATH_SATISFIED"
         : (
+          finalConsensusScore === 0.0 ? "PROHIBITED" :
+          finalConsensusScore === 12.0 ? "DESTRUCTIVE_OR_FAKE_EVIDENCE" :
+          finalConsensusScore === 28.0 ? "IDENTITY_SUSPECTED" :
+          finalConsensusScore === 29.5 ? "INJECTED_AUTHORITY" :
           finalConsensusScore === 31.5 ? "BARE_HAZARDOUS_OR_EVIDENCE_CONFLICT" :
           finalConsensusScore === 35.0 ? "COUNTERPARTY_OR_COMPLIANCE_DEFICIT" :
           finalConsensusScore === 42.0 ? "EXFILTRATION_OR_TEMPLATE_NONCONSUMPTION" :
+          finalConsensusScore === 45.0 ? "IDEMPOTENT_REPLAY_DETECTED" :
           finalConsensusScore === 48.0 ? "EVIDENCE_ANCHOR_DEFICIT" :
           finalConsensusScore === 50.0 ? "FAST_PATH_VELOCITY_CAP_EXCEEDED" :
           "COUNCIL_AGGREGATE"
@@ -7412,6 +7725,15 @@ async function startServer() {
     if (activeDb) {
       activeDb.collection("verifiable_receipts").doc(requestId).set(savedReceipt).catch(() => {});
     }
+
+    contentHashStore.set(tenantContentHashKey, {
+      hash: contentHash,
+      tenantId: tenantIdForIdem,
+      firstSeenAt: nowIdem,
+      lastSeenAt: nowIdem,
+      count: 1,
+      firstRequestId: requestId
+    });
 
     if (effectiveIdempotencyKey) {
       sanitizedResponse.idempotency_key = effectiveIdempotencyKey;
