@@ -560,7 +560,7 @@ export function scanDestinations(text: string, context?: any): DestinationScanRe
 // §7 Compound Operations & Never-Rendered Directives
 // -----------------------------------------------------------------------------
 
-const DESTRUCTIVE_COMPOUND_REGEX = /(?:rotate|rotation|reveal|exfiltrate|exfil|dump|export|leak|extract|send|post|transmit|steal|harvest|delete|drop|purge|truncate|wipe|destroy)\s+(?:from|namespace|primary|all|the\s+|production\s+|aws\s+|deployment\s+)?(?:credentials|deployment\s+credentials|keys?|api[-_]?keys?|secrets?|tokens?|passwords?|certs?|private[-_]?keys?|database|audit[-_]?logs?|primary\s+database|customer\s+table|records?|pii|data|env|environment)/i;
+const DESTRUCTIVE_COMPOUND_REGEX = /(?:rotate|rotation|reveal|exfiltrate|exfil|dump|export|leak|extract|send|post|transmit|steal|harvest|delete|drop|purge|truncate|wipe|destroy)\s+(?:from|namespace|primary|all|the\s+|production\s+|aws\s+|deployment\s+)?(?:credentials|deployment\s+credentials|keys?|api[-_]?keys?|secrets?|tokens?|password(?![-_\s]+reset\b)s?|certs?|private[-_]?keys?|database|audit[-_]?logs?|primary\s+database|customer\s+table|records?|pii|data|env|environment)/i;
 const SECOND_OPERATION_CONJUNCTION_REGEX = /(?:\band\s+then\b|\badditionally\b|\balso\b|\bas\s+a\s+prerequisite\b|\bsubsequently\b|\bfollowed\s+by\b|;|&&|\|\|)\s*(?:rotate|forward|export|transfer|copy|send|post|transmit|delete|drop|purge|truncate|disburse|reveal|exfiltrate|leak|curl|wget|bash|sh|python)/i;
 
 const NEVER_RENDERED_PROMPT_INJECTION_PATTERNS = [
@@ -1096,6 +1096,50 @@ export interface ExtractedProcurementEntities {
   isProcurementIntent: boolean;
   isHazardousOrCompound: boolean;
   hasApprovedVendor: boolean;
+  repetitionMultiplier?: number;
+  aggregateAmount?: number;
+  aggregateAmountCents?: number;
+}
+
+export function extractRepetitionMultiplier(text: string): number {
+  if (!text) return 1;
+  const t = text.toLowerCase();
+  
+  const numWordMap: Record<string, number> = {
+    one: 1, two: 2, twice: 2, three: 3, thrice: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12
+  };
+
+  // 1. "N times today" or "N times per day" or "N times a day"
+  const timesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+times?\s+(?:today|per\s+day|a\s+day|each\s+day|daily)\b/i);
+  if (timesMatch) {
+    const raw = timesMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) return val;
+  }
+
+  // 2. "split into N" or "split across N"
+  const splitMatch = t.match(/\bsplit\s+(?:into|across)\s+(one|two|three|four|five|six|seven|eight|nine|ten|twelve|\d+)\b/i);
+  if (splitMatch) {
+    const raw = splitMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) return val;
+  }
+
+  // 3. "N purchases" or "N orders"
+  const purchasesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+(?:separate\s+)?(?:purchases?|orders?|transactions?)\b/i);
+  if (purchasesMatch) {
+    const raw = purchasesMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) return val;
+  }
+
+  // 4. "one each hour" / "once each hour" / "hourly"
+  if (/\b(?:one|once)\s+(?:each|per|every)\s+hour\b/i.test(t) || /\bhourly\b/i.test(t)) {
+    return 6;
+  }
+
+  return 1;
 }
 
 export function extractDeterministicProcurementEntities(action: string, context?: any, reasoning?: string): ExtractedProcurementEntities {
@@ -1127,7 +1171,7 @@ export function extractDeterministicProcurementEntities(action: string, context?
     };
   }
 
-  // 1. Deterministic Amount Extraction
+  // 1. Deterministic Amount Extraction & Repetition Multiplier
   let amount: number | undefined;
   const dollarMatch = trimmed.match(/\$(\d+(?:\.\d{1,2})?)\b/);
   if (dollarMatch) {
@@ -1150,13 +1194,22 @@ export function extractDeterministicProcurementEntities(action: string, context?
     }
   }
 
-  // 2. Deterministic Ticket Extraction
+  const repetitionMultiplier = extractRepetitionMultiplier(trimmed) || 1;
+  const aggregateAmount = amount !== undefined ? amount * repetitionMultiplier : undefined;
+  const aggregateAmountCents = aggregateAmount !== undefined ? Math.round(aggregateAmount * 100) : undefined;
+
+  // 2. Deterministic Ticket Extraction (prioritize explicit ticket prefixes so "ticket(s)" prefix doesn't capture literal "TICKETS")
   let ticket: string | undefined;
-  const ticketRegexMatch = trimmed.match(/\b(fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[:\s]*[a-z0-9_-]+)\b/i);
-  if (ticketRegexMatch) {
-    ticket = ticketRegexMatch[1].replace(/^ticket\s*#?[:\s]*/i, "").trim();
-  } else if (context?.ticket || context?.ticket_id) {
-    ticket = String(context.ticket || context.ticket_id).trim();
+  const explicitPrefix = trimmed.match(/\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req)-[a-z0-9_-]+)\b/i);
+  if (explicitPrefix) {
+    ticket = explicitPrefix[1].toUpperCase();
+  } else {
+    const ticketPhrase = trimmed.match(/\btickets?\s*#?[:\s-]*([a-z0-9_-]+)\b/i);
+    if (ticketPhrase && ticketPhrase[1] && !/^(today|the|an?|this|for|under|and|or|in|at|to|from)$/i.test(ticketPhrase[1])) {
+      ticket = ticketPhrase[1].toUpperCase();
+    } else if (context?.ticket || context?.ticket_id) {
+      ticket = String(context.ticket || context.ticket_id).trim().toUpperCase();
+    }
   }
 
   // 3. Deterministic Vendor Extraction
@@ -1204,7 +1257,9 @@ export function extractDeterministicProcurementEntities(action: string, context?
     goods = "office supplies";
   }
 
-  const action_type = (isProcurementIntent && hasApprovedVendor && amount !== undefined && amount <= 100 && ticket !== undefined)
+  const isUnderHundred = amount !== undefined && amount <= 100 && (repetitionMultiplier <= 1 || (aggregateAmount !== undefined && aggregateAmount <= 100));
+
+  const action_type = (isProcurementIntent && hasApprovedVendor && isUnderHundred && ticket !== undefined)
     ? "procurement_micro_expense"
     : "unmodeled_action";
 
@@ -1217,7 +1272,10 @@ export function extractDeterministicProcurementEntities(action: string, context?
     action_type,
     isProcurementIntent,
     isHazardousOrCompound: false,
-    hasApprovedVendor
+    hasApprovedVendor,
+    repetitionMultiplier,
+    aggregateAmount,
+    aggregateAmountCents
   };
 }
 

@@ -3141,6 +3141,7 @@ async function startServer() {
     spend_records?: SpendRecord[];
     total_spend_cents?: number;
     tenant_id?: string;
+    call_timestamps?: number[];
   }
 
   const VELOCITY_PERSISTENCE_PATH = path.resolve(process.cwd(), "data", "fast_path_velocity.json");
@@ -3296,8 +3297,19 @@ async function startServer() {
 
   function normalizeTicketId(ticketId: string): string {
     let t = (ticketId || "UNKNOWN").trim().toUpperCase();
-    t = t.replace(/^TICKET[\s#:\-]+/, "");
+    t = t.replace(/^TICKETS?[\s#:\-]+/, "");
     return t || "UNKNOWN";
+  }
+
+  function extractTicketFromText(str: string): string | null {
+    if (!str) return null;
+    const explicitPrefix = str.match(/\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req)-[a-z0-9_-]+)\b/i);
+    if (explicitPrefix) return explicitPrefix[1].toUpperCase();
+    const ticketPhrase = str.match(/\btickets?\s*#?[:\s-]*([a-z0-9_-]+)\b/i);
+    if (ticketPhrase && ticketPhrase[1] && !/^(today|the|an?|this|for|under|and|or|in|at|to|from)$/i.test(ticketPhrase[1])) {
+      return ticketPhrase[1].toUpperCase();
+    }
+    return null;
   }
 
   function loadDurableVelocity(): Map<string, TicketVelocityRecord> {
@@ -3370,6 +3382,12 @@ async function startServer() {
     tenant_spend_capped?: boolean;
     vendor_spend_cents?: number;
     vendor_spend_capped?: boolean;
+    call_rate?: {
+      current_calls: number;
+      max_calls: number;
+      window_seconds: number;
+      capped: boolean;
+    };
   }
 
   async function syncVelocityJournalFromFirestore(): Promise<number> {
