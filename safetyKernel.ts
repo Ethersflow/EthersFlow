@@ -970,6 +970,17 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
     return { matched: false, unmodeledReason: "UNMODELED_OPERATION" };
   }
 
+  // Pre-Fast-Path Multiplicity & Multi-Ticket Disqualifier:
+  // Any request containing a multiplicity phrase or multi-ticket list cannot be a single full-consumption micro-expense!
+  const multiplicityPreCheck = detectMultiplicityPhrases(trimmed);
+  const ticketEntitiesPreCheck = extractTicketEntities(trimmed, context);
+  if (multiplicityPreCheck.isMultiplicity || ticketEntitiesPreCheck.isMultiTicket) {
+    return {
+      matched: false,
+      unmodeledReason: "AGGREGATE_TRANSACTION_STRUCTURING_DETECTED"
+    };
+  }
+
   let extractedAmount: number | undefined;
   let extractedAmountCents: number | undefined;
   let extractedGoods: string | undefined;
@@ -1071,7 +1082,21 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
     return { matched: false, unmodeledReason: "HAZARDOUS_OR_COMPOUND_OPERATION" };
   }
 
-  if (extracted.isProcurementIntent && extracted.amount !== undefined && extracted.amount > 0) {
+  // Pre-Fast-Path Multiplicity & Multi-Ticket Disqualifier:
+  // Multiplicity or multi-ticket list cannot match full-consumption micro-expense!
+  if (extracted.isMultiplicity || extracted.isMultiTicket || (extracted.repetitionMultiplier && extracted.repetitionMultiplier > 1) || (extracted.additionalTickets && extracted.additionalTickets.length > 0)) {
+    return {
+      matched: false,
+      unmodeledReason: "AGGREGATE_TRANSACTION_STRUCTURING_DETECTED",
+      extractedAmount: extracted.amount,
+      extractedAmountCents: extracted.amountCents,
+      extractedGoods: extracted.goods,
+      extractedVendor: extracted.vendor,
+      extractedTicket: extracted.ticket
+    };
+  }
+
+  if (extracted.isProcurementIntent && extracted.amount !== undefined && extracted.amount > 0 && extracted.action_type === "procurement_micro_expense") {
     return finalizeMatch(
       "T1_ORDER_AMT_GOODS_VENDOR_TICKET",
       extracted.amount,
@@ -1086,60 +1111,186 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   return { matched: false, unmodeledReason: "UNMODELED_OPERATION" };
 }
 
+export interface TicketExtractionResult {
+  primaryTicket: string | undefined;
+  additionalTickets: string[];
+  allTickets: string[];
+  isMultiTicket: boolean;
+}
+
+export function extractTicketEntities(text: string, context?: any): TicketExtractionResult {
+  if (!text && !context) {
+    return { primaryTicket: undefined, additionalTickets: [], allTickets: [], isMultiTicket: false };
+  }
+  const combined = `${text || ""} ${typeof context === "string" ? context : JSON.stringify(context || {})}`;
+
+  // Match all standard ticket patterns:
+  // e.g. FAC-991, OPS-77, JIRA-1234, TKT-44, TICKET-V1
+  // Explicitly avoid matching bare word "TICKET" or "TICKETS"
+  const ticketRegex = /\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req|tkt|ticket)-[a-z0-9_-]+)\b/gi;
+  const matches: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = ticketRegex.exec(combined)) !== null) {
+    const raw = m[1].toUpperCase();
+    if (!matches.includes(raw)) {
+      matches.push(raw);
+    }
+  }
+
+  // Also check numbered patterns like "ticket #1234", "tickets #101, #102"
+  const numberedRegex = /\btickets?\s*#?([0-9]{3,})\b/gi;
+  while ((m = numberedRegex.exec(combined)) !== null) {
+    const t = `TKT-${m[1]}`;
+    if (!matches.includes(t)) {
+      matches.push(t);
+    }
+  }
+
+  // Check context ticket if explicit
+  if (context?.ticket || context?.ticket_id) {
+    const ctxTicket = String(context.ticket || context.ticket_id).trim().toUpperCase();
+    if (ctxTicket && ctxTicket !== "TICKETS" && ctxTicket !== "TICKET" && ctxTicket !== "UNTICKETED" && ctxTicket !== "UNKNOWN") {
+      if (!matches.includes(ctxTicket)) {
+        matches.unshift(ctxTicket);
+      }
+    }
+  }
+
+  const primaryTicket = matches.length > 0 ? matches[0] : undefined;
+  const additionalTickets = matches.length > 1 ? matches.slice(1) : [];
+
+  return {
+    primaryTicket,
+    additionalTickets,
+    allTickets: matches,
+    isMultiTicket: matches.length > 1
+  };
+}
+
+export interface MultiplicityDetectionResult {
+  isMultiplicity: boolean;
+  multiplier: number;
+  phrase?: string;
+  explicitAggregateAmount?: number;
+}
+
+export function detectMultiplicityPhrases(text: string): MultiplicityDetectionResult {
+  if (!text) return { isMultiplicity: false, multiplier: 1 };
+  const t = text.toLowerCase();
+
+  const numWordMap: Record<string, number> = {
+    one: 1, two: 2, twice: 2, three: 3, thrice: 3, four: 4, five: 5,
+    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12
+  };
+
+  // Explicit aggregate phrases: "to cover the $570", "totaling $570", "total of $570", "sum of $570"
+  let explicitAggregateAmount: number | undefined;
+  const aggMatch = t.match(/\b(?:to\s+cover(?:\s+the)?|totaling|total\s+of|aggregate\s+of|sum\s+of)\s*\$?(\d+(?:\.\d{1,2})?)\b/i);
+  if (aggMatch) {
+    explicitAggregateAmount = parseFloat(aggMatch[1]);
+  }
+
+  // 1. "N times", "N times today", "N times a day", "N times per day", etc.
+  const timesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+times?(?:\s+(?:today|per\s+day|a\s+day|each\s+day|daily|a\s+week|per\s+week))?\b/i);
+  if (timesMatch) {
+    const raw = timesMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) {
+      return { isMultiplicity: true, multiplier: val, phrase: timesMatch[0], explicitAggregateAmount };
+    }
+  }
+
+  // 2. Standalone frequency words: "twice", "thrice"
+  const standaloneMatch = t.match(/\b(twice|thrice)\b/i);
+  if (standaloneMatch) {
+    const raw = standaloneMatch[1].toLowerCase();
+    const val = numWordMap[raw] || 2;
+    return { isMultiplicity: true, multiplier: val, phrase: standaloneMatch[0], explicitAggregateAmount };
+  }
+
+  // 3. "daily for a week" or "daily for N days"
+  const dailyWeekMatch = t.match(/\bdaily\s+(?:for\s+)?(?:a|one|1)\s+week\b/i);
+  if (dailyWeekMatch) {
+    return { isMultiplicity: true, multiplier: 7, phrase: dailyWeekMatch[0], explicitAggregateAmount };
+  }
+  const dailyDaysMatch = t.match(/\bdaily\s+(?:for\s+)?(two|three|four|five|six|seven|\d+)\s+days?\b/i);
+  if (dailyDaysMatch) {
+    const val = numWordMap[dailyDaysMatch[1].toLowerCase()] || parseInt(dailyDaysMatch[1], 10);
+    if (!isNaN(val) && val > 1) {
+      return { isMultiplicity: true, multiplier: val, phrase: dailyDaysMatch[0], explicitAggregateAmount };
+    }
+  }
+
+  // 4. "one every 4 minutes", "every N minutes/hours/days"
+  const everyIntervalMatch = t.match(/\b(?:one\s+)?every\s+(\d+|two|three|four|five|six|ten|fifteen|twenty|thirty)\s+(?:minutes?|mins?|hours?|hrs?|days?)\b/i);
+  if (everyIntervalMatch) {
+    return { isMultiplicity: true, multiplier: 6, phrase: everyIntervalMatch[0], explicitAggregateAmount };
+  }
+
+  // 5. "split into N" or "split across N"
+  const splitMatch = t.match(/\bsplit\s+(?:into|across)\s+(one|two|three|four|five|six|seven|eight|nine|ten|twelve|\d+)\b/i);
+  if (splitMatch) {
+    const raw = splitMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) {
+      return { isMultiplicity: true, multiplier: val, phrase: splitMatch[0], explicitAggregateAmount };
+    }
+  }
+
+  // 6. "N purchases" or "N orders" or "N transactions"
+  const purchasesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+(?:separate\s+)?(?:purchases?|orders?|transactions?)\b/i);
+  if (purchasesMatch) {
+    const raw = purchasesMatch[1].toLowerCase();
+    const val = numWordMap[raw] || parseInt(raw, 10);
+    if (!isNaN(val) && val > 1) {
+      return { isMultiplicity: true, multiplier: val, phrase: purchasesMatch[0], explicitAggregateAmount };
+    }
+  }
+
+  // 7. "one each hour" / "once each hour" / "hourly"
+  if (/\b(?:one|once)\s+(?:each|per|every)\s+hour\b/i.test(t) || /\bhourly\b/i.test(t)) {
+    return { isMultiplicity: true, multiplier: 6, phrase: "hourly", explicitAggregateAmount };
+  }
+
+  if (explicitAggregateAmount !== undefined) {
+    return { isMultiplicity: true, multiplier: 1, phrase: aggMatch?.[0], explicitAggregateAmount };
+  }
+
+  return { isMultiplicity: false, multiplier: 1 };
+}
+
 export interface ExtractedProcurementEntities {
   vendor?: string;
   amount?: number;
   amountCents?: number;
   ticket?: string;
+  additionalTickets?: string[];
+  allTickets?: string[];
+  isMultiTicket?: boolean;
   goods?: string;
   action_type: "procurement_micro_expense" | "unmodeled_action";
   isProcurementIntent: boolean;
   isHazardousOrCompound: boolean;
   hasApprovedVendor: boolean;
   repetitionMultiplier?: number;
+  multiplicityPhrase?: string;
+  isMultiplicity?: boolean;
   aggregateAmount?: number;
   aggregateAmountCents?: number;
+  isStructuring?: boolean;
+  breakdown?: {
+    primaryTicket?: string;
+    additionalTickets: string[];
+    ticketCount: number;
+    lineAmount?: number;
+    repetitionMultiplier: number;
+    aggregateAmount?: number;
+  };
 }
 
 export function extractRepetitionMultiplier(text: string): number {
-  if (!text) return 1;
-  const t = text.toLowerCase();
-  
-  const numWordMap: Record<string, number> = {
-    one: 1, two: 2, twice: 2, three: 3, thrice: 3, four: 4, five: 5,
-    six: 6, seven: 7, eight: 8, nine: 9, ten: 10, twelve: 12
-  };
-
-  // 1. "N times today" or "N times per day" or "N times a day"
-  const timesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+times?\s+(?:today|per\s+day|a\s+day|each\s+day|daily)\b/i);
-  if (timesMatch) {
-    const raw = timesMatch[1].toLowerCase();
-    const val = numWordMap[raw] || parseInt(raw, 10);
-    if (!isNaN(val) && val > 1) return val;
-  }
-
-  // 2. "split into N" or "split across N"
-  const splitMatch = t.match(/\bsplit\s+(?:into|across)\s+(one|two|three|four|five|six|seven|eight|nine|ten|twelve|\d+)\b/i);
-  if (splitMatch) {
-    const raw = splitMatch[1].toLowerCase();
-    const val = numWordMap[raw] || parseInt(raw, 10);
-    if (!isNaN(val) && val > 1) return val;
-  }
-
-  // 3. "N purchases" or "N orders"
-  const purchasesMatch = t.match(/\b(one|two|twice|three|thrice|four|five|six|seven|eight|nine|ten|twelve|\d+)\s+(?:separate\s+)?(?:purchases?|orders?|transactions?)\b/i);
-  if (purchasesMatch) {
-    const raw = purchasesMatch[1].toLowerCase();
-    const val = numWordMap[raw] || parseInt(raw, 10);
-    if (!isNaN(val) && val > 1) return val;
-  }
-
-  // 4. "one each hour" / "once each hour" / "hourly"
-  if (/\b(?:one|once)\s+(?:each|per|every)\s+hour\b/i.test(t) || /\bhourly\b/i.test(t)) {
-    return 6;
-  }
-
-  return 1;
+  const result = detectMultiplicityPhrases(text);
+  return result.multiplier;
 }
 
 export function extractDeterministicProcurementEntities(action: string, context?: any, reasoning?: string): ExtractedProcurementEntities {
@@ -1171,7 +1322,7 @@ export function extractDeterministicProcurementEntities(action: string, context?
     };
   }
 
-  // 1. Deterministic Amount Extraction & Repetition Multiplier
+  // 1. Deterministic Amount Extraction & Multiplicity Calculation
   let amount: number | undefined;
   const dollarMatch = trimmed.match(/\$(\d+(?:\.\d{1,2})?)\b/);
   if (dollarMatch) {
@@ -1194,23 +1345,21 @@ export function extractDeterministicProcurementEntities(action: string, context?
     }
   }
 
-  const repetitionMultiplier = extractRepetitionMultiplier(trimmed) || 1;
-  const aggregateAmount = amount !== undefined ? amount * repetitionMultiplier : undefined;
+  // Multiplicity and Ticket Extraction
+  const multiplicityCheck = detectMultiplicityPhrases(trimmed);
+  const ticketEntities = extractTicketEntities(trimmed, context);
+  const isMultiTicket = ticketEntities.isMultiTicket;
+  const isMultiplicity = multiplicityCheck.isMultiplicity || isMultiTicket;
+  const repetitionMultiplier = Math.max(multiplicityCheck.multiplier, ticketEntities.allTickets.length || 1);
+  const aggregateAmount = multiplicityCheck.explicitAggregateAmount !== undefined
+    ? multiplicityCheck.explicitAggregateAmount
+    : (amount !== undefined ? amount * repetitionMultiplier : undefined);
   const aggregateAmountCents = aggregateAmount !== undefined ? Math.round(aggregateAmount * 100) : undefined;
 
-  // 2. Deterministic Ticket Extraction (prioritize explicit ticket prefixes so "ticket(s)" prefix doesn't capture literal "TICKETS")
-  let ticket: string | undefined;
-  const explicitPrefix = trimmed.match(/\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req)-[a-z0-9_-]+)\b/i);
-  if (explicitPrefix) {
-    ticket = explicitPrefix[1].toUpperCase();
-  } else {
-    const ticketPhrase = trimmed.match(/\btickets?\s*#?[:\s-]*([a-z0-9_-]+)\b/i);
-    if (ticketPhrase && ticketPhrase[1] && !/^(today|the|an?|this|for|under|and|or|in|at|to|from)$/i.test(ticketPhrase[1])) {
-      ticket = ticketPhrase[1].toUpperCase();
-    } else if (context?.ticket || context?.ticket_id) {
-      ticket = String(context.ticket || context.ticket_id).trim().toUpperCase();
-    }
-  }
+  // 2. Deterministic Ticket Extraction (prioritize explicit ticket prefixes; never collapse to literal "TICKETS")
+  const ticket = ticketEntities.primaryTicket;
+  const additionalTickets = ticketEntities.additionalTickets;
+  const allTickets = ticketEntities.allTickets;
 
   // 3. Deterministic Vendor Extraction
   let vendor: string | undefined;
@@ -1246,7 +1395,7 @@ export function extractDeterministicProcurementEntities(action: string, context?
     .replace(/\$(\d+(?:\.\d{1,2})?)\b/g, "")
     .replace(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/gi, "")
     .replace(/\b(?:cost|total|amount|price|sum|total\s+cost)\s*[:=-]?\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/gi, "")
-    .replace(/\b(under\s+ticket|for\s+ticket|with\s+ticket|charged\s+to\s+ticket|bill\s+it\s+to\s+ticket|ticket\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
+    .replace(/\b(under\s+tickets?|for\s+tickets?|with\s+tickets?|charged\s+to\s+tickets?|bill\s+it\s+to\s+tickets?|tickets?\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
     .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier|store))?\b/gi, "")
     .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved|we|and|to|it|cost|price|sum)\b/gi, "")
     .replace(/[^a-zA-Z0-9\s]/g, " ")
@@ -1257,7 +1406,13 @@ export function extractDeterministicProcurementEntities(action: string, context?
     goods = "office supplies";
   }
 
-  const isUnderHundred = amount !== undefined && amount <= 100 && (repetitionMultiplier <= 1 || (aggregateAmount !== undefined && aggregateAmount <= 100));
+  // Fast-path requires: single purchase (no multiplicity, no multi-ticket list), under $100 ceiling, and aggregate under $100
+  const isUnderHundred = 
+    !isMultiplicity && 
+    !isMultiTicket && 
+    amount !== undefined && 
+    amount <= 100 && 
+    (aggregateAmount === undefined || aggregateAmount <= 100);
 
   const action_type = (isProcurementIntent && hasApprovedVendor && isUnderHundred && ticket !== undefined)
     ? "procurement_micro_expense"
@@ -1268,14 +1423,28 @@ export function extractDeterministicProcurementEntities(action: string, context?
     amount,
     amountCents: amount !== undefined ? Math.round(amount * 100) : undefined,
     ticket,
+    additionalTickets,
+    allTickets,
+    isMultiTicket,
     goods,
     action_type,
     isProcurementIntent,
     isHazardousOrCompound: false,
     hasApprovedVendor,
     repetitionMultiplier,
+    multiplicityPhrase: multiplicityCheck.phrase,
+    isMultiplicity,
     aggregateAmount,
-    aggregateAmountCents
+    aggregateAmountCents,
+    isStructuring: isMultiplicity || isMultiTicket,
+    breakdown: {
+      primaryTicket: ticket,
+      additionalTickets,
+      ticketCount: allTickets.length,
+      lineAmount: amount,
+      repetitionMultiplier,
+      aggregateAmount
+    }
   };
 }
 

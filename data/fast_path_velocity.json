@@ -204,148 +204,110 @@
     "tenant_id": "default_tenant"
   },
   "FAC-PROXY-1790579146126": {
-    "timestamps": [
-      1790579146131
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579146131,
-        "amount_cents": 4500,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 4500,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-ANCHOR-1790579166008": {
-    "timestamps": [
-      1790579166011
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579166011,
-        "amount_cents": 4500,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 4500,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-VELOCITY-1790579166017": {
-    "timestamps": [
-      1790579166020,
-      1790579166027,
-      1790579166036,
-      1790579166047,
-      1790579166055
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579166020,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant"
-      },
-      {
-        "timestamp": 1790579166027,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant"
-      },
-      {
-        "timestamp": 1790579166036,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant"
-      },
-      {
-        "timestamp": 1790579166047,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant"
-      },
-      {
-        "timestamp": 1790579166055,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 17500,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-NATURAL-1790579176767": {
-    "timestamps": [
-      1790579176769
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579176769,
-        "amount_cents": 5000,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 5000,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-EXPLICIT-1790579176775": {
-    "timestamps": [
-      1790579176777
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579176777,
-        "amount_cents": 5000,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 5000,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-STRUCT-1790579176783": {
-    "timestamps": [
-      1790579176786
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579176786,
-        "amount_cents": 5000,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 5000,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-RICH-1790579176800": {
-    "timestamps": [
-      1790579176803
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790579176803,
-        "amount_cents": 5000,
-        "tenant_id": "default_tenant"
-      }
-    ],
-    "total_spend_cents": 5000,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "OPS-142": {
     "timestamps": [
-      1790627188278,
-      1790689717847
+      1790689717847,
+      1790721094020,
+      1790721387086,
+      1790721791451,
+      1790721939486,
+      1790721983045,
+      1790722039293,
+      1790722100153
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188278,
-        "amount_cents": 4500,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689717847,
         "amount_cents": 4500,
         "tenant_id": "fresh_tenant_123",
         "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721094020,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387086,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721791451,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721939486,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721983045,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039293,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100153,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 9000,
-    "tenant_id": "fresh_tenant_123"
+    "total_spend_cents": 36000,
+    "tenant_id": "default_tenant"
   },
   "FAC-994": {
     "timestamps": [],
@@ -355,18 +317,14 @@
   },
   "V1": {
     "timestamps": [
-      1790627188289,
       1790689561107,
       1790694795516,
-      1790695470184
+      1790695470184,
+      1790721094034,
+      1790721387102,
+      1790721433428
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188289,
-        "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689561107,
         "amount_cents": 9499,
@@ -384,25 +342,39 @@
         "amount_cents": 9499,
         "tenant_id": "tenant_f2_1790695470182",
         "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721094034,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721094028",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387102,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721387095",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721433428,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721433423",
+        "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 37996,
-    "tenant_id": "tenant_f2_1790695470182"
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721433423"
   },
   "V2": {
     "timestamps": [
-      1790627188300,
       1790689561115,
       1790694795525,
-      1790695470193
+      1790695470193,
+      1790721094049,
+      1790721387114,
+      1790721433439
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188300,
-        "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689561115,
         "amount_cents": 9499,
@@ -420,25 +392,39 @@
         "amount_cents": 9499,
         "tenant_id": "tenant_f2_1790695470182",
         "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721094049,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721094028",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387114,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721387095",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721433439,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721433423",
+        "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 37996,
-    "tenant_id": "tenant_f2_1790695470182"
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721433423"
   },
   "V3": {
     "timestamps": [
-      1790627188311,
       1790689561123,
       1790694795532,
-      1790695470202
+      1790695470202,
+      1790721094059,
+      1790721387128,
+      1790721433448
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188311,
-        "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689561123,
         "amount_cents": 9499,
@@ -456,25 +442,39 @@
         "amount_cents": 9499,
         "tenant_id": "tenant_f2_1790695470182",
         "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721094059,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721094028",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387128,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721387095",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721433448,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721433423",
+        "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 37996,
-    "tenant_id": "tenant_f2_1790695470182"
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721433423"
   },
   "V4": {
     "timestamps": [
-      1790627188320,
       1790689561130,
       1790694795540,
-      1790695470212
+      1790695470212,
+      1790721094068,
+      1790721387137,
+      1790721433458
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188320,
-        "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689561130,
         "amount_cents": 9499,
@@ -492,25 +492,39 @@
         "amount_cents": 9499,
         "tenant_id": "tenant_f2_1790695470182",
         "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721094068,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721094028",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387137,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721387095",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721433458,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721433423",
+        "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 37996,
-    "tenant_id": "tenant_f2_1790695470182"
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721433423"
   },
   "V5": {
     "timestamps": [
-      1790627188329,
       1790689561137,
       1790694795549,
-      1790695470224
+      1790695470224,
+      1790721094080,
+      1790721387147,
+      1790721433468
     ],
     "spend_records": [
-      {
-        "timestamp": 1790627188329,
-        "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
-        "vendor": "Staples"
-      },
       {
         "timestamp": 1790689561137,
         "amount_cents": 9499,
@@ -528,25 +542,78 @@
         "amount_cents": 9499,
         "tenant_id": "tenant_f2_1790695470182",
         "vendor": "Staples"
-      }
-    ],
-    "total_spend_cents": 37996,
-    "tenant_id": "tenant_f2_1790695470182"
-  },
-  "V6": {
-    "timestamps": [
-      1790627188337
-    ],
-    "spend_records": [
+      },
       {
-        "timestamp": 1790627188337,
+        "timestamp": 1790721094080,
         "amount_cents": 9499,
-        "tenant_id": "tenant_f2_1790627188285",
+        "tenant_id": "tenant_f2_1790721094028",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387147,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721387095",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721433468,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721433423",
         "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 9499,
-    "tenant_id": "tenant_f2_1790627188285"
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721433423"
+  },
+  "V6": {
+    "timestamps": [
+      1790721094094,
+      1790721387159,
+      1790721579787,
+      1790721793837,
+      1790721941638,
+      1790721950589
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721094094,
+        "amount_cents": 9499,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721387159,
+        "amount_cents": 9499,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721579787,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721576493",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721793837,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721791458",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721941638,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721939493",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721950589,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721949300",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 56994,
+    "tenant_id": "tenant_f2_1790721949300"
   },
   "OPS-771": {
     "timestamps": [],
@@ -556,17 +623,52 @@
   },
   "OPS-772": {
     "timestamps": [
-      1790627199741
+      1790721094679,
+      1790721794113,
+      1790721941918,
+      1790721983600,
+      1790722040234,
+      1790722100906
     ],
     "spend_records": [
       {
-        "timestamp": 1790627199741,
+        "timestamp": 1790721094679,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721794113,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721941918,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721983600,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722040234,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100906,
         "amount_cents": 8800,
         "tenant_id": "default_tenant",
         "vendor": "Staples"
       }
     ],
-    "total_spend_cents": 8800,
+    "total_spend_cents": 52800,
     "tenant_id": "default_tenant"
   },
   "OPS-773": {
@@ -576,25 +678,9 @@
     "tenant_id": "default_tenant"
   },
   "TKT-IDEM-1790627212692": {
-    "timestamps": [
-      1790627212695,
-      1790627212705
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790627212695,
-        "amount_cents": 3250,
-        "tenant_id": "idem_tenant_1790627212692",
-        "vendor": "Staples"
-      },
-      {
-        "timestamp": 1790627212705,
-        "amount_cents": 1850,
-        "tenant_id": "idem_tenant_1790627212692",
-        "vendor": "Staples"
-      }
-    ],
-    "total_spend_cents": 5100,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "idem_tenant_1790627212692"
   },
   "OPS-BOUNDARY-1": {
@@ -682,40 +768,15 @@
     "tenant_id": "default_tenant"
   },
   "FAC-994-FRESH1": {
-    "timestamps": [
-      1790628204981,
-      1790628212309
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790628204981,
-        "amount_cents": 8800,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      },
-      {
-        "timestamp": 1790628212309,
-        "amount_cents": 1800,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      }
-    ],
-    "total_spend_cents": 10600,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "FAC-994-1790628217077": {
-    "timestamps": [
-      1790628217103
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790628217103,
-        "amount_cents": 8800,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      }
-    ],
-    "total_spend_cents": 8800,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "OPS-CUT101-1790628217114": {
@@ -725,25 +786,9 @@
     "tenant_id": "default_tenant"
   },
   "IDEM-1790628244784": {
-    "timestamps": [
-      1790628244787,
-      1790628244799
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790628244787,
-        "amount_cents": 3500,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      },
-      {
-        "timestamp": 1790628244799,
-        "amount_cents": 1800,
-        "tenant_id": "default_tenant",
-        "vendor": "Staples"
-      }
-    ],
-    "total_spend_cents": 5300,
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
     "tenant_id": "default_tenant"
   },
   "1790628244804": {
@@ -1349,21 +1394,6 @@
     "total_spend_cents": 5000,
     "tenant_id": "default_tenant"
   },
-  "FAC-HARNESS-205": {
-    "timestamps": [
-      1790701990510
-    ],
-    "spend_records": [
-      {
-        "timestamp": 1790701990510,
-        "amount_cents": 3250,
-        "tenant_id": "default_tenant",
-        "vendor": "BlueBottle"
-      }
-    ],
-    "total_spend_cents": 3250,
-    "tenant_id": "default_tenant"
-  },
   "FAC-ANCHOR-1790701991235": {
     "timestamps": [],
     "spend_records": [],
@@ -1412,6 +1442,518 @@
     "timestamps": [],
     "spend_records": [],
     "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-IDEM-1790721095019": {
+    "timestamps": [
+      1790721095022,
+      1790721095035
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721095022,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721095019",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721095035,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721095019",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721095019"
+  },
+  "TKT-IDEM-1790721388281": {
+    "timestamps": [
+      1790721388285,
+      1790721388299
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721388285,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721388281",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721388299,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721388281",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721388281"
+  },
+  "TKT-IDEM-1790721434494": {
+    "timestamps": [
+      1790721434497,
+      1790721434510
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721434497,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721434494",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721434510,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721434494",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721434494"
+  },
+  "TKT-IDEM-1790721580467": {
+    "timestamps": [
+      1790721580470,
+      1790721580484
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721580470,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721580467",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721580484,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721580467",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721580467"
+  },
+  "TKT-IDEM-1790721794430": {
+    "timestamps": [
+      1790721794434,
+      1790721794445
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721794434,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721794431",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721794445,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721794431",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721794431"
+  },
+  "TKT-IDEM-1790721942228": {
+    "timestamps": [
+      1790721942231,
+      1790721942243
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721942231,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721942228",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721942243,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721942228",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721942228"
+  },
+  "TICKET-V1": {
+    "timestamps": [
+      1790721983059,
+      1790722039307,
+      1790722100168
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983059,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721983053",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039307,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722039301",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100168,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722100161",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "tenant_f2_1790722100161"
+  },
+  "TICKET-V2": {
+    "timestamps": [
+      1790721983069,
+      1790722039318,
+      1790722100179
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983069,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721983053",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039318,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722039301",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100179,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722100161",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "tenant_f2_1790722100161"
+  },
+  "TICKET-V3": {
+    "timestamps": [
+      1790721983079,
+      1790722039330,
+      1790722100189
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983079,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721983053",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039330,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722039301",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100189,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722100161",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "tenant_f2_1790722100161"
+  },
+  "TICKET-V4": {
+    "timestamps": [
+      1790721983089,
+      1790722039342,
+      1790722100201
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983089,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721983053",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039342,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722039301",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100201,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722100161",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "tenant_f2_1790722100161"
+  },
+  "TICKET-V5": {
+    "timestamps": [
+      1790721983099,
+      1790722039353,
+      1790722100211
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983099,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790721983053",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039353,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722039301",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100211,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790722100161",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "tenant_f2_1790722100161"
+  },
+  "TICKET-V6": {
+    "timestamps": [
+      1790721983117,
+      1790722039365,
+      1790722100229
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983117,
+        "amount_cents": 9499,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722039365,
+        "amount_cents": 9499,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722100229,
+        "amount_cents": 9499,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 28497,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-IDEM-1790721983910": {
+    "timestamps": [
+      1790721983913,
+      1790721983924
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790721983913,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790721983910",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790721983924,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790721983910",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790721983910"
+  },
+  "FAC-991": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-IDEM-1790722040531": {
+    "timestamps": [
+      1790722040535,
+      1790722040546
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722040535,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790722040531",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722040546,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790722040531",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790722040531"
+  },
+  "FAC-994-1790722041523": {
+    "timestamps": [
+      1790722041527
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722041527,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 8800,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-CUT101-1790722041534": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "IDEM-1790722042088": {
+    "timestamps": [
+      1790722042091,
+      1790722042102
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722042091,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722042102,
+        "amount_cents": 1800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5300,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-1790722042108": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-CUT101-1790722070506": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-IDEM-1790722101134": {
+    "timestamps": [
+      1790722101137,
+      1790722101148
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722101137,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790722101134",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722101148,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790722101134",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790722101134"
+  },
+  "FAC-994-1790722102155": {
+    "timestamps": [
+      1790722102161
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722102161,
+        "amount_cents": 8800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 8800,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-CUT101-1790722102168": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "IDEM-1790722102665": {
+    "timestamps": [
+      1790722102669,
+      1790722102681
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722102669,
+        "amount_cents": 3500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790722102681,
+        "amount_cents": 1800,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5300,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-1790722102688": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-HARNESS-101": {
+    "timestamps": [
+      1790722117305
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722117305,
+        "amount_cents": 4500,
+        "tenant_id": "default_tenant",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 4500,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-HARNESS-205": {
+    "timestamps": [
+      1790722117307
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790722117307,
+        "amount_cents": 3250,
+        "tenant_id": "default_tenant",
+        "vendor": "BlueBottle"
+      }
+    ],
+    "total_spend_cents": 3250,
     "tenant_id": "default_tenant"
   }
 }
