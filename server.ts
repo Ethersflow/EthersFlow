@@ -7267,6 +7267,21 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       finalReasonCodes.includes("MULTILINGUAL_INJECTION_DETECTED") ||
       finalReasonCodes.includes("PROMPT_INJECTION_OVERRIDE") ||
       finalReasonCodes.includes("FAST_PATH_INELIGIBLE_INTENT_SCREEN") ||
+      finalReasonCodes.includes("POLICY_INTERNALS_EXPOSURE") ||
+      finalReasonCodes.includes("SYSTEM_PROMPT_EXFILTRATION_RISK") ||
+      finalReasonCodes.includes("CONFIGURATION_LEAKAGE") ||
+      finalReasonCodes.includes("INFORMATION_DISCLOSURE_HAZARD") ||
+      finalReasonCodes.includes("OUTPUT_FIELD_EXFILTRATION_RISK") ||
+      finalReasonCodes.includes("SENSITIVE_DATA_EXPOSURE") ||
+      finalReasonCodes.includes("PERMISSION_GRANT_DIRECTIVE") ||
+      finalReasonCodes.includes("AUDIT_TRAIL_TAMPERING_DETECTED") ||
+      finalReasonCodes.includes("DEPENDENCY_METADATA_ABUSE") ||
+      finalReasonCodes.includes("TOOL_POISONING_DETECTED") ||
+      finalReasonCodes.includes("CROSS_DOMAIN_EGRESS_HAZARD") ||
+      finalReasonCodes.includes("SENSITIVE_DISCLOSURE_DETECTED") ||
+      finalReasonCodes.includes("DOMAIN_IMPERSONATION_DETECTED") ||
+      finalReasonCodes.includes("PROTOCOL_FIELD_STUFFING") ||
+      finalReasonCodes.includes("QUORUM_MANIPULATION_DETECTED") ||
       hasContradictionFloor ||
       hasInjectedAuthorityFloor;
 

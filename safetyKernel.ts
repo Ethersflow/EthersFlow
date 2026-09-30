@@ -801,12 +801,12 @@ export function resolveCounterpartyIdentity(
 
 export function extractCandidateVendorFromText(str: string): string | null {
   if (!str) return null;
-  const fromMatch = str.match(/\bfrom\s+(?:the\s+)?(?:approved\s+|authorized\s+|official\s+)?([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on)\b|[.,;]|$)/i);
+  const fromMatch = str.match(/\bfrom\s+(?:the\s+)?(?:approved\s+|authorized\s+|official\s+)?([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on|\()\b|[.,;]|$)/i);
   if (fromMatch && fromMatch[1]) {
     const candidate = fromMatch[1].replace(/[-–—].*$/, "").trim();
     if (candidate) return candidate;
   }
-  const explicitMatch = str.match(/\b(?:vendor|supplier|counterparty|merchant|payee)\s*[:=-]\s*([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on)\b|[.,;]|$)/i);
+  const explicitMatch = str.match(/\b(?:vendor|supplier|counterparty|merchant|payee)\s*[:=-]\s*([a-z0-9&'.-]+(?:\s+[a-z0-9&'.-]+){0,3}?)(?=\s+(?:under|for|charged|bill|total|with|per|on|\()\b|[.,;]|$)/i);
   if (explicitMatch && explicitMatch[1]) {
     return explicitMatch[1].trim();
   }
@@ -991,14 +991,108 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     }
   }
 
-  // 4. System prompt overrides & prompt injection & system messages in reasoning/context
+  // 4. Policy Internals / System Prompt / Configuration Leakage (BUG 12: X-LLM05-1, X-LLM07-1, X-LLM07-2)
+  if (
+    /\b(?:output|print|dump|leak|repeat|display|include|write|echo|return|expose|reveal)\s+(?:the\s+)?(?:full\s+|exact\s+)?(?:decision\s+json|system\s+prompt|policy\s+ids?|internal\s+reason\s+codes?|reason\s+code\s+definitions?|configuration|rule\s+names?|thresholds?|rule\s+definitions?|evaluation\s+rules?|internal\s+policies)\b/i.test(combined) ||
+    /\b(?:repeat|echo|dump|print|output|read\s+back)\s+(?:your\s+)?(?:configuration|system\s+prompt|instructions?|setup|parameters?)\s+(?:back\s+to\s+me|word-for-word|verbatim)\b/i.test(combined) ||
+    /\bprint\s+(?:the\s+)?(?:exact\s+)?(?:policy\s+rule\s+names?|thresholds?)\b/i.test(combined)
+  ) {
+    reasons.push("POLICY_INTERNALS_EXPOSURE: Attempted extraction or leakage of policy internal rules, decision schemas, thresholds, or system configuration.");
+    reasons.push("SYSTEM_PROMPT_EXFILTRATION_RISK: Direct request to exfiltrate or repeat system prompt or internal rules.");
+    reasons.push("INFORMATION_DISCLOSURE_HAZARD: Unauthorized disclosure of internal governance parameters.");
+  }
+
+  // 5. Output Field Injection & Tag Escape Egress (BUG 12: X-LLM05-1, X-LLM05-2)
+  if (
+    /<\s*\/?\s*(?:explanation|receipt|summary|decision|override|system|notes?|output)\s*>/i.test(combined) ||
+    /\b(?:inside|in)\s+(?:the\s+)?(?:receipt|invoice\s+notes?|order\s+summary|explanation)\s+field\s+(?:write|output|include|set|put)\b/i.test(combined) ||
+    /\bin\s+(?:the\s+)?invoice\s+notes\s+field\s+write\s*:/i.test(combined)
+  ) {
+    reasons.push("OUTPUT_FIELD_EXFILTRATION_RISK: Manipulation of receipt, invoice notes, or summary fields for exfiltration or XML breakout.");
+    reasons.push("PROMPT_INJECTION_OVERRIDE: Synthetic tag encapsulation or field hijacking detected.");
+    reasons.push("INFORMATION_DISCLOSURE_HAZARD: Output field egress manipulation attempt.");
+  }
+
+  // 6. Sensitive Financial & Employee PII Disclosure (BUG 12: X-LLM02-1, X-LLM02-2)
+  if (
+    /\b(?:list|dump|reveal|show|extract|include|print|output)\s+(?:every|all)?\s*(?:vendor\s+)?(?:bank\s+account\s+numbers?|routing\s+numbers?|contact\s+emails?|supplier\s+master\s+file|payroll\s+records?|employee\s+directory)\b/i.test(combined) ||
+    /\b(?:last\s+four\s+digits|payroll\s+accounts?|ssn|social\s+security\s+numbers?|bank\s+account\s+numbers?|credit\s+card\s+numbers?)\s+(?:of\s+every\s+employee|in\s+the\s+order\s+summary|for\s+the\s+auditor)\b/i.test(combined) ||
+    /\b(?:supplier\s+master\s+file|payroll\s+account)\b/i.test(combined)
+  ) {
+    reasons.push("SENSITIVE_DATA_EXPOSURE: Sensitive banking, payroll, supplier master, or employee PII extraction attempt.");
+    reasons.push("INFORMATION_DISCLOSURE_HAZARD: Bulk disclosure of internal financial/PII records.");
+  }
+
+  // 7. Permission Grant Directives (BUG 12: X-LLM06-1)
+  if (
+    /\b(?:grant|give|allow|assign|elevate|authorize)\s+(?:the\s+)?(?:vendor(?:'s)?\s+|api\s+key\s+|third-?party\s+)?(?:read\s+access|write\s+access|admin\s+access|permissions?|access\s+to\s+(?:the\s+)?(?:employee\s+directory|database|credentials?|secrets?|user\s+records?))\b/i.test(combined) ||
+    /\bgrant\s+(?:the\s+)?vendor(?:'s)?\s+api\s+key\s+read\s+access\b/i.test(combined)
+  ) {
+    reasons.push("PERMISSION_GRANT_DIRECTIVE: Unauthorized elevation or delegation of read/write access to vendor API key or external entity.");
+    reasons.push("INFORMATION_DISCLOSURE_HAZARD: Directory access grant to unauthorized external party.");
+  }
+
+  // 8. Audit Trail Tampering Directives (BUG 12: X-LLM06-2)
+  if (
+    /\b(?:delete|erase|clear|purge|remove|destroy|truncate|reset)\s+(?:the\s+)?(?:ticket|tickets|audit[-_\s]?logs?|audit\s+trail|transaction\s+history|event\s+log)\s+(?:and|so|then|to)\s+(?:create\s+a\s+fresh|starts?\s+clean|clean\s+audit|hide|cover)\b/i.test(combined) ||
+    /\bdelete\s+ticket\s+[a-z0-9_-]+\s+and\s+create\s+a\s+fresh\s+ticket\b/i.test(combined) ||
+    /\bso\s+the\s+audit\s+trail\s+starts\s+clean\b/i.test(combined)
+  ) {
+    reasons.push("AUDIT_TRAIL_TAMPERING_DETECTED: Instruction to delete, destroy, or reset tickets or audit logs to evade compliance oversight.");
+    reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Deletion of audit records or provenance artifacts.");
+  }
+
+  // 9. Dependency Metadata Abuse & Helper Exfil (BUG 11: AD-RL-01)
+  if (
+    (/\b(?:helper\s+changelog|package\s+changelog|changelog\s*:|helper\s+package|pinned\s+helper|dependency\s+metadata)\b/i.test(combined) &&
+    /\b(?:forwards?|sends?|exfil|telemetry|unapproved|untrusted|silently|vendor-cdn|\.ru|\.su|\.xyz)\b/i.test(combined)) ||
+    /\bsilently\s+forwards?\s+order\s+payloads?\b/i.test(combined) ||
+    /\btelemetry\.vendor-cdn\b/i.test(combined)
+  ) {
+    reasons.push("DEPENDENCY_METADATA_ABUSE: Dependency changelog or metadata reveals silent telemetry, payload forwarding, or exfiltration behavior.");
+    reasons.push("TOOL_POISONING_DETECTED: Pinned helper package or tool compromised by malicious behavior.");
+    reasons.push("SUPPLY_CHAIN_HAZARD_DETECTED: Malicious dependency metadata payload forwarding.");
+  }
+
+  // 10. Cross-Domain Egress & Confidential Notes Exfil (BUG 11: AD-TR-02)
+  if (
+    (/\b(?:look\s+up|read|access|check|extract|fetch|get)\s+(?:the\s+)?(?:cfo|ceo|executive|manager|hr|board)'?s?\s+(?:calendar|emails?|notes?|inbox|messages?)\b/i.test(combined) &&
+     /\b(?:layoff|confidential|secret|termination|salary|bonus|merger)\b/i.test(combined)) ||
+    (/\b(?:extract\s+(?:the\s+)?q4\s+layoff\s+list|confidential\s+note)\b/i.test(combined) && /\b(?:email\s+(?:it\s+)?to|send\s+(?:it\s+)?to)\b/i.test(combined))
+  ) {
+    reasons.push("CROSS_DOMAIN_EGRESS_HAZARD: Cross-domain pivot from executive calendar/confidential notes to outbound vendor communication.");
+    reasons.push("SENSITIVE_DISCLOSURE_DETECTED: Unauthorized extraction of confidential executive HR/corporate planning data.");
+    reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Outbound communication containing unauthorized internal corporate notes.");
+  }
+
+  // 11. Domain Impersonation & Typosquatting in Action Text (BUG 11: AD-ID-01)
+  if (
+    /\b(?:stap1es|0ffice-depot|amzn-procure|off1ce-depot|staples-support|micros0ft)\.com\b/i.test(combined) ||
+    (/\b(?:stap1es|0ffice-depot|amzn-procure)\b/i.test(combined)) ||
+    (/\b(?:verified\s+partner,\s+new\s+domain|real\s+.*?\s+portal\s+is\s+down|down\s+for\s+maintenance|temporary\s+domain|failover\s+domain)\b/i.test(combined) && /\b(?:domain|portal|site|url|com)\b/i.test(combined))
+  ) {
+    reasons.push("DOMAIN_IMPERSONATION_DETECTED: Domain impersonation, typosquatting domain, or fabricated maintenance excuse detected.");
+    reasons.push("TYPOSQUATTING_COUNTERPARTY_HAZARD: Unapproved lookalike counterparty domain.");
+  }
+
+  // 12. Protocol Field Stuffing & Quorum Manipulation (BUG 11: AD-PR-01)
+  if (
+    /\b(?:set\s+agent_count|agent_count\s+to\s+\d+|set\s+quorum|council\s+quorum\s+is\s+unanimous|quorum\s+manipulation|before\s+the\s+audit\s+freeze|audit\s+freeze\s+at)\b/i.test(combined) ||
+    (/\bset\s+agent_count\s+to\s+\d+\b/i.test(combined) && /\bquorum\b/i.test(combined))
+  ) {
+    reasons.push("PROTOCOL_FIELD_STUFFING: Manipulation of agent_count, quorum parameters, or deliberation timing to bypass controls.");
+    reasons.push("QUORUM_MANIPULATION_DETECTED: Instruction aiming to force unanimous deliberation before audit freeze.");
+    reasons.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN: Protocol manipulation disqualifies fast-path.");
+  }
+
+  // 13. System prompt overrides & prompt injection & system messages in reasoning/context
   if (
     /\b(system\s+notice|system\s+message|system\s+directive|developer\s+mode|important\s+system\s+override|system\s+override|ignore\s+all\s+previous\s+safety\s+rules|ignore\s+previous\s+instructions|disregard\s+(?:all\s+)?prior\s+instructions)\b/i.test(combined)
   ) {
     reasons.push("PROMPT_INJECTION_OVERRIDE: Directive contains prompt injection, injected system message, or system override tokens.");
   }
 
-  // 5. Injected tool poisoning quotes & fake tool descriptions / catalogs
+  // 14. Injected tool poisoning quotes & fake tool descriptions / catalogs
   if (
     /\b(tool_call:|\[tool_use\]|<tool_call>|<\/tool_call>|<tool_description>|<\/tool_description>|quoted\s+tool\s+descriptions?|tool-poisoning|poisoned\s+tool|execute_command|call\s+this\s+tool|follow\s+the\s+tool\s+description|tool\s+catalog|description\s*=|fs_delete)\b/i.test(combined) ||
     (/\b(tool_call|tool_use|function_call|tool\s+catalog|tool\s+description)\b/i.test(combined) && /\b(disable|override|exfil|dump|admin|secret|attacker|bypass|delete|suppress|pre-?approved)\b/i.test(combined)) ||
@@ -1007,12 +1101,12 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("INJECTED_TOOL_POISONING: Quoted tool execution pattern, fake tool catalog, or poisoned tool description attempting to hijack policy boundaries.");
   }
 
-  // 6. Credential exfiltration & external surface hazards
+  // 15. Credential exfiltration & external surface hazards
   if (detectCredentialExfiltrationIntent(action, context, reasoning)) {
     reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Sensitive credential or invoice data noun combined with external recipient surface or exfil directive.");
   }
 
-  // 7. Injected authority claims & unanchored pre-approval assertions
+  // 16. Injected authority claims & unanchored pre-approval assertions
   if (
     /\b(pre-?approved\s+by\s+(administrator|admin|root|management|supervisor|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|skip\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks)\b/i.test(combined) ||
     (/\bpre-?approved\b/i.test(combined) && /\b(without\s+checks|skip\s+checks|bypass\s+checks|override\s+checks|suppress\s+checks|suppresses\s+compliance|marks\s+all)\b/i.test(combined))
@@ -1020,7 +1114,7 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("INJECTED_AUTHORITY_HAZARD: Claim of pre-approval attempting to bypass verification.");
   }
 
-  // 8. Destructive directives
+  // 17. Destructive directives
   if (/\b(delete\s+from\s+production|kubectl\s+delete|drop\s+table|truncate\s+table|rm\s+-rf)\b/i.test(combined)) {
     reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Unbounded destructive infrastructure or data mutation command.");
   }
@@ -1738,6 +1832,40 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
       } else if (r.startsWith("MULTILINGUAL_INJECTION")) {
         reasonCodes.push("MULTILINGUAL_INJECTION_DETECTED");
         reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
+      } else if (r.startsWith("POLICY_INTERNALS") || r.startsWith("SYSTEM_PROMPT") || r.startsWith("CONFIGURATION")) {
+        reasonCodes.push("POLICY_INTERNALS_EXPOSURE");
+        reasonCodes.push("SYSTEM_PROMPT_EXFILTRATION_RISK");
+        reasonCodes.push("CONFIGURATION_LEAKAGE");
+        reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");
+      } else if (r.startsWith("OUTPUT_FIELD")) {
+        reasonCodes.push("OUTPUT_FIELD_EXFILTRATION_RISK");
+        reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
+        reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");
+      } else if (r.startsWith("SENSITIVE_DATA")) {
+        reasonCodes.push("SENSITIVE_DATA_EXPOSURE");
+        reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");
+      } else if (r.startsWith("PERMISSION_GRANT")) {
+        reasonCodes.push("PERMISSION_GRANT_DIRECTIVE");
+        reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");
+      } else if (r.startsWith("AUDIT_TRAIL")) {
+        reasonCodes.push("AUDIT_TRAIL_TAMPERING_DETECTED");
+        reasonCodes.push("DESTRUCTIVE_COMMAND_HAZARD");
+      } else if (r.startsWith("DEPENDENCY_METADATA")) {
+        reasonCodes.push("DEPENDENCY_METADATA_ABUSE");
+        reasonCodes.push("TOOL_POISONING_DETECTED");
+        reasonCodes.push("SUPPLY_CHAIN_HAZARD_DETECTED");
+      } else if (r.startsWith("CROSS_DOMAIN")) {
+        reasonCodes.push("CROSS_DOMAIN_EGRESS_HAZARD");
+        reasonCodes.push("SENSITIVE_DISCLOSURE_DETECTED");
+        reasonCodes.push("CREDENTIAL_EXFILTRATION_RISK");
+      } else if (r.startsWith("DOMAIN_IMPERSONATION")) {
+        reasonCodes.push("DOMAIN_IMPERSONATION_DETECTED");
+        reasonCodes.push("TYPOSQUATTING_COUNTERPARTY_HAZARD");
+        reasonCodes.push("IDENTITY_SUSPECTED_IMPERSONATION");
+      } else if (r.startsWith("PROTOCOL_FIELD")) {
+        reasonCodes.push("PROTOCOL_FIELD_STUFFING");
+        reasonCodes.push("QUORUM_MANIPULATION_DETECTED");
+        reasonCodes.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN");
       } else if (r.startsWith("SUPPLY_CHAIN")) {
         reasonCodes.push("SUPPLY_CHAIN_HAZARD_DETECTED");
         reasonCodes.push("UNVETTED_PACKAGE_DEPENDENCY");
