@@ -58,11 +58,21 @@ try {
 
 console.log("[Server] Booting EthersFlow Backend...");
 
-// Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.8";
-const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
-const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
-const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
+// Sovereign Release Metadata (Dynamic Revision & Deployment Binding from package.json)
+let pkgVersion = "0.2.8";
+try {
+  const pkgPath = path.resolve(process.cwd(), "package.json");
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+    if (pkg.version) pkgVersion = pkg.version;
+  }
+} catch (e) {
+  console.warn("[Server] Dynamic package.json version resolution fallback:", e);
+}
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || pkgVersion || "0.2.8";
+const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00169-rl1";
+const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
+const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -414,7 +424,7 @@ const rateLimiter = (limit: number, windowMs: number) => {
 
 async function startServer() {
   const app = express();
-  const PORT = 3000;
+  const PORT = parseInt(process.env.PORT || "3000", 10);
 
   // 1. Core Middlewares (REQUIRED FIRST for Preflights and Stability)
   app.use(cors());
@@ -7251,6 +7261,12 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       finalReasonCodes.includes("TRANSACTION_STRUCTURING_DETECTED") ||
       finalReasonCodes.includes("AGGREGATE_SPEND_CAP_EXCEEDED") ||
       finalReasonCodes.includes("MULTI_TICKET_STRUCTURING_DETECTED") ||
+      finalReasonCodes.includes("SUPPLY_CHAIN_HAZARD_DETECTED") ||
+      finalReasonCodes.includes("UNVETTED_PACKAGE_DEPENDENCY") ||
+      finalReasonCodes.includes("PACKAGE_SECURITY_RISK") ||
+      finalReasonCodes.includes("MULTILINGUAL_INJECTION_DETECTED") ||
+      finalReasonCodes.includes("PROMPT_INJECTION_OVERRIDE") ||
+      finalReasonCodes.includes("FAST_PATH_INELIGIBLE_INTENT_SCREEN") ||
       hasContradictionFloor ||
       hasInjectedAuthorityFloor;
 
@@ -7268,7 +7284,8 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       !hasInjectedAuthority &&
       !hasContradictionFloor &&
       !hasInjectedAuthorityFloor &&
-      !/\b(drop\s+table|delete\s+from|rm\s+-rf|truncate\s+table|soc\s*2\s*type\s*(ii|2))\b/i.test(textCombined);
+      !/\b(drop\s+table|delete\s+from|rm\s+-rf|truncate\s+table|soc\s*2\s*type\s*(ii|2))\b/i.test(textCombined) &&
+      !/\b(use\s+package|install\s+package|npm\s+install|pip\s+install|cargo\s+install|published\s+\d+\s*(?:h|hr|hours?|m|min|mins|minutes?|d|days?|seconds?|s)\s+ago|no\s+maintainer|unmaintained|unvetted|unverified\s+package)\b/i.test(textCombined);
 
     const isIdentityGroundedVerified = 
       evalResult.anchor_checklist?.counterparty_verified === true &&

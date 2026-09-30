@@ -3446,5 +3446,300 @@
     "spend_records": [],
     "total_spend_cents": 0,
     "tenant_id": "default_tenant"
+  },
+  "FAC-712-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-713-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-101-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-102-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-103-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-714-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-715-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-901-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-402-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-5502-1790743316081": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-901-1790743322127": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-5501-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-901-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-402-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-5502-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-901-1790743329088-POISON": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-402-1790743329088-POISON": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-5502-1790743329088-POISON": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-7701-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-8801-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-9901-1790743329088": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "FAC-994-1790743335609": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-CUT101-1790743335623": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "IDEM-1790743336519": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-1790743336543": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-142-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TICKET-V1-1790743336986": {
+    "timestamps": [
+      1790743337507
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743337507,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790743337504",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 9499,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "TICKET-V2-1790743336986": {
+    "timestamps": [
+      1790743337519
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743337519,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790743337504",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 9499,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "TICKET-V3-1790743336986": {
+    "timestamps": [
+      1790743337529
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743337529,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790743337504",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 9499,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "TICKET-V4-1790743336986": {
+    "timestamps": [
+      1790743337539
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743337539,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790743337504",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 9499,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "TICKET-V5-1790743336986": {
+    "timestamps": [
+      1790743337550
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743337550,
+        "amount_cents": 9499,
+        "tenant_id": "tenant_f2_1790743337504",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 9499,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "TICKET-V6-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "tenant_f2_1790743337504"
+  },
+  "OPS-771-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-772-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-773-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "TKT-IDEM-1790743338440": {
+    "timestamps": [
+      1790743338444,
+      1790743338459
+    ],
+    "spend_records": [
+      {
+        "timestamp": 1790743338444,
+        "amount_cents": 3250,
+        "tenant_id": "idem_tenant_1790743338440",
+        "vendor": "Staples"
+      },
+      {
+        "timestamp": 1790743338459,
+        "amount_cents": 1850,
+        "tenant_id": "idem_tenant_1790743338440",
+        "vendor": "Staples"
+      }
+    ],
+    "total_spend_cents": 5100,
+    "tenant_id": "idem_tenant_1790743338440"
+  },
+  "OPS-BOUNDARY-1-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-BOUNDARY-2-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
+  },
+  "OPS-BOUNDARY-3-1790743336986": {
+    "timestamps": [],
+    "spend_records": [],
+    "total_spend_cents": 0,
+    "tenant_id": "default_tenant"
   }
 }

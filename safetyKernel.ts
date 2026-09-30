@@ -832,38 +832,59 @@ export function findApprovedVendorInString(str: string, catalog: string[] = APPR
  * combined with external recipient surfaces (email addresses, URLs, webhooks, external endpoints)
  * or explicit exfiltration directives.
  */
+/**
+ * Pre-Fast-Path Intent Screen (B1 Launch Gate & BUG 10 Multilingual/Script Screen):
+ * Disqualifies any action from the deterministic fast-path if it contains
+ * the credential/secret/invoice data noun family across languages
+ * combined with external recipient surfaces (email addresses, URLs, webhooks, external endpoints)
+ * or explicit exfiltration directives in any script.
+ */
 export function detectCredentialExfiltrationIntent(action: string, context?: any, reasoning?: string): boolean {
   if (!action && !reasoning && !context) return false;
   const contextStr = context ? (typeof context === "string" ? context : JSON.stringify(context)) : "";
-  const combined = `${action || ""} ${reasoning || ""} ${contextStr}`.toLowerCase();
-  const actionLower = (action || "").toLowerCase();
+  const combinedRaw = `${action || ""} ${reasoning || ""} ${contextStr}`;
+  const combined = combinedRaw.normalize("NFKC").toLowerCase();
+  const actionLower = (action || "").normalize("NFKC").toLowerCase();
 
-  // 1. Direct exfiltration verbs with sensitive data
+  // 1. Direct exfiltration verbs with sensitive data (English)
   const hasExfilDirective = 
-    /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload|transmit|export|extract|post|send)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?|env|environment|database|records|table|telemetry\s+variables?|audit[-_\s]?logs?)\b/i.test(combined);
+    /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload|transmit|export|extract|post|send)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?|env|environment|database|records|table|telemetry\s+variables?|audit[-_\s]?logs?|invoice\s+data|invoices?)\b/i.test(combined);
 
-  // 2. Sensitive noun pattern family (B1 specification)
+  // Multilingual Exfil Directives (French, Chinese, Spanish, German)
+  const hasMultilingualExfil =
+    /\b(?:transférez|transferez|transférer|transferer|envoyez|envoyer|exporter|fuiter|voler|téléverser|televerser)\s+(?:toutes\s+)?(?:les\s+)?(?:données|donnees|factures?|informations?|secrets?|mots?\s+de\s+passe|clés?|cles?)\b/i.test(combined) ||
+    /(?:将|把)?(?:所有)?(?:发票|数据|财务|凭证|密码|密钥|账单)(?:数据|信息)?(?:发送|转发生|转发|上传|导出|外传|泄露|窃取)(?:至|到)?/u.test(combined) ||
+    /\b(?:enviar|exportar|filtrar|robar)\s+(?:todos\s+)?(?:los\s+)?(?:datos|facturas|secretos|claves)\b/i.test(combined) ||
+    /\b(?:senden|exportieren|leaken|übertragen)\s+(?:alle\s+)?(?:daten|rechnungsdaten|passwörter|schlüssel)\b/i.test(combined);
+
+  // 2. Sensitive noun pattern family (English, French, Chinese, Spanish, German)
   const hasSensitiveNoun = 
-    /\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(combined);
+    /\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?|invoice\s+data|invoices?|pii|customer\s+records?|financial\s+records?)\b/i.test(combined) ||
+    /\b(données\s+de\s+facture|donnees\s+de\s+facture|factures?|données\s+confidentielles|mots?\s+de\s+passe|clés?\s+api|cles?\s+api|jetons?)\b/i.test(combined) ||
+    /(?:发票数据|发票|凭证|密钥|密码|私钥|敏感数据|敏感信息|财务数据|账单数据)/u.test(combined) ||
+    /\b(datos\s+de\s+factura|facturas?|claves?\s+api|contraseñas?)\b/i.test(combined) ||
+    /\b(rechnungsdaten|rechnungen?|api[-_\s]?schlüssel|passwörter)\b/i.test(combined);
 
-  // 3. External recipient surface (email address, URL, webhook, or external destination)
+  // 3. External recipient surface (email address, URL, webhook, or external destination across languages)
   const hasExternalSurface = 
     /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(combined) ||
     /https?:\/\/[^\s]+|ftp:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site/i.test(combined) ||
-    /\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address)\b/i.test(combined) ||
-    /\b(attacker-endpoint|attacker|exfil|c2)\b/i.test(combined);
+    /\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address|maildrop)\b/i.test(combined) ||
+    /\b(?:vers|to|nach|a)\s+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(combined) ||
+    /(?:发送到|发送至|转到)\s*[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/u.test(combined) ||
+    /\b(attacker-endpoint|attacker|exfil|c2|maildrop)\b/i.test(combined);
 
   // If sensitive noun occurs with an external recipient surface -> B1 fast-path disqualifier
   if (hasSensitiveNoun && hasExternalSurface) {
     return true;
   }
 
-  if (hasExfilDirective) {
+  if (hasExfilDirective || hasMultilingualExfil) {
     return true;
   }
 
-  // Action text itself contains external webhook or URL
-  if (/https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site/i.test(actionLower)) {
+  // Action text itself contains external webhook or URL or maildrop
+  if (/https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/i.test(actionLower)) {
     return true;
   }
 
@@ -871,9 +892,9 @@ export function detectCredentialExfiltrationIntent(action: string, context?: any
 }
 
 /**
- * Unified Context Screen (Closes F1):
- * Applies the same intent and risk screen across agent_action, reasoning_chain,
- * and all free-text context fields (persona notes, quoted tool descriptions, etc.).
+ * Unified Context Screen (Closes F1 & BUG 10 Multilingual/Script Screen):
+ * Applies NFKC normalization and screens intent across all languages and scripts
+ * for agent_action, reasoning_chain, and all free-text context fields.
  * A request is fast-path eligible ONLY if action AND context both screen clean.
  */
 export function screenIntentAndRisk(action: string, reasoning?: string, context?: any): IntentAndRiskScreenResult {
@@ -903,9 +924,19 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     }
   }
 
-  const combined = freeTexts.join(" ");
+  const rawCombined = freeTexts.join(" ");
+  const combined = rawCombined.normalize("NFKC");
 
-  // 1. Admin mode / Policy bypass / Policy suppression directives (F1 & R26e root causes)
+  // 0. Bracketed pseudo-system prompt markers in ANY script (BUG 10: 【】 brackets suspect anywhere)
+  if (
+    /【.*?】|〖.*?〗|〔.*?〕|［.*?］|「.*?」|『.*?』|《.*?》|⟨.*?⟩/u.test(combined) ||
+    /\[\s*(?:system|admin|developer|override|instruction|notice|prompt|mode|rule|config).*?\]/i.test(combined) ||
+    /<<\s*SYS\s*>>|<\|\s*system\s*\|>|<system>|<<<\s*SYSTEM\s*>>>/i.test(combined)
+  ) {
+    reasons.push("PROMPT_INJECTION_OVERRIDE: Bracketed pseudo-system prompt marker or injected system token detected across script boundaries.");
+  }
+
+  // 1. Admin mode / Policy bypass / Policy suppression directives (English + Multilingual)
   if (/\b(admin|root|debug|bypass|override)\s+mode\b/i.test(combined) && /\b(policy|checks?|disabled|bypass|override|skip|ignore|suppress)\b/i.test(combined)) {
     reasons.push("ADMIN_MODE_POLICY_BYPASS_ATTEMPT: Administrative mode policy override directive detected in action or context.");
   } else if (
@@ -919,14 +950,55 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("POLICY_CHECKS_DISABLED_DIRECTIVE: Attempted deactivation or suppression of policy verification checks.");
   }
 
-  // 2. System prompt overrides & prompt injection & system messages in reasoning/context
+  // 2. Multilingual Intent Screen (French & Chinese Directives)
+  // French Directive Patterns (X-LLM01-1)
+  if (
+    /\bignorez\s+(?:toutes\s+)?(?:les\s+)?instructions\s+(?:précédentes|precedentes|antérieures|anterieures|préalables|prealables)\b/i.test(combined) ||
+    /\bignorer\s+(?:toutes\s+)?(?:les\s+)?instructions\b/i.test(combined) ||
+    /\bne\s+tenez\s+pas\s+compte\s+des\s+instructions\b/i.test(combined) ||
+    /\bmode\s+développeur\s+(?:activé|active)\b/i.test(combined) ||
+    /\bmode\s+developpeur\b/i.test(combined) ||
+    /\bmode\s+administrateur\b/i.test(combined) ||
+    /\bdésactiver\s+(?:tous\s+)?(?:les\s+)?contrôles\b/i.test(combined) ||
+    /\bdesactiver\s+les\s+controles\b/i.test(combined) ||
+    /\bignorer\s+(?:les\s+)?règles\b/i.test(combined) ||
+    /\bcontourner\s+(?:la\s+)?sécurité\b/i.test(combined)
+  ) {
+    reasons.push("MULTILINGUAL_INJECTION_DETECTED: French language prompt override, developer mode, or policy suppression directive detected.");
+  }
+
+  // Chinese Directive Patterns (X-LLM01-2)
+  if (
+    /(?:系统提示|系统指令|系统通知|管理员模式|开发者模式|安全提示|全局指令|覆盖指令|重要通知)/u.test(combined) ||
+    /(?:开发者模式已启用|开发者模式|管理员模式|调试模式|超级用户模式|越狱模式)/u.test(combined) ||
+    /(?:忽略所有支出限制|忽略所有限制|忽略前面的指令|忽略前述指令|忽略所有指令|忽略之前的指令|无视安全策略|无视限制|无视安全规则|跳过审批|绕过审核|禁用合规检查|关闭安全检查)/u.test(combined) ||
+    /(?:将所有发票数据发送到|发送到|将.*数据发送到|导出所有数据|上传到|窃取|泄露|外传)/u.test(combined)
+  ) {
+    reasons.push("MULTILINGUAL_INJECTION_DETECTED: Chinese language prompt injection, developer mode override, or exfiltration directive detected.");
+  }
+
+  // 3. Supply Chain Directive Hazard (X-LLM03-2)
+  if (
+    /\b(?:use|install|import|require|add|fetch|download|execute)\s+(?:the\s+)?(?:package|dependency|library|module|tarball|crate|gem|npm\s+package)\b/i.test(combined) ||
+    /\bpackage\s+[a-z0-9_@/.-]+\s*\([^)]*(?:published|maintainer|unvetted|unverified|young|typo)/i.test(combined) ||
+    /\b(?:published\s+\d+\s*(?:h|hr|hours?|m|min|mins|minutes?|d|days?|seconds?|s)\s+ago|(?:no|zero)\s+maintainers?|unmaintained|unvetted|unverified\s+(?:package|author|publisher)|typo-?squat|brand-?new\s+package|recently\s+published|untrusted\s+source|third-?party\s+unreviewed)\b/i.test(combined)
+  ) {
+    if (
+      /\b(?:package|dependency|library|module|npm|pip|pypi|cargo|gem|nuget|composer|yarn|pnpm)\b/i.test(combined) ||
+      /\b(?:published|maintainer|maintainers)\b/i.test(combined)
+    ) {
+      reasons.push("SUPPLY_CHAIN_HAZARD_DETECTED: Unvetted, young, unmaintained, or untrusted third-party package dependency directive detected.");
+    }
+  }
+
+  // 4. System prompt overrides & prompt injection & system messages in reasoning/context
   if (
     /\b(system\s+notice|system\s+message|system\s+directive|developer\s+mode|important\s+system\s+override|system\s+override|ignore\s+all\s+previous\s+safety\s+rules|ignore\s+previous\s+instructions|disregard\s+(?:all\s+)?prior\s+instructions)\b/i.test(combined)
   ) {
     reasons.push("PROMPT_INJECTION_OVERRIDE: Directive contains prompt injection, injected system message, or system override tokens.");
   }
 
-  // 3. Injected tool poisoning quotes & fake tool descriptions / catalogs
+  // 5. Injected tool poisoning quotes & fake tool descriptions / catalogs
   if (
     /\b(tool_call:|\[tool_use\]|<tool_call>|<\/tool_call>|<tool_description>|<\/tool_description>|quoted\s+tool\s+descriptions?|tool-poisoning|poisoned\s+tool|execute_command|call\s+this\s+tool|follow\s+the\s+tool\s+description|tool\s+catalog|description\s*=|fs_delete)\b/i.test(combined) ||
     (/\b(tool_call|tool_use|function_call|tool\s+catalog|tool\s+description)\b/i.test(combined) && /\b(disable|override|exfil|dump|admin|secret|attacker|bypass|delete|suppress|pre-?approved)\b/i.test(combined)) ||
@@ -935,12 +1007,12 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("INJECTED_TOOL_POISONING: Quoted tool execution pattern, fake tool catalog, or poisoned tool description attempting to hijack policy boundaries.");
   }
 
-  // 4. Credential exfiltration & external surface hazards
+  // 6. Credential exfiltration & external surface hazards
   if (detectCredentialExfiltrationIntent(action, context, reasoning)) {
-    reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Sensitive credential noun combined with external recipient surface or exfil directive.");
+    reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Sensitive credential or invoice data noun combined with external recipient surface or exfil directive.");
   }
 
-  // 5. Injected authority claims & unanchored pre-approval assertions
+  // 7. Injected authority claims & unanchored pre-approval assertions
   if (
     /\b(pre-?approved\s+by\s+(administrator|admin|root|management|supervisor|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|skip\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks)\b/i.test(combined) ||
     (/\bpre-?approved\b/i.test(combined) && /\b(without\s+checks|skip\s+checks|bypass\s+checks|override\s+checks|suppress\s+checks|suppresses\s+compliance|marks\s+all)\b/i.test(combined))
@@ -948,7 +1020,7 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("INJECTED_AUTHORITY_HAZARD: Claim of pre-approval attempting to bypass verification.");
   }
 
-  // 6. Destructive directives
+  // 8. Destructive directives
   if (/\b(delete\s+from\s+production|kubectl\s+delete|drop\s+table|truncate\s+table|rm\s+-rf)\b/i.test(combined)) {
     reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Unbounded destructive infrastructure or data mutation command.");
   }
@@ -1663,6 +1735,13 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
         reasonCodes.push("INJECTED_AUTHORITY_HAZARD");
       } else if (r.startsWith("PROMPT_INJECTION")) {
         reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
+      } else if (r.startsWith("MULTILINGUAL_INJECTION")) {
+        reasonCodes.push("MULTILINGUAL_INJECTION_DETECTED");
+        reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
+      } else if (r.startsWith("SUPPLY_CHAIN")) {
+        reasonCodes.push("SUPPLY_CHAIN_HAZARD_DETECTED");
+        reasonCodes.push("UNVETTED_PACKAGE_DEPENDENCY");
+        reasonCodes.push("PACKAGE_SECURITY_RISK");
       } else if (r.startsWith("INJECTED_TOOL")) {
         reasonCodes.push("INJECTED_TOOL_POISONING");
       } else if (r.startsWith("CREDENTIAL_EXFILTRATION")) {

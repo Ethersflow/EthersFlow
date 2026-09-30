@@ -29,6 +29,10 @@ ENV PORT=8080
 # Copy built artifacts and configuration
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/server.json ./server.json
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/mcp-server ./mcp-server
+COPY --from=builder /app/data ./data
 
 # Clean package-lock in final image and install production dependencies only
 RUN rm -f package-lock.json
