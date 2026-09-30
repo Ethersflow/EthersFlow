@@ -8812,5 +8812,53 @@
     "executed": false,
     "executed_at": null,
     "execution_id": null
+  },
+  "req_e1ed9e73c6f6310b": {
+    "receipt_id": "req_e1ed9e73c6f6310b",
+    "operation_hash": "67eab924c4fea82e874c412411329c09291a1f97c5cc5d6efe3d87cb9305ad34",
+    "action_preview": "Order $42 of notebooks from Staples under ticket FAC-901-1790738253998.",
+    "verdict": "APPROVED",
+    "issued_at": "2026-09-30T03:17:34.490Z",
+    "issued_at_ms": 1790738254490,
+    "expires_at": "2026-09-30T03:22:34.490Z",
+    "expires_at_ms": 1790738554490,
+    "ttl_seconds": 300,
+    "idempotency_key": "idem_req_e1ed9e73c6f6310b",
+    "status": "PENDING_EXECUTION",
+    "executed": false,
+    "executed_at": null,
+    "execution_id": null
+  },
+  "req_db2039770fcebac4": {
+    "receipt_id": "req_db2039770fcebac4",
+    "operation_hash": "fb8c0649c5662d74709a5074afdf7938aee7d642cc8bea5a94d7ee62721b67b8",
+    "action_preview": "Order $58 of printer toner from Staples under ticket OPS-402-1790738253998.",
+    "verdict": "APPROVED",
+    "issued_at": "2026-09-30T03:17:34.511Z",
+    "issued_at_ms": 1790738254511,
+    "expires_at": "2026-09-30T03:22:34.511Z",
+    "expires_at_ms": 1790738554511,
+    "ttl_seconds": 300,
+    "idempotency_key": "idem_req_db2039770fcebac4",
+    "status": "PENDING_EXECUTION",
+    "executed": false,
+    "executed_at": null,
+    "execution_id": null
+  },
+  "req_01c3ea6a1ac5a8b0": {
+    "receipt_id": "req_01c3ea6a1ac5a8b0",
+    "operation_hash": "8099be3f24939c61bf4de51cf57fb9e064fa6dd5805dcf93a1c38712f2d9e796",
+    "action_preview": "Order $80 of server cables from Staples under ticket OPS-5502-1790738253998.",
+    "verdict": "APPROVED",
+    "issued_at": "2026-09-30T03:17:34.521Z",
+    "issued_at_ms": 1790738254522,
+    "expires_at": "2026-09-30T03:22:34.522Z",
+    "expires_at_ms": 1790738554522,
+    "ttl_seconds": 300,
+    "idempotency_key": "idem_req_01c3ea6a1ac5a8b0",
+    "status": "PENDING_EXECUTION",
+    "executed": false,
+    "executed_at": null,
+    "execution_id": null
   }
 }
