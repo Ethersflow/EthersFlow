@@ -90,10 +90,10 @@ async function run() {
     }
   });
   const mcpVersion = initRes.body?.result?.serverInfo?.version;
-  assert(mcpVersion === "0.2.6", `MCP initialize returns version oracle '0.2.6' (got: '${mcpVersion}')`);
+  assert(mcpVersion === "0.2.8", `MCP initialize returns version oracle '0.2.8' (got: '${mcpVersion}')`);
 
   const healthRes = await get("/api/health");
-  assert(healthRes.body?.version === "0.2.6", `Gateway health returns version '0.2.6' (got: '${healthRes.body?.version}')`);
+  assert(healthRes.body?.version === "0.2.8", `Gateway health returns version '0.2.8' (got: '${healthRes.body?.version}')`);
 
   // BUG 1 & BUG 2 Self-Tests:
   // Fresh ticket, $0 prior spend -> spend_capped:false, call fast-approves

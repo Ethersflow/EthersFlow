@@ -2,5 +2,5 @@
 
 from .client import EthersFlowClient, EthersFlowLangChainTool
 
-__version__ = "0.2.6"
+__version__ = "0.2.8"
 __all__ = ["EthersFlowClient", "EthersFlowLangChainTool", "__version__"]

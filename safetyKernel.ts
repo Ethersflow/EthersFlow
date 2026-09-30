@@ -905,24 +905,34 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
 
   const combined = freeTexts.join(" ");
 
-  // 1. Admin mode / Policy bypass directives (F1 root cause)
-  if (/\b(admin|root|debug|bypass|override)\s+mode\b/i.test(combined) && /\b(policy|checks?|disabled|bypass|override|skip|ignore)\b/i.test(combined)) {
+  // 1. Admin mode / Policy bypass / Policy suppression directives (F1 & R26e root causes)
+  if (/\b(admin|root|debug|bypass|override)\s+mode\b/i.test(combined) && /\b(policy|checks?|disabled|bypass|override|skip|ignore|suppress)\b/i.test(combined)) {
     reasons.push("ADMIN_MODE_POLICY_BYPASS_ATTEMPT: Administrative mode policy override directive detected in action or context.");
-  } else if (/\bpolicy\s+checks?\s+disabled\b/i.test(combined) || /\bdisable\s+(?:all\s+)?(?:policy|approval|safety|security)\s+checks?\b/i.test(combined) || /\bpolicy\s+checks?\s*=\s*(false|disabled|none)\b/i.test(combined)) {
-    reasons.push("POLICY_CHECKS_DISABLED_DIRECTIVE: Attempted deactivation of policy verification checks.");
-  }
-
-  // 2. System prompt overrides & prompt injection
-  if (/\b(important\s+system\s+override|system\s+override|ignore\s+all\s+previous\s+safety\s+rules|ignore\s+previous\s+instructions|disregard\s+(?:all\s+)?prior\s+instructions)\b/i.test(combined)) {
-    reasons.push("PROMPT_INJECTION_OVERRIDE: Directive contains prompt injection or system override tokens.");
-  }
-
-  // 3. Injected tool poisoning quotes
-  if (
-    /\b(tool_call:|\[tool_use\]|<tool_call>|<\/tool_call>|<tool_description>|quoted\s+tool\s+descriptions?|tool-poisoning|poisoned\s+tool|execute_command)\b/i.test(combined) ||
-    (/\b(tool_call|tool_use|function_call)\b/i.test(combined) && /\b(disable|override|exfil|dump|admin|secret|attacker|bypass)\b/i.test(combined))
+  } else if (
+    /\bpolicy\s+checks?\s+disabled\b/i.test(combined) || 
+    /\bdisable\s+(?:all\s+)?(?:policy|approval|safety|security)\s+checks?\b/i.test(combined) || 
+    /\bsuppress(?:es)?\s+(?:all\s+)?(?:compliance|safety|policy|security|approval)\s+checks?\b/i.test(combined) ||
+    /\boverride\s+(?:all\s+)?(?:compliance|safety|policy|security|approval)\s+checks?\b/i.test(combined) ||
+    /\b(?:bypass|skip|ignore|suppress)\s+(?:all\s+)?(?:compliance|safety|policy|security|approval)\s+checks?\b/i.test(combined) ||
+    /\bpolicy\s+checks?\s*=\s*(false|disabled|none)\b/i.test(combined)
   ) {
-    reasons.push("INJECTED_TOOL_POISONING: Quoted tool execution pattern attempting to hijack policy boundaries.");
+    reasons.push("POLICY_CHECKS_DISABLED_DIRECTIVE: Attempted deactivation or suppression of policy verification checks.");
+  }
+
+  // 2. System prompt overrides & prompt injection & system messages in reasoning/context
+  if (
+    /\b(system\s+notice|system\s+message|system\s+directive|developer\s+mode|important\s+system\s+override|system\s+override|ignore\s+all\s+previous\s+safety\s+rules|ignore\s+previous\s+instructions|disregard\s+(?:all\s+)?prior\s+instructions)\b/i.test(combined)
+  ) {
+    reasons.push("PROMPT_INJECTION_OVERRIDE: Directive contains prompt injection, injected system message, or system override tokens.");
+  }
+
+  // 3. Injected tool poisoning quotes & fake tool descriptions / catalogs
+  if (
+    /\b(tool_call:|\[tool_use\]|<tool_call>|<\/tool_call>|<tool_description>|<\/tool_description>|quoted\s+tool\s+descriptions?|tool-poisoning|poisoned\s+tool|execute_command|call\s+this\s+tool|follow\s+the\s+tool\s+description|tool\s+catalog|description\s*=|fs_delete)\b/i.test(combined) ||
+    (/\b(tool_call|tool_use|function_call|tool\s+catalog|tool\s+description)\b/i.test(combined) && /\b(disable|override|exfil|dump|admin|secret|attacker|bypass|delete|suppress|pre-?approved)\b/i.test(combined)) ||
+    /\bmarks?\s+(?:all\s+)?(?:purchases|orders|actions|requests|transactions)\s+as\s+pre-?approved\b/i.test(combined)
+  ) {
+    reasons.push("INJECTED_TOOL_POISONING: Quoted tool execution pattern, fake tool catalog, or poisoned tool description attempting to hijack policy boundaries.");
   }
 
   // 4. Credential exfiltration & external surface hazards
@@ -930,8 +940,11 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("CREDENTIAL_EXFILTRATION_HAZARD: Sensitive credential noun combined with external recipient surface or exfil directive.");
   }
 
-  // 5. Injected authority claims
-  if (/\b(pre-?approved\s+by\s+(administrator|admin|root|management|supervisor|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|skip\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks)\b/i.test(combined)) {
+  // 5. Injected authority claims & unanchored pre-approval assertions
+  if (
+    /\b(pre-?approved\s+by\s+(administrator|admin|root|management|supervisor|consensus|all|nodes|council)|approve\s+without\s+(further\s+)?checks|bypass\s+(further\s+)?checks|skip\s+(further\s+)?checks|proceed\s+without\s+(further\s+)?checks)\b/i.test(combined) ||
+    (/\bpre-?approved\b/i.test(combined) && /\b(without\s+checks|skip\s+checks|bypass\s+checks|override\s+checks|suppress\s+checks|suppresses\s+compliance|marks\s+all)\b/i.test(combined))
+  ) {
     reasons.push("INJECTED_AUTHORITY_HAZARD: Claim of pre-approval attempting to bypass verification.");
   }
 
@@ -1077,7 +1090,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   // "Please purchase $42 worth of notebooks from Staples and bill it to ticket FAC-902.",
   // "Under ticket FAC-902, we need notebooks from Staples - total cost $42.",
   // "Staples notebook order, $42 total, charged to ticket FAC-902.").
-  const extracted = extractDeterministicProcurementEntities(trimmed, context);
+  const extracted = extractDeterministicProcurementEntities(trimmed, context, reasoning);
   if (extracted.isHazardousOrCompound) {
     return { matched: false, unmodeledReason: "HAZARDOUS_OR_COMPOUND_OPERATION" };
   }
@@ -1660,6 +1673,8 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
         reasonCodes.push("DESTRUCTIVE_COMMAND_HAZARD");
       }
     }
+    reasonCodes.push("EVIDENCE_ANCHOR_DEFICIT");
+    reasonCodes.push("UNANCHORED_RISK_DIRECTIVE");
     reasonCodes.push("FAST_PATH_INELIGIBLE_INTENT_SCREEN");
     reasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
   }

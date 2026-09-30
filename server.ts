@@ -59,7 +59,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding)
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.6";
+const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || "0.2.8";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00149-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "c1721fee892a";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || "2026-08-31T14:00:00.000Z";
@@ -3494,7 +3494,7 @@ async function startServer() {
     const tenantMax = policyConfig?.tenant_spend_caps?.max_spend_per_tenant_window_cents || 50000;
     const vendorMax = policyConfig?.tenant_spend_caps?.max_spend_per_vendor_window_cents || 250000;
     const isTenantSpendCapped = normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
-    const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const isVendorSpendCapped = normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
     const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
 
     return { 
@@ -3616,7 +3616,7 @@ async function startServer() {
     const tenantMax = policyConfig?.tenant_spend_caps?.max_spend_per_tenant_window_cents || 50000;
     const vendorMax = policyConfig?.tenant_spend_caps?.max_spend_per_vendor_window_cents || 250000;
     const isTenantSpendCapped = normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
-    const isVendorSpendCapped = Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const isVendorSpendCapped = normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
     const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
 
     return {
@@ -7132,7 +7132,7 @@ async function startServer() {
       evalResult.remaining_fast_path_approvals = committedVelocity.remaining_approvals;
     }
 
-    const structuredProcurement = extractDeterministicProcurementEntities(agent_action, context);
+    const structuredProcurement = extractDeterministicProcurementEntities(agent_action, context, combinedReasoning);
 
     if (isPolicyFastPath) {
       finalDebate = [];
@@ -7152,7 +7152,7 @@ async function startServer() {
       finalSummary = evalResult.verdict_summary;
     } else {
       // Extract deterministic procurement facts for consensus lane anchoring
-      const structuredProcurement = extractDeterministicProcurementEntities(agent_action, context);
+      const structuredProcurement = extractDeterministicProcurementEntities(agent_action, context, combinedReasoning);
       const structuredFactsBlock = structuredProcurement.isProcurementIntent ? `\n\nSTRUCTURED OPERATIONAL FACTS (ANCHORING):
 - Action Category: ${structuredProcurement.action_type === "procurement_micro_expense" ? "Approved Catalog Micro-Expense" : (structuredProcurement.isStructuring ? "General Procurement (Transaction Structuring / Multi-Ticket)" : "General Procurement")}
 - Approved Counterparty: ${structuredProcurement.vendor || "UNSPECIFIED"}
