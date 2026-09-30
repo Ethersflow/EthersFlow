@@ -8617,7 +8617,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     "/api/v1/try-it"
   ], express.json(), handleSandboxVerification);
 
-  app.post(["/api/v1/verify", "/api/v1/verify-agent-action", "/api/agent/verify", "/api/v1/agent-verification"], express.json(), handleAgentVerification);
+  app.post(["/api/v1/verify", "/api/verify", "/verify", "/v1/verify", "/api/v1/verify-agent-action", "/api/agent/verify", "/api/v1/agent-verification"], express.json(), handleAgentVerification);
 
   // MCP Manifest Discovery & Status Endpoints
   app.get(["/mcp_manifest.json", "/.well-known/mcp.json", "/api/mcp/manifest"], (req, res) => {

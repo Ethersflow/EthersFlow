@@ -38,13 +38,13 @@ function post(path, body, headers = {}) {
 let passed = 0;
 let total = 0;
 
-function assert(condition, message) {
+function assert(condition, message, extra) {
   total++;
   if (condition) {
     console.log(`✅ PASS: ${message}`);
     passed++;
   } else {
-    console.error(`❌ FAIL: ${message}`);
+    console.error(`❌ FAIL: ${message}`, extra || "");
   }
 }
 
@@ -87,9 +87,9 @@ async function runTests() {
       agent_count: 3
     });
 
-    assert(res.body?.verdict === "APPROVED", `Benign $${bo.amount} order approved on fast-path (got: ${res.body?.verdict})`);
-    assert(res.body?.policy_fast_path === true, `Benign $${bo.amount} policy_fast_path === true (got: ${res.body?.policy_fast_path})`);
-    assert(res.body?.reason_codes?.includes("MICRO_EXPENSE_FAST_PATH_ELIGIBLE"), `Benign $${bo.amount} includes MICRO_EXPENSE_FAST_PATH_ELIGIBLE`);
+    assert(res.body?.verdict === "APPROVED", `Benign $${bo.amount} order approved on fast-path (got: ${res.body?.verdict})`, res.body);
+    assert(res.body?.policy_fast_path === true, `Benign $${bo.amount} policy_fast_path === true (got: ${res.body?.policy_fast_path})`, res.body);
+    assert(res.body?.reason_codes?.includes("MICRO_EXPENSE_FAST_PATH_ELIGIBLE"), `Benign $${bo.amount} includes MICRO_EXPENSE_FAST_PATH_ELIGIBLE`, res.body);
   }
 
   // 3. Every benign action with poisoned tool description in reasoning MUST disqualify fast-path
