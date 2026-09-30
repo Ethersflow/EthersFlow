@@ -58,7 +58,7 @@ try {
 
 console.log("[Server] Booting EthersFlow Backend...");
 
-// Sovereign Release Metadata (Dynamic Revision & Deployment Binding from package.json)
+// Sovereign Release Metadata (Dynamic Revision & Deployment Binding from package.json - Single Source of Truth)
 let pkgVersion = "0.2.8";
 try {
   const pkgPath = path.resolve(process.cwd(), "package.json");
@@ -69,7 +69,7 @@ try {
 } catch (e) {
   console.warn("[Server] Dynamic package.json version resolution fallback:", e);
 }
-const ETHERSFLOW_RELEASE_VERSION = process.env.ETHERSFLOW_VERSION || process.env.npm_package_version || pkgVersion || "0.2.8";
+const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.8";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00169-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
