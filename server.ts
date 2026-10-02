@@ -2433,6 +2433,15 @@ async function startServer() {
       cleanToken = cleanToken.replace(/^bearer\s+/i, "").trim().replace(/^["']|["']$/g, "");
     }
 
+    const REVOKED_KEYS = new Set([
+      "ef_live_prod_secondary_k8f2m9q1",
+      "ef_live_legacy_integrator_key_01",
+      "ef_live_prod_beta2_discriminator_2026"
+    ]);
+    if (REVOKED_KEYS.has(cleanToken)) {
+      return { valid: false, error: "API key has been revoked.", errorCode: "REVOKED_API_KEY" };
+    }
+
     const lowerToken = cleanToken.toLowerCase();
 
     // Reject empty, malformed, or obviously invalid/fabricated tokens
@@ -2452,18 +2461,12 @@ async function startServer() {
       };
     }
 
-    // Secondary production discriminator keys
-    if (cleanToken === "***REVOKED***" || cleanToken === "***REVOKED***") {
+    // Revoked secondary production key
+    if (cleanToken === "ef_live_prod_secondary_k8f2m9q1") {
       return {
-        valid: true,
-        keyDoc: {
-          id: "prod_secondary_beta2",
-          key: cleanToken,
-          name: "EthersFlow Secondary Production Key (Beta 2 Discriminator)",
-          status: "active",
-          zeroRetention: false,
-          organization: "EthersFlow Production Integrator"
-        }
+        valid: false,
+        error: "API key has been revoked.",
+        errorCode: "REVOKED_API_KEY"
       };
     }
 
@@ -7164,6 +7167,15 @@ async function startServer() {
       token === "ef_live_sandbox_demo_key";
 
     if (isExplicitSandbox) {
+      const isSandboxRoute = req.path.includes("/sandbox") || req.originalUrl.includes("/sandbox") || req.path.includes("/try-it") || req.originalUrl.includes("/try-it");
+      if (!isSandboxRoute && (token.startsWith("ef_sandbox_") || token === "ef_live_sandbox_demo_key")) {
+        return res.status(401).json({
+          error: "Unauthorized",
+          error_code: "SANDBOX_KEY_NOT_PERMITTED_ON_LIVE_ROUTES",
+          message: "Sandbox keys are not permitted on live verification endpoints.",
+          request_id: requestId
+        });
+      }
       return handleSandboxVerification(req, res);
     }
 

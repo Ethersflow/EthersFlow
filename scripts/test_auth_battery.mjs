@@ -430,7 +430,7 @@ async function runAuthBattery() {
   // Test 12: MCP Auth Battery (Burned key allowed on tools/list discovery BUT rejected on tools/call)
   total++;
   try {
-    const burnedKey = "ef_live_legacy_integrator_key_01";
+    const burnedKey = "ef_live_prod_secondary_k8f2m9q1";
     // Part A: tools/list (unauthenticated discovery works regardless of key)
     const listRes = await request({
       hostname: "localhost",
@@ -491,7 +491,7 @@ async function runAuthBattery() {
       headers: { "Content-Type": "application/json" }
     }, { jsonrpc: "2.0", id: "init-test", method: "initialize" });
 
-    const expectedVersion = "0.2.8";
+    const expectedVersion = "0.2.11";
     const vHealth = health.body?.version === expectedVersion;
     const vMcp = mcpRoot.body?.version === expectedVersion;
     const vWellKnown = wellKnown.body?.version === expectedVersion;
