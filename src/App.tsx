@@ -3601,32 +3601,38 @@ function NestedAgentLibraryUnused() { return null; }
 
       setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Orchestrating ${activeSlots.length} analysts... ${combinedAttachedFiles.length > 0 ? `(Analyzing ${combinedAttachedFiles.length} resource(s))` : '(No resources detected)'}`]);
 
-      // Create a map to track state
-      const results = await runConsensus(
-        enrichedQuery, 
-        currentHistory, 
-        activeSlotsWithProjectContext, 
-        synthesisTemp,
-        (analyst) => {
-          setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${analyst.persona} analysis received (${analyst.text.length} chars).`]);
-          setCompletedAnalysts(prev => ({
-            ...prev,
-            [analyst.slotId]: analyst
-          }));
-        },
-        synthesisEngineModel,
-        combinedAttachedFiles,
-        currentPlan,
-        (chunk) => {
-          // We can't easily show partial JSON, but we can show that activity is happening
-          setAgentLogs(prev => {
-            const last = prev[prev.length - 1];
-            if (last?.includes('Synthesis')) return prev;
-            return [...prev, `[${new Date().toLocaleTimeString()}] Synthesis logic stream initialized... generating final consensus.`];
-          });
-        },
-        user?.uid
+      // Create a map to track state with 45s timeout protection against 99% freeze
+      const consensusTimeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Analysis request timed out after 45 seconds. Please try again or select fewer active analyst slots.")), 45000)
       );
+      const results: any = await Promise.race([
+        runConsensus(
+          enrichedQuery, 
+          currentHistory, 
+          activeSlotsWithProjectContext, 
+          synthesisTemp,
+          (analyst) => {
+            setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${analyst.persona} analysis received (${analyst.text.length} chars).`]);
+            setCompletedAnalysts(prev => ({
+              ...prev,
+              [analyst.slotId]: analyst
+            }));
+          },
+          synthesisEngineModel,
+          combinedAttachedFiles,
+          currentPlan,
+          (chunk) => {
+            // We can't easily show partial JSON, but we can show that activity is happening
+            setAgentLogs(prev => {
+              const last = prev[prev.length - 1];
+              if (last?.includes('Synthesis')) return prev;
+              return [...prev, `[${new Date().toLocaleTimeString()}] Synthesis logic stream initialized... generating final consensus.`];
+            });
+          },
+          user?.uid
+        ),
+        consensusTimeoutPromise
+      ]);
 
       console.log("[Consensus] Result received from service:", results);
       const { analystResponses, synthesis } = results;
@@ -4604,9 +4610,11 @@ function NestedAgentLibraryUnused() { return null; }
       if (err.code === 'auth/popup-blocked') msg = 'Authentication popup was blocked by your browser. Please allow popups for this site.';
       if (err.code === 'auth/operation-not-allowed') msg = 'Google login is not enabled in Firebase Console.';
       if (err.code === 'auth/unauthorized-domain') msg = 'This domain is not authorized for Firebase Auth. Add it to Authorized Domains in Firebase Console.';
-      if (err.message?.includes('suspended')) msg = 'Your project is reporting as "suspended". If you were recently reinstated, you MUST go to the Google Cloud Console (APIs & Services > Credentials), delete your current API key, and create a new one, as suspended keys often remain disabled even after account reinstatement.';
-      setAuthError(msg + ` (${err.message})`);
-      alert(msg);
+      if (err.message?.includes('Illegal url for new iframe') || err.message?.includes('popup-closed-by-user')) {
+        msg = 'Google popup sign-in is restricted inside preview iframes. Please sign in using Email and Password below.';
+      }
+      if (err.message?.includes('suspended')) msg = 'Your project is reporting as "suspended". Please check Google Cloud console.';
+      setAuthError(msg);
     }
   };
 
