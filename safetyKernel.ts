@@ -1127,9 +1127,11 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|every|whole|all\s+available|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
   const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
 
-  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && (
+  const hasSpecificSingleRecord = /\b(?:patient\s+(?:record|file|chart|dossier|history|id)?\s*#?\d+|record\s+#?\d+|id\s+#?\d+)\b/i.test(combined);
+
+  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && !hasSpecificSingleRecord && (
     (clinicalExfilVerb.test(combined) && clinicalBulkQuantifier.test(combined) && clinicalPatientDataNoun.test(combined)) ||
-    (clinicalExfilVerb.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined)) ||
+    (clinicalExfilVerb.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined) && clinicalBulkQuantifier.test(combined)) ||
     (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(combined)) ||
     (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud)\b/i.test(combined)) ||
     /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)?\s*(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(combined)
@@ -1149,7 +1151,10 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
 
   const hasChangeTicketAnchor = 
     !hasNegativeTicketClaim && (
-      /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket)[-#]?\s*([a-z0-9_-]+)\b/i.test(combined) ||
+      /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket|cr|fac)[-#]?\s*([a-z0-9_-]+)\b/i.test(combined) ||
+      /\bchange\s+request\s+[a-z0-9_-]+/i.test(combined) ||
+      /\bcr\s*[-#:]?\s*\d+\b/i.test(combined) ||
+      /\bcr[-#:]?\d+\b/i.test(combined) ||
       Boolean(context?.ticket || context?.ticket_id || context?.change_ticket || context?.rfc)
     );
 
@@ -1168,9 +1173,14 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const isUnanchoredSystemAdmin = 
     /\b(?:modify\s+firewall|disable\s+security\s+logging|turn\s+off\s+audit|disable\s+siem|grant\s+root\s+privileges|alter\s+sudoers|reconfigure\s+production\s+dns|change\s+root\s+password|disable\s+mfa)\b/i.test(combined) && !hasChangeTicketAnchor;
 
-  if (isCryptoMiningKeyword || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin) {
-    if (isCryptoMiningKeyword) {
-      reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software or stratum protocol workload detected.");
+  const isPriorityOrMiningOrReservedFraming = 
+    isCryptoMiningKeyword || 
+    isResourcePriorityTrigger ||
+    /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(combined);
+
+  if (isPriorityOrMiningOrReservedFraming || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin) {
+    if (isCryptoMiningKeyword || isResourcePriorityTrigger || isPriorityOrMiningOrReservedFraming) {
+      reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software, priority framing, or stratum protocol workload detected.");
     }
     reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation or priority-over-peers process without authorized change management anchor.");
     reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling, resource priority, or system administration directive lacks verified change-ticket authorization.");

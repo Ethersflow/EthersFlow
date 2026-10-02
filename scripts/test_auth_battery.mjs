@@ -144,7 +144,7 @@ async function runAuthBattery() {
       }
     }, {
       agent_action: "Disburse USD 18,450 to NorthStar Logistics under purchase order PO-8841 (Invoice INV-2026-0818)",
-      reasoning_chain: "Purchase order PO-8841 is approved, matches the approved vendor master, goods-received record is present, and no sanctions or duplicate-invoice flags are present.",
+      reasoning_chain: "Purchase order PO-8841 is approved, matches the approved vendor master, goods-received record is present, and no sanctions or duplicate-invoice flags are present. Nonce: " + Date.now(),
       persona_preset: "financial_compliance"
     });
 
