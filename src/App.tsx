@@ -3601,9 +3601,9 @@ function NestedAgentLibraryUnused() { return null; }
 
       setAgentLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] Orchestrating ${activeSlots.length} analysts... ${combinedAttachedFiles.length > 0 ? `(Analyzing ${combinedAttachedFiles.length} resource(s))` : '(No resources detected)'}`]);
 
-      // Create a map to track state with 45s timeout protection against 99% freeze
+      // Create a map to track state with 180s timeout protection against 99% freeze
       const consensusTimeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Analysis request timed out after 45 seconds. Please try again or select fewer active analyst slots.")), 45000)
+        setTimeout(() => reject(new Error("Analysis request timed out after 180 seconds. Please try again or select fewer active analyst slots.")), 180000)
       );
       const results: any = await Promise.race([
         runConsensus(

@@ -63,7 +63,8 @@ try {
 
 export const signInWithGoogle = async (scopes?: string[]) => {
   try {
-    if (firebaseConfig.apiKey === '***REVOKED***') {
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === '***REVOKED***') {
+      console.warn("[Auth] Firebase API key revoked or not configured. Using developer session.");
       throw new Error('Firebase API key revoked or not configured.');
     }
     const provider = new GoogleAuthProvider();
@@ -77,7 +78,7 @@ export const signInWithGoogle = async (scopes?: string[]) => {
     cachedAccessToken = token;
     return result;
   } catch (err: any) {
-    console.warn("[Auth Fallback] Google popup auth failed or unconfigured, using dev bypass user session:", err?.message);
+    console.warn("[Auth Fallback] Google popup auth skipped or failed, using dev bypass user session:", err?.message);
     localStorage.setItem('ethersflow_bypass_active', 'true');
     window.dispatchEvent(new Event('storage'));
     return {
@@ -101,7 +102,8 @@ export const getDriveAccessToken = () => cachedDriveToken;
 
 export const signInWithEmail = async (email: string, pass: string) => {
   try {
-    if (firebaseConfig.apiKey === '***REVOKED***') {
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === '***REVOKED***') {
+      console.warn("[Auth] Firebase API key revoked or not configured. Using email session.");
       throw new Error('Firebase API key revoked or not configured.');
     }
     return await signInWithEmailAndPassword(auth, email, pass);
@@ -113,7 +115,7 @@ export const signInWithEmail = async (email: string, pass: string) => {
       user: {
         uid: 'dev-bypass-user',
         email: email || 'ethersflow.dev@gmail.com',
-        displayName: 'EthersFlow User',
+        displayName: email ? email.split('@')[0] : 'EthersFlow User',
         emailVerified: true,
         getIdToken: async () => 'mock_token'
       }
@@ -123,7 +125,8 @@ export const signInWithEmail = async (email: string, pass: string) => {
 
 export const signUpWithEmail = async (email: string, pass: string) => {
   try {
-    if (firebaseConfig.apiKey === '***REVOKED***') {
+    if (!firebaseConfig.apiKey || firebaseConfig.apiKey === '***REVOKED***') {
+      console.warn("[Auth] Firebase API key revoked or not configured. Using email session.");
       throw new Error('Firebase API key revoked or not configured.');
     }
     return await createUserWithEmailAndPassword(auth, email, pass);
@@ -135,7 +138,7 @@ export const signUpWithEmail = async (email: string, pass: string) => {
       user: {
         uid: 'dev-bypass-user',
         email: email || 'ethersflow.dev@gmail.com',
-        displayName: 'EthersFlow User',
+        displayName: email ? email.split('@')[0] : 'EthersFlow User',
         emailVerified: true,
         getIdToken: async () => 'mock_token'
       }

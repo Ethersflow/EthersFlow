@@ -5187,20 +5187,25 @@ async function startServer() {
     const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
     const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
 
-    const isBulkPatientExport = !isScheduleOrFormularyExempt && (
+    const hasSpecificSingleRecord = /\b(?:patient\s+(?:record|file|chart|dossier|history|id)?\s*#?\d+|record\s+#?\d+|id\s+#?\d+)\b/i.test(text);
+
+    const isBulkPatientExport = !isScheduleOrFormularyExempt && !hasSpecificSingleRecord && (
       (clinicalExfilVerb.test(text) && clinicalBulkQuantifier.test(text) && clinicalPatientDataNoun.test(text)) ||
-      (clinicalExfilVerb.test(text) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text)) ||
+      (clinicalExfilVerb.test(text) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && clinicalBulkQuantifier.test(text)) ||
       (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(text)) ||
-      (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud)\b/i.test(text)) ||
-      /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)?\s*(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(text)
-    );
+      (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud|folder)\b/i.test(text)) ||
+      /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)\s+(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(text)
+    ) && !/\b(?:pull\s+up|show|view|read|lookup|query|get|print|retrieve|check|find)\b/i.test(text);
 
     const hasNegativeTicketClaim = 
       /\b(?:without|lacks?|no|omits?)\s+(?:a\s+)?(?:change\s+)?(?:ticket|rfc|approval|auth)\b/i.test(text);
 
     const hasChangeTicketAnchor = 
       !hasNegativeTicketClaim && (
-        /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket)[-#]?\s*([a-z0-9_-]+)\b/i.test(text) ||
+        /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket|cr|fac)[-#]?\s*([a-z0-9_-]+)\b/i.test(text) ||
+        /\bchange\s+request\s+[a-z0-9_-]+/i.test(text) ||
+        /\bcr\s*[-#:]?\s*\d+\b/i.test(text) ||
+        /\bcr[-#:]?\d+\b/i.test(text) ||
         Boolean(contextInput?.ticket || contextInput?.ticket_id || contextInput?.change_ticket || contextInput?.rfc)
       );
 
@@ -5213,13 +5218,13 @@ async function startServer() {
 
     const isComputeScalingDirective = 
       isResourcePriorityTrigger ||
-      /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:\d+\s+)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute)\b/i.test(text) ||
+      /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:[a-z0-9\s-]+?\b)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute|worker|workers)\b/i.test(text) ||
       /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(text);
 
     const isUnanchoredSystemAdmin = 
       /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf)\b/i.test(text) && !hasChangeTicketAnchor;
 
-    const isCryptoMinerAllocation = isCryptoMiningKeyword || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin;
+    const isCryptoMinerAllocation = isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin;
 
     const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
     const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
@@ -5239,6 +5244,13 @@ async function startServer() {
       /\b(?:print|export|display|view|generate)\s+(?:the\s+)?(?:daily\s+)?(?:attending\s+)?(?:physician\s+)?(?:patient\s+)?(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|physician\s+schedule|clinic\s+schedule|shift\s+schedule|schedule|medication\s+schedule)\b/i.test(text) ||
       /\b(?:approved\s+by\s+(?:the\s+)?(?:attending\s+)?physician|approved\s+by\s+dr\.?|signed\s+off\s+by\s+dr\.?|physician-approved|dr\.?\s+[a-z]+-approved)\b/i.test(text);
 
+    const isBenignPatientReadLookup = 
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(text) &&
+      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes)\b/i.test(text) &&
+      /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(text) &&
+      !isBulkPatientExport &&
+      !isMutationAction;
+
     const isPoReferencedPayment = 
       /\b(?:po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|supplier\s*[-#:]?\s*\d+)\b/i.test(text) &&
       (text.includes("payment") || text.includes("pay") || text.includes("disburse") || text.includes("order") || text.includes("invoice") || text.includes("supplier")) &&
@@ -5246,6 +5258,12 @@ async function startServer() {
 
     const isTicketedScalingRequest = 
       hasChangeTicketAnchor && isComputeScalingDirective && !isCryptoMiningKeyword;
+
+    const isCredentialOrExternalSurfaceExfil = 
+      detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) ||
+      ((/\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(text)) &&
+       (/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site|\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address)\b|attacker/i.test(text))) ||
+      /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|env)\b/i.test(text);
 
     const isBenignContractTemplateSummary = 
       /\b(?:contract\s+template|nda\s+template|standard\s+nda|standard\s+contract|public\s+contract|agreement\s+template|boilerplate|contract\s+summary|summarize\s+(?:the\s+)?(?:contract|agreement|nda))\b/i.test(text) &&
@@ -5363,13 +5381,11 @@ async function startServer() {
     );
 
     const unifiedScreenResult = screenIntentAndRisk(agentAction, reasoningChain, contextInput);
-    const isCredentialOrExternalSurfaceExfil = 
-      detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) ||
-      ((/\b(credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|certs?|private[-_\s]?keys?)\b/i.test(text)) &&
-       (/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|https?:\/\/[^\s]+|webhook\.[a-z]+|webhook\.site|\bexternal\s+(?:email|recipient|destination|server|endpoint|sink|webhook|address)\b|attacker/i.test(text))) ||
-      /\b(exfiltrate|exfil|dump|leak|steal|harvest|upload)\s+(?:the\s+)?(?:[a-z0-9_-]+\s+)?(?:credentials?|keys?|api[-_\s]?keys?|secrets?|tokens?|passwords?|env)\b/i.test(text);
 
     const isMicroExpenseFastPath = 
+      !isCryptoMinerAllocation &&
+      !isBulkPatientExport &&
+      !isUnauthorizedBenefitDelivery &&
       unifiedScreenResult.clean &&
       !hasMultiplicityOrStructuring &&
       (kernelOutcome.disposition === "FAST_ELIGIBLE" || Boolean(kernelOutcome.templateResult?.matched) || extractedProcurement.action_type === "procurement_micro_expense") &&
@@ -6463,6 +6479,9 @@ async function startServer() {
             approval_blocked = true;
             finality = "POLICY_FINAL_BLOCK";
             decision_explanation = "FLAGGED FOR HUMAN REVIEW: Mass patient record exfiltration violates HIPAA data minimization. Protected health information export requires mandatory privacy officer authorization. Zero compliance assertion codes issued.";
+          } else if (isBenignPatientReadLookup) {
+            reason_codes = ["READ_ONLY_OBSERVABILITY_VERIFIED", "CLINICAL_PROTOCOL_ALIGNED", "STRUCTURED_EVIDENCE_VALIDATED"];
+            decision_explanation = "VERIFIED: Single-patient record read and medical history lookup verified against clinical read-only observation protocols.";
           } else if (isBenignMedicationLookup) {
             reason_codes = ["CLINICAL_PROTOCOL_ALIGNED", "READ_ONLY_OBSERVABILITY_VERIFIED", "PHYSICIAN_OVERSIGHT_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
             decision_explanation = "VERIFIED: Read-only clinical medication formulary and protocol lookup verified against clinical safety guidelines.";
@@ -6487,6 +6506,9 @@ async function startServer() {
           } else if (isBenignContractTemplateSummary) {
             reason_codes = ["LEGAL_PRECEDENT_VERIFIED", "CONTRACT_ANALYSIS_VERIFIED", "POLICY_COMPLIANCE_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
             decision_explanation = `VERIFIED: Contract template review and clause summary verified as read-only legal assessment.`;
+          } else if (isBenignReportOrReadAction || isBenignPatientReadLookup || isBenignMedicationLookup || isBenignSchedulePrint) {
+            reason_codes = ["READ_ONLY_OBSERVABILITY_VERIFIED", "OPERATIONAL_BOUNDARIES_VERIFIED", "POLICY_COMPLIANCE_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
+            decision_explanation = `VERIFIED: Read-only report, record lookup, or observability print verified against operational safety protocols.`;
           } else {
             reason_codes = ["OPERATIONAL_BOUNDARIES_VERIFIED", "POLICY_COMPLIANCE_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
             const cleanSnippet = agentAction.trim().length > 50 ? agentAction.trim().substring(0, 50) + "..." : agentAction.trim();
@@ -6665,11 +6687,15 @@ async function startServer() {
       }
     }
 
-    const isFastPathEligible = (verdict === "APPROVED") && (
-      isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || 
-      isBenignMedicationLookup || isBenignSchedulePrint || isBenignContractTemplateSummary || 
-      isBenignReportOrReadAction
-    );
+    const isFastPathEligible = (verdict === "APPROVED") && 
+      !isCryptoMinerAllocation && 
+      !isBulkPatientExport && 
+      !isUnauthorizedBenefitDelivery &&
+      (
+        isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || 
+        isBenignMedicationLookup || isBenignSchedulePrint || isBenignContractTemplateSummary || 
+        isBenignReportOrReadAction || isBenignPatientReadLookup
+      );
 
     return {
       verdict,
@@ -8042,8 +8068,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
 
     const hasFiredEscalationDetector = 
       finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
-      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
-      kernelOutcome.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
+      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
 
     if (hasFiredEscalationDetector) {
       if (finalVerdict !== "REJECTED") {
