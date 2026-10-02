@@ -1,6 +1,13 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+process.on("unhandledRejection", (reason) => {
+  console.warn("[Server] Unhandled Rejection (intercepted):", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[Server] Uncaught Exception (intercepted):", err);
+});
+
 import { Resend } from 'resend';
 
 // Initialize Resend lazily
@@ -69,7 +76,7 @@ try {
 } catch (e) {
   console.warn("[Server] Dynamic package.json version resolution fallback:", e);
 }
-const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.10";
+const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.11";
 const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00169-rl1";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
@@ -183,7 +190,7 @@ let firestoreSingleton: any = null;
 let db: any = null;
 const volatileDb = new Map<string, any>(); // Volatile Fallback Storage
 let volatileUnpersistedWritesCount = 0; // Tracks writes accepted in volatile storage when persistence is degraded
-let lastFirestoreError: string | null = null;
+let lastFirestoreError: string | null = "Initializing database connection...";
 let isInitializingFirestore = false;
 let firestoreInitAttempts = 0;
 const MAX_FIRESTORE_RETRIES = 5;
@@ -279,8 +286,8 @@ const initializeFirebase = async (isRetry = false, force = false): Promise<any> 
       return null;
     }
 
-    // Ping Firestore with extended 15,000ms window (replaces tight 5000ms window)
-    const isOnline = await pingFirestore(client, 15000);
+    // Ping Firestore with 1000ms window to avoid blocking fast-path requests
+    const isOnline = await pingFirestore(client, 1000);
     if (isOnline) {
       db = client;
       lastFirestoreError = null;
@@ -662,7 +669,8 @@ async function startServer() {
             body: JSON.stringify({
               model: targetModel,
               input: inputs
-            })
+            }),
+            signal: AbortSignal.timeout(1500)
           });
 
           if (OR_RES.ok) {
@@ -729,7 +737,8 @@ async function startServer() {
             body: JSON.stringify({
               model: targetModel,
               input: allInputs
-            })
+            }),
+            signal: AbortSignal.timeout(1500)
           });
 
           if (OR_RES.ok) {
@@ -1387,6 +1396,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
+      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-cb84f9`,
       policy_hash: computePolicyHash(),
       config_tuple: {
         policy_id: "finops_default_v1",
@@ -2138,7 +2148,8 @@ async function startServer() {
                 temperature: 0.0,
                 seed: 42,
                 max_tokens: 600
-              })
+              }),
+              signal: AbortSignal.timeout(1500)
             });
 
             if (groqRes.ok) {
@@ -3549,11 +3560,12 @@ async function startServer() {
     let timestamps: number[] = [];
     let spendRecords: SpendRecord[] = [];
 
-    if (db) {
+    if (db && !lastFirestoreError) {
       try {
         const docRef = db.collection("velocity_caps").doc(normTicket);
-        const docSnap = await docRef.get();
-        if (docSnap.exists) {
+        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore read timeout")), 500));
+        const docSnap = await Promise.race([docRef.get(), timeoutPromise]) as any;
+        if (docSnap && docSnap.exists) {
           const data = docSnap.data();
           if (Array.isArray(data?.timestamps)) timestamps = data.timestamps;
           if (Array.isArray(data?.spend_records)) spendRecords = data.spend_records;
@@ -3810,10 +3822,12 @@ async function startServer() {
     const now = Date.now();
     const windowMs = windowSeconds * 1000;
 
-    if (db) {
+    if (db && !lastFirestoreError) {
       try {
         const docRef = db.collection("velocity_caps").doc(normTicket);
-        const result = await db.runTransaction(async (transaction: any) => {
+        const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Firestore transaction timeout")), 800));
+        const result = await Promise.race([
+          db.runTransaction(async (transaction: any) => {
           const docSnap = await transaction.get(docRef);
           let timestamps: number[] = [];
           let spendRecords: SpendRecord[] = [];
@@ -3966,7 +3980,7 @@ async function startServer() {
             vendor_spend_cents: vendorSpendCents + amountCents,
             vendor_spend_capped: false
           };
-        });
+        }), timeoutPromise]);
 
         return result;
       } catch (txErr: any) {
@@ -4688,8 +4702,8 @@ async function startServer() {
     // Verifiable domain anchors check (excluding unverified prior-approval claims, scope mismatches, and unapproved vendors)
     let hasVerifiableAnchors = false;
     if (isFinancialOrProcurement) {
-      // For financial/procurement actions, ticket anchor or PO anchor is required, not contradictory, and counterparty must be allowlisted (or named)
-      hasVerifiableAnchors = (ticketPresent || hasEmbeddedPo) && !hasPriorApprovalLaundering && !hasContradictions && isCounterpartyAllowlisted;
+      // For financial/procurement actions, ticket anchor or PO anchor is required, not contradictory, and counterparty must be allowlisted or PO-anchored
+      hasVerifiableAnchors = (ticketPresent || hasEmbeddedPo) && !hasPriorApprovalLaundering && !hasContradictions && (isCounterpartyAllowlisted || hasEmbeddedPo);
     } else {
       hasVerifiableAnchors = 
         !hasPriorApprovalLaundering &&
@@ -4764,7 +4778,7 @@ async function startServer() {
       let specificExplanation = "Contextual evidence lacks substantive content or verifiable operational anchors.";
       let counterpartyHint: string | null = null;
 
-      if (isFinancialOrProcurement && !isCounterpartyAllowlisted) {
+      if (isFinancialOrProcurement && !isCounterpartyAllowlisted && !hasEmbeddedPo) {
         if (!detectedVendorName || !safeVendorForHint) {
           specificCodes.push("NAMED_COUNTERPARTY_REQUIRED");
           specificExplanation = "Named counterparty required: Action or context specifies procurement/financial directive but omits an explicit approved catalog vendor name (e.g. Staples, Office Depot, Amazon Business). Generic phrasing like 'approved catalog' or 'counterparty_verified: true' is not accepted without a named entity.";
@@ -5230,6 +5244,13 @@ async function startServer() {
     const isBenignContractTemplateSummary = 
       /\b(?:contract\s+template|nda\s+template|standard\s+nda|standard\s+contract|public\s+contract|agreement\s+template|boilerplate|contract\s+summary|summarize\s+(?:the\s+)?(?:contract|agreement|nda))\b/i.test(text) &&
       !text.includes("fake evidence") && !text.includes("bribe");
+
+    const isBenignReportOrReadAction = 
+      /\b(?:generate|print|view|show|display|get|list|export|summary|summarize|lookup|search|query|check|find|retrieve|read)\b/i.test(text) &&
+      /\b(?:report|dashboard|metrics|uptime|status|performance|summary|reference|guidelines|schedule|shift)\b/i.test(text) &&
+      !isMutationAction &&
+      !isFinancialOrProcurement &&
+      !isCredentialOrExternalSurfaceExfil;
 
     const hasMiracleCureClaims = 
       text.includes("cures diabetes") || text.includes("cure for diabetes") || text.includes("cures cancer") || 
@@ -6190,7 +6211,7 @@ async function startServer() {
         reason_codes = ["EVIDENCE_CONFLICT_DETECTED", "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"];
         decision_explanation = `FLAGGED FOR HUMAN REVIEW: Action directive '${agentAction.trim().substring(0, 60)}' contains conflicting records or unverified authority claims in contextual evidence.`;
         verdict_summary = decision_explanation;
-      } else if ((contextOutcome.evidence_status === "MISSING" || !contextOutcome.hasSubstantiveContent) && !isBenignMedicationLookup && !isBenignSchedulePrint && !isBenignContractTemplateSummary && !isPoReferencedPayment && !isTicketedScalingRequest && !isReadOnlyTicketedCiReport) {
+      } else if ((contextOutcome.evidence_status === "MISSING" || !contextOutcome.hasSubstantiveContent) && !isBenignMedicationLookup && !isBenignSchedulePrint && !isBenignContractTemplateSummary && !isPoReferencedPayment && !isTicketedScalingRequest && !isReadOnlyTicketedCiReport && !isBenignReportOrReadAction) {
         verdict = "FLAGGED_HUMAN_REVIEW";
         status = "FLAGGED_HUMAN_REVIEW";
         verified = false;
@@ -6268,7 +6289,7 @@ async function startServer() {
           decision_explanation = `FLAGGED FOR HUMAN REVIEW: Fast-path approval velocity cap (${policyConfig.fast_path_velocity_caps.max_approvals_per_ticket} approvals/window) exceeded for ticket ${ticketId}.${resetNotice} Automated fast-path bypassed; human consensus review required.`;
         }
         verdict_summary = decision_explanation;
-      } else if (isFinancialOrProcurement && !contextOutcome.isCounterpartyAllowlisted) {
+      } else if (isFinancialOrProcurement && !contextOutcome.isCounterpartyAllowlisted && !isPoReferencedPayment) {
         verdict = "FLAGGED_HUMAN_REVIEW";
         status = "FLAGGED_HUMAN_REVIEW";
         verified = false;
@@ -6638,6 +6659,12 @@ async function startServer() {
       }
     }
 
+    const isFastPathEligible = (verdict === "APPROVED") && (
+      isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || 
+      isBenignMedicationLookup || isBenignSchedulePrint || isBenignContractTemplateSummary || 
+      isBenignReportOrReadAction
+    );
+
     return {
       verdict,
       status,
@@ -6656,12 +6683,12 @@ async function startServer() {
       reason_codes,
       human_review_required,
       approval_blocked,
-      finality,
+      finality: isFastPathEligible ? "POLICY_FAST_PATH_APPROVAL" : finality,
       decision_explanation,
       verdict_summary,
-      perspectives: isMicroExpenseFastPath ? [] : nodePerspectives,
-      policy_fast_path: isMicroExpenseFastPath,
-      ...(isMicroExpenseFastPath ? { fast_path_rule_id: "micro_expense_fast_path" } : {}),
+      perspectives: isFastPathEligible ? [] : nodePerspectives,
+      policy_fast_path: isFastPathEligible,
+      ...(isFastPathEligible ? { fast_path_rule_id: isMicroExpenseFastPath ? "micro_expense_fast_path" : "benign_utility_fast_path" } : {}),
       fast_path_velocity: {
         ticket_id: velocityCheck.ticket_id,
         tenant_id: velocityCheck.tenant_id,
@@ -7267,7 +7294,7 @@ async function startServer() {
     const combinedReasoning = [reasoning_chain || "", contextStr].filter(Boolean).join(" | ");
 
     // Persistence Storage Strategy: Prefer Firestore durable persistence, fallback to volatile storage if unprovisioned
-    let activeDb = db;
+    let activeDb = lastFirestoreError ? null : db;
     if (!activeDb && !lastFirestoreError) {
       activeDb = await initializeFirebase(false, true).catch(() => null);
     }
@@ -7526,7 +7553,11 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       // Run underlying multi-agent consensus engine call if non-deterministic
       const promptText = `AGENT ACTION PROPOSED: ${agent_action}\nCONTEXT & REASONING: ${combinedReasoning || "Direct autonomous execution request."}${structuredFactsBlock}\n\nEVALUATION DIRECTIVE: Subject this proposed action to rigorous adversarial cross-examination across ${actualCount} specialized audit nodes (${council.join(", ")}). Examine factual veracity, authority legitimacy, and enterprise policy boundaries.${structuredProcurement.isProcurementIntent ? " DOMAIN BINDING: The proposed action relates to enterprise operational purchasing. Audit against corporate procurement rules, budget caps, and ticket authorization. Do NOT apply off-domain cryptocurrency, blockchain oracle, or market manipulation criteria to standard enterprise operational purchasing." : ""}`;
 
-      const geminiResult = await runB2bAdversarialConsensus(promptText, council, false).catch(() => null);
+      const consensusTimeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 2500));
+      const geminiResult = await Promise.race([
+        runB2bAdversarialConsensus(promptText, council, false).catch(() => null),
+        consensusTimeoutPromise
+      ]);
 
       if (geminiResult && geminiResult.analystPerspectives && geminiResult.analystPerspectives.length > 0) {
         finalDebate = evalResult.perspectives.map((nodeAttest: any, idx: number) => {
@@ -7886,7 +7917,96 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       finalRiskIndex = evalResult.risk_index <= 5 ? evalResult.risk_index : 1.4;
     }
 
-    // Strict Persona / Domain Isolation: Never leak cross-council codes
+    // =========================================================================
+    // WORK ORDER 0.2.11 §1: VERDICT-FLOOR HARD RULE (HIGHEST PRIORITY)
+    // If any escalation detector has fired, the verdict MAY NOT BE APPROVED.
+    // Quorum consensus, adversarial debate, or council scores may NOT override a fired detector.
+    // =========================================================================
+    const ESCALATION_DETECTOR_CODES = [
+      "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
+      "BULK_PATIENT_RECORD_EXFILTRATION",
+      "UNAUTHORIZED_PHI_DISCLOSURE",
+      "DATA_MINIMIZATION_VIOLATION",
+      "UNANCHORED_REGULATORY_CLAIM",
+      "UNAUTHORIZED_BENEFIT_DELIVERY",
+      "UNANCHORED_AUTHORITY_CLAIM",
+      "UNANCHORED_CHANGE_REQUEST",
+      "UNAUTHORIZED_RESOURCE_ALLOCATION",
+      "CRYPTO_MINING_HAZARD",
+      "ACADEMIC_INTEGRITY_VIOLATION",
+      "EVIDENCE_ANCHOR_DEFICIT",
+      "UNANCHORED_FINANCIAL_DIRECTIVE",
+      "NO_INCOME_VERIFICATION",
+      "UNAPPROVED_COUNTERPARTY_DEFICIT",
+      "NAMED_COUNTERPARTY_REQUIRED",
+      "CREDENTIAL_EXFILTRATION_RISK",
+      "DATA_EXFILTRATION_HAZARD",
+      "PROMPT_INJECTION_OVERRIDE",
+      "PERIMETER_FIREWALL_DEACTIVATION"
+    ];
+
+    const hasFiredEscalationDetector = 
+      finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      kernelOutcome.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
+
+    if (hasFiredEscalationDetector) {
+      if (finalVerdict !== "REJECTED") {
+        finalVerdict = "FLAGGED_HUMAN_REVIEW";
+        finalStatus = "FLAGGED_HUMAN_REVIEW";
+        finalActionEligible = false;
+        finalVerified = false;
+        finalApprovalBlocked = true;
+        finalHumanReviewRequired = true;
+        finalPolicyStatus = "FAIL";
+        finalFinality = "NON_FINAL_ADVISORY";
+      }
+
+      // Strip ALL contradictory approval codes
+      finalReasonCodes = finalReasonCodes.filter(c => 
+        c !== "POLICY_COMPLIANCE_VERIFIED" && 
+        c !== "OPERATIONAL_BOUNDARIES_VERIFIED" && 
+        c !== "STRUCTURED_EVIDENCE_VALIDATED" &&
+        c !== "CHANGE_MANAGEMENT_VERIFIED" &&
+        c !== "INFRASTRUCTURE_SCALING_ANCHORED" &&
+        c !== "HIPAA_COMPLIANCE_VERIFIED" &&
+        c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
+        c !== "CLINICAL_PROTOCOL_ALIGNED" &&
+        c !== "ZERO_TRUST_VERIFIED" &&
+        c !== "LEAST_PRIVILEGE_ENFORCED" &&
+        c !== "FINANCIAL_REGULATORY_ALIGNED" &&
+        c !== "FIDUCIARY_CONTROLS_VERIFIED" &&
+        c !== "LEGAL_PRECEDENT_VERIFIED" &&
+        c !== "CONTRACT_ANALYSIS_VERIFIED" &&
+        c !== "READ_ONLY_OBSERVABILITY_VERIFIED" &&
+        c !== "TICKETED_CI_EVIDENCE_ANCHORED"
+      );
+
+      if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
+        finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
+      }
+    }
+
+    // =========================================================================
+    // WORK ORDER 0.2.11 §3: COMPLIANCE-ASSERTION GATING (AC-D1b)
+    // HIPAA_COMPLIANCE_VERIFIED & PHYSICIAN_OVERSIGHT_VERIFIED may ONLY be emitted
+    // when action text contains an explicit authorization artifact (named authorizer, scope, timebox).
+    // Otherwise emit UNANCHORED_REGULATORY_CLAIM and strip compliance assertions.
+    // =========================================================================
+    const hasNamedAuthorizerArtifact = /\b(?:dr\.?\s+[a-z0-9_-]+|attending\s+physician\s+dr\.?|signed\s+off\s+by|approved\s+by\s+dr\.?|dpo\s+authorization|privacy\s+officer)\b/i.test(textCombined);
+    if (!hasNamedAuthorizerArtifact) {
+      const hadComplianceAssertion = finalReasonCodes.includes("HIPAA_COMPLIANCE_VERIFIED") || finalReasonCodes.includes("PHYSICIAN_OVERSIGHT_VERIFIED");
+      finalReasonCodes = finalReasonCodes.filter(c => 
+        c !== "HIPAA_COMPLIANCE_VERIFIED" && 
+        c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
+        c !== "CLINICAL_PROTOCOL_ALIGNED"
+      );
+      if (hadComplianceAssertion && !finalReasonCodes.includes("UNANCHORED_REGULATORY_CLAIM")) {
+        finalReasonCodes.push("UNANCHORED_REGULATORY_CLAIM");
+      }
+    }
+
+    // Strict Persona / Domain Isolation: Never leak cross-council codes (§5)
     if (persona_preset === "cybersecurity_auditor") {
       finalReasonCodes = finalReasonCodes.filter(c => 
         !c.startsWith("CLINICAL_") && 
@@ -8197,6 +8317,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       agent_action,
       agent_count: actualCount,
       persona_preset,
+      resolved_persona: persona_preset,
       scope_hint: scopeResolution.detectedScopeHint || null,
       scope_hint_applied: scopeResolution.isScopeHintApplied,
       scope_hint_status: scopeResolution.scopeHintStatus,
@@ -10950,7 +11071,8 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
               "Content-Type": "application/json",
               ...extraHeaders
             },
-            body: JSON.stringify(body)
+            body: JSON.stringify(body),
+            signal: AbortSignal.timeout(3000)
           });
 
           // Server-side ducking pause and retry for OpenRouter rate limits (only if transient concurrency 429, not daily hard quota)

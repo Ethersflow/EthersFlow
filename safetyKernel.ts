@@ -1123,35 +1123,47 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const isScheduleOrFormularyExempt = 
     /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(combined);
 
-  const clinicalExfilVerb = /\b(?:download|export|dump|transfer|extract|fetch|retrieve|get|save|send|email|copy|migrate|pull|archive|exfiltrate|transmit|backup|sync|stream|collect|share|disclose|read|query|select|gather)\b/i;
-  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across\s+(?:all\s+)?patients?|last\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+\s+(?:months?|years?|days?|weeks?)|window|archive)\b/i;
-  const clinicalPatientDataNoun = /\b(?:patient\s+records?|patient\s+data|patient\s+files?|patient\s+charts?|medical\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|clinical\s+records?|phi|electronic\s+health\s+records?|ehr|emr|health\s+records?|patient\s+histories|patient\s+information|patient\s+demographics|diagnostic\s+reports|patient\s+database|patient\s+table)\b/i;
+  const clinicalExfilVerb = /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|fetch|retrieve|get|save|send|email|exfiltrate|transmit|backup|stream|collect|share|disclose|read|query|select|gather)\b/i;
+  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|every|whole|all\s+available|last\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+\s+(?:months?|years?|days?|weeks?)|between\s+.+\s+and\s+.+|historical|unbounded|batch|multi-patient|multiple\s+patients?|across\s+(?:all\s+)?patients?|window|archive|records?|histories|files?|charts?|dossiers?)\b/i;
+  const clinicalPatientDataNoun = /\b(?:patient\s+records?|patient\s+data|patient\s+files?|patient\s+charts?|medical\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|clinical\s+records?|phi|electronic\s+health\s+records?|ehr|emr|health\s+records?|patient\s+histories|patient\s+information|patient\s+demographics|diagnostic\s+reports|patient\s+database|patient\s+table|oncology|cardiology|prescription|treatment|clinical)\b/i;
 
   const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && (
     (clinicalExfilVerb.test(combined) && clinicalBulkQuantifier.test(combined) && clinicalPatientDataNoun.test(combined)) ||
-    (clinicalExfilVerb.test(combined) && /\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|electronic\s+health\s+records?|ehr|emr|phi|health\s+records?)\b/i.test(combined)) ||
+    (clinicalExfilVerb.test(combined) && /\b(?:patient\s+records?|patient\s+medical\s+histories|medical\s+histories|treatment\s+notes|clinical\s+charts?|electronic\s+health\s+records?|ehr|emr|phi|health\s+records?)\b/i.test(combined)) ||
     (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi)\b/i.test(combined)) ||
     (/\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?)\b/i.test(combined) && /\b(?:last\s+\d+\s+months?|past\s+\d+\s+months?|all\s+patients?|entire|full|across)\b/i.test(combined)) ||
-    /\b(?:download|export|copy|migrate|pull|archive|transfer)\s+(?:all\s+)?patient\s+records\b/i.test(combined)
+    /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract)\s+(?:all\s+)?(?:patient|medical)\s+(?:records?|histories|charts?|files?)\b/i.test(combined)
   );
 
   if (isBulkPatientExfiltration) {
     reasons.push("BULK_PATIENT_RECORD_EXFILTRATION_HAZARD: Mass download, export, migration, or transfer of patient records, medical histories, or treatment notes violates HIPAA data-minimization rules.");
     reasons.push("DATA_MINIMIZATION_VIOLATION: Unbounded multi-patient record extraction.");
     reasons.push("UNANCHORED_REGULATORY_CLAIM: Regulatory compliance claim lacks verified authorization anchor.");
-    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Protected health information export requires mandatory privacy officer authorization.");
+    reasons.push("UNAUTHORIZED_PHI_DISCLOSURE: Protected health information export requires mandatory privacy officer authorization.");
+    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Mass patient record export requires verified privacy officer signoff.");
   }
 
-  // 19. Crypto-Mining & Unauthorized Compute Resource Allocation / Unanchored Change Requests (D2)
+  // 19. Crypto-Mining & Resource Priority / Mining-Shape / Unanchored Change Requests (D2)
+  const hasNegativeTicketClaim = 
+    /\b(?:without|lacks?|no|omits?)\s+(?:a\s+)?(?:change\s+)?(?:ticket|rfc|approval|auth)\b/i.test(combined);
+
   const hasChangeTicketAnchor = 
-    /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket)[-#]?\s*([a-z0-9_-]+)\b/i.test(combined) ||
-    Boolean(context?.ticket || context?.ticket_id || context?.change_ticket || context?.rfc);
+    !hasNegativeTicketClaim && (
+      /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket)[-#]?\s*([a-z0-9_-]+)\b/i.test(combined) ||
+      Boolean(context?.ticket || context?.ticket_id || context?.change_ticket || context?.rfc)
+    );
 
   const isCryptoMiningKeyword = 
     /\b(?:crypto_miner|crypto-miner|crypto_mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining)\b/i.test(combined);
 
+  const isResourcePriorityTrigger = 
+    /\b(?:priority|priority-over-peers|priority\s+over|higher\s+weight|reserve\s+capacity|devote|dedicate|monopolize|precedence)\b/i.test(combined) &&
+    /\b(?:compute|gpu|cpu|tpu|hashrate|mining|cluster|worker|bandwidth|capacity|instance|instances|vms?|virtual\s+machines?|process|task|workload)\b/i.test(combined);
+
   const isComputeScalingDirective = 
-    /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|spin\s+up\s+(?:additional\s+)?compute|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(combined);
+    isResourcePriorityTrigger ||
+    /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:\d+\s+)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute)\b/i.test(combined) ||
+    /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(combined);
 
   const isUnanchoredSystemAdmin = 
     /\b(?:modify\s+firewall|disable\s+security\s+logging|turn\s+off\s+audit|disable\s+siem|grant\s+root\s+privileges|alter\s+sudoers|reconfigure\s+production\s+dns|change\s+root\s+password|disable\s+mfa)\b/i.test(combined) && !hasChangeTicketAnchor;
@@ -1160,19 +1172,21 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     if (isCryptoMiningKeyword) {
       reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software or stratum protocol workload detected.");
     }
-    reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation without authorized change management anchor.");
-    reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling or system administration directive lacks verified change-ticket authorization.");
+    reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation or priority-over-peers process without authorized change management anchor.");
+    reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling, resource priority, or system administration directive lacks verified change-ticket authorization.");
     reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Infrastructure mutation requires verified change ticket.");
   }
 
   // 20. Unauthorized Benefit Delivery & Academic / Financial Integrity Violation (D3)
-  const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute)\b/i;
-  const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?)\b/i;
+  const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout)\b/i;
+  const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
+  const isBenefitSelfInstruction = /\b(?:change\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa|disburse\s+grant|disburse\s+scholarship|grant\s+housing|disburse\s+\$\d+)\b/i.test(combined);
 
   if (
-    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account)\b/i.test(combined)) ||
+    isBenefitSelfInstruction ||
+    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my)\b/i.test(combined)) ||
     /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?)\b/i.test(combined) ||
-    /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit)\b/i.test(combined)
+    /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(combined)
   ) {
     reasons.push("UNAUTHORIZED_BENEFIT_DELIVERY: Directives altering academic records, issuing unanchored refunds, or granting unverified entitlements.");
     if (/\b(?:grades?|gpa|scores?|marks?|transcripts?|exam|academic|student)\b/i.test(combined)) {
