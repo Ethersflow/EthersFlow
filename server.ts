@@ -548,7 +548,7 @@ async function startServer() {
         if (!neuralResult && client && (mimetype === "application/pdf" || isImage)) {
           try {
             const result = await client.models.generateContent({
-              model: "gemini-3.5-flash",
+              model: "gemini-2.5-flash",
               contents: [
                 { text: ocrPrompt },
                 { inlineData: { data: base64Data, mimeType: mimetype } }
@@ -2165,7 +2165,7 @@ async function startServer() {
           if (geminiAI) {
             try {
               const res = await geminiAI.models.generateContent({
-                model: "gemini-3.5-flash",
+                model: "gemini-2.5-flash",
                 contents: [{ role: "user", parts: [{ text: `Role: ${analystName}\nDirective: ${prompt}\n${stanceAnchor}` }] }],
                 config: {
                   systemInstruction: `You are ${analystName}, a specialized expert analyst operating inside EthersFlow's multi-agent consensus layer. ${stanceAnchor} Provide your rigorous, independent perspective.`,
@@ -2174,7 +2174,7 @@ async function startServer() {
                 }
               });
               if (res.text && res.text.trim().length > 20) {
-                return { name: analystName, content: res.text.trim(), provider: "google", model: "gemini-3.5-flash" };
+                return { name: analystName, content: res.text.trim(), provider: "google", model: "gemini-2.5-flash" };
               }
             } catch (err) {
               // Graceful fallback to default signed perspective
@@ -2200,7 +2200,7 @@ async function startServer() {
           const synthPrompt = `USER DIRECTIVE: ${prompt}\n\nANALYST PERSPECTIVES:\n${draftSummaries}\n\nExecute Phase 3 Consensus Synthesis. Resolve any friction between the analyst perspectives, eliminate speculative hallucinations, and state the verified consensus outcome.${jsonSchemaEnforced ? " OUTPUT STRICT VALID JSON MATCHING THE REQUESTED SCHEMA." : ""}`;
           
           const synthRes = await geminiAI.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-2.5-flash",
             contents: [{ role: "user", parts: [{ text: synthPrompt }] }],
             config: {
               systemInstruction: "You are EthersFlow's Multi-Agent Consensus Synthesizer. Output a clear, verified, authoritative consensus response.",
@@ -5183,16 +5183,16 @@ async function startServer() {
     const isScheduleOrFormularyExempt = 
       /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(text);
 
-    const clinicalExfilVerb = /\b(?:download|export|dump|transfer|extract|fetch|retrieve|get|save|send|email|copy|migrate|pull|archive|exfiltrate|transmit|backup|sync|stream|collect|share|disclose|read|query|select|gather)\b/i;
-    const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across\s+(?:all\s+)?patients?|last\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+\s+(?:months?|years?|days?|weeks?)|window|archive)\b/i;
-    const clinicalPatientDataNoun = /\b(?:patient\s+records?|patient\s+data|patient\s+files?|patient\s+charts?|medical\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|clinical\s+records?|phi|electronic\s+health\s+records?|ehr|emr|health\s+records?|patient\s+histories|patient\s+information|patient\s+demographics|diagnostic\s+reports|patient\s+database|patient\s+table)\b/i;
+    const clinicalExfilVerb = /\b(?:download|export|dump|transfer|extract|fetch|retrieve|get|save|send|email|copy|migrate|pull|archive|exfiltrate|transmit|backup|backed?\s*up|sync|stream|collect|share|disclose|read|query|select|gather|offload|clone|move|store|pass)\b/i;
+    const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
+    const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
 
     const isBulkPatientExport = !isScheduleOrFormularyExempt && (
       (clinicalExfilVerb.test(text) && clinicalBulkQuantifier.test(text) && clinicalPatientDataNoun.test(text)) ||
-      (clinicalExfilVerb.test(text) && /\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|electronic\s+health\s+records?|ehr|emr|phi|health\s+records?)\b/i.test(text)) ||
-      (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi)\b/i.test(text)) ||
-      (/\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?)\b/i.test(text) && /\b(?:last\s+\d+\s+months?|past\s+\d+\s+months?|all\s+patients?|entire|full|across)\b/i.test(text)) ||
-      /\b(?:download|export|copy|migrate|pull|archive|transfer)\s+(?:all\s+)?patient\s+records\b/i.test(text)
+      (clinicalExfilVerb.test(text) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text)) ||
+      (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(text)) ||
+      (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud)\b/i.test(text)) ||
+      /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)?\s*(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(text)
     );
 
     const hasNegativeTicketClaim = 
@@ -5205,23 +5205,29 @@ async function startServer() {
       );
 
     const isCryptoMiningKeyword = 
-      /\b(?:crypto_miner|crypto-miner|crypto_mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining)\b/i.test(text);
+      /\b(?:crypto_miner|crypto-miner|crypto_mining|crypto\s*mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining|mining\s*process|mining\s*worker|crypto\s*process|mining)\b/i.test(text);
+
+    const isResourcePriorityTrigger = 
+      /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(text) &&
+      /\b(?:compute|gpu|cpu|tpu|hashrate|mining|cluster|worker|bandwidth|capacity|instance|instances|vms?|virtual\s+machines?|process|task|workload|batch\s*jobs|job|jobs)\b/i.test(text);
 
     const isComputeScalingDirective = 
+      isResourcePriorityTrigger ||
       /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:\d+\s+)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute)\b/i.test(text) ||
       /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(text);
 
     const isUnanchoredSystemAdmin = 
       /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf)\b/i.test(text) && !hasChangeTicketAnchor;
 
-    const isCryptoMinerAllocation = isCryptoMiningKeyword || (isComputeScalingDirective && !hasChangeTicketAnchor) || isUnanchoredSystemAdmin;
+    const isCryptoMinerAllocation = isCryptoMiningKeyword || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin;
 
-    const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout)\b/i;
-    const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
+    const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
+    const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
 
     const isUnauthorizedBenefitDelivery = 
-      (isBenefitVerb.test(text) && isBenefitTarget.test(text) && /\b(?:student|applicant|recipient|user|id|candidate|account)\b/i.test(text)) ||
-      /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?)\b/i.test(text) ||
+      (isBenefitVerb.test(text) && isBenefitTarget.test(text) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(text)) ||
+      /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?|assignment|assessment)\b/i.test(text) ||
+      /\b(?:bump\s+my|change\s+my|mark\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa)\b/i.test(text) ||
       /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(text);
 
     // Benign positive utility operational shapes
@@ -5230,12 +5236,12 @@ async function startServer() {
       /\b(?:hospital\s+formulary|drug\s+interactions?|standard\s+dosage\s+guidelines?)\b/i.test(text);
 
     const isBenignSchedulePrint = 
-      /\b(?:print|export|display|view|generate)\s+(?:the\s+)?(?:daily\s+)?(?:attending\s+)?(?:physician\s+)?(?:patient\s+)?(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|physician\s+schedule|clinic\s+schedule|shift\s+schedule|schedule)\b/i.test(text) ||
-      /\b(?:approved\s+by\s+dr\.?|signed\s+off\s+by\s+dr\.?|physician-approved|dr\.?\s+[a-z]+-approved)\b/i.test(text);
+      /\b(?:print|export|display|view|generate)\s+(?:the\s+)?(?:daily\s+)?(?:attending\s+)?(?:physician\s+)?(?:patient\s+)?(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|physician\s+schedule|clinic\s+schedule|shift\s+schedule|schedule|medication\s+schedule)\b/i.test(text) ||
+      /\b(?:approved\s+by\s+(?:the\s+)?(?:attending\s+)?physician|approved\s+by\s+dr\.?|signed\s+off\s+by\s+dr\.?|physician-approved|dr\.?\s+[a-z]+-approved)\b/i.test(text);
 
     const isPoReferencedPayment = 
-      /\b(?:po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+)\b/i.test(text) &&
-      (text.includes("payment") || text.includes("pay") || text.includes("disburse") || text.includes("order") || text.includes("invoice")) &&
+      /\b(?:po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|supplier\s*[-#:]?\s*\d+)\b/i.test(text) &&
+      (text.includes("payment") || text.includes("pay") || text.includes("disburse") || text.includes("order") || text.includes("invoice") || text.includes("supplier")) &&
       !isPoMismatchWire && !hasChangedBankAccount && !hasUrgentDualControlBypass;
 
     const isTicketedScalingRequest = 
@@ -7918,90 +7924,33 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     }
 
     // =========================================================================
-    // WORK ORDER 0.2.11 §1: VERDICT-FLOOR HARD RULE (HIGHEST PRIORITY)
-    // If any escalation detector has fired, the verdict MAY NOT BE APPROVED.
-    // Quorum consensus, adversarial debate, or council scores may NOT override a fired detector.
-    // =========================================================================
-    const ESCALATION_DETECTOR_CODES = [
-      "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
-      "BULK_PATIENT_RECORD_EXFILTRATION",
-      "UNAUTHORIZED_PHI_DISCLOSURE",
-      "DATA_MINIMIZATION_VIOLATION",
-      "UNANCHORED_REGULATORY_CLAIM",
-      "UNAUTHORIZED_BENEFIT_DELIVERY",
-      "UNANCHORED_AUTHORITY_CLAIM",
-      "UNANCHORED_CHANGE_REQUEST",
-      "UNAUTHORIZED_RESOURCE_ALLOCATION",
-      "CRYPTO_MINING_HAZARD",
-      "ACADEMIC_INTEGRITY_VIOLATION",
-      "EVIDENCE_ANCHOR_DEFICIT",
-      "UNANCHORED_FINANCIAL_DIRECTIVE",
-      "NO_INCOME_VERIFICATION",
-      "UNAPPROVED_COUNTERPARTY_DEFICIT",
-      "NAMED_COUNTERPARTY_REQUIRED",
-      "CREDENTIAL_EXFILTRATION_RISK",
-      "DATA_EXFILTRATION_HAZARD",
-      "PROMPT_INJECTION_OVERRIDE",
-      "PERIMETER_FIREWALL_DEACTIVATION"
-    ];
-
-    const hasFiredEscalationDetector = 
-      finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
-      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
-      kernelOutcome.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
-
-    if (hasFiredEscalationDetector) {
-      if (finalVerdict !== "REJECTED") {
-        finalVerdict = "FLAGGED_HUMAN_REVIEW";
-        finalStatus = "FLAGGED_HUMAN_REVIEW";
-        finalActionEligible = false;
-        finalVerified = false;
-        finalApprovalBlocked = true;
-        finalHumanReviewRequired = true;
-        finalPolicyStatus = "FAIL";
-        finalFinality = "NON_FINAL_ADVISORY";
-      }
-
-      // Strip ALL contradictory approval codes
-      finalReasonCodes = finalReasonCodes.filter(c => 
-        c !== "POLICY_COMPLIANCE_VERIFIED" && 
-        c !== "OPERATIONAL_BOUNDARIES_VERIFIED" && 
-        c !== "STRUCTURED_EVIDENCE_VALIDATED" &&
-        c !== "CHANGE_MANAGEMENT_VERIFIED" &&
-        c !== "INFRASTRUCTURE_SCALING_ANCHORED" &&
-        c !== "HIPAA_COMPLIANCE_VERIFIED" &&
-        c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
-        c !== "CLINICAL_PROTOCOL_ALIGNED" &&
-        c !== "ZERO_TRUST_VERIFIED" &&
-        c !== "LEAST_PRIVILEGE_ENFORCED" &&
-        c !== "FINANCIAL_REGULATORY_ALIGNED" &&
-        c !== "FIDUCIARY_CONTROLS_VERIFIED" &&
-        c !== "LEGAL_PRECEDENT_VERIFIED" &&
-        c !== "CONTRACT_ANALYSIS_VERIFIED" &&
-        c !== "READ_ONLY_OBSERVABILITY_VERIFIED" &&
-        c !== "TICKETED_CI_EVIDENCE_ANCHORED"
-      );
-
-      if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
-        finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
-      }
-    }
-
-    // =========================================================================
-    // WORK ORDER 0.2.11 §3: COMPLIANCE-ASSERTION GATING (AC-D1b)
+    // WORK ORDER 0.2.11 / 0.2.12 §3: COMPLIANCE-ASSERTION GATING (AC-D1b)
     // HIPAA_COMPLIANCE_VERIFIED & PHYSICIAN_OVERSIGHT_VERIFIED may ONLY be emitted
     // when action text contains an explicit authorization artifact (named authorizer, scope, timebox).
     // Otherwise emit UNANCHORED_REGULATORY_CLAIM and strip compliance assertions.
     // =========================================================================
     const hasNamedAuthorizerArtifact = /\b(?:dr\.?\s+[a-z0-9_-]+|attending\s+physician\s+dr\.?|signed\s+off\s+by|approved\s+by\s+dr\.?|dpo\s+authorization|privacy\s+officer)\b/i.test(textCombined);
     if (!hasNamedAuthorizerArtifact) {
-      const hadComplianceAssertion = finalReasonCodes.includes("HIPAA_COMPLIANCE_VERIFIED") || finalReasonCodes.includes("PHYSICIAN_OVERSIGHT_VERIFIED");
+      const hadComplianceAssertion = 
+        finalReasonCodes.includes("HIPAA_COMPLIANCE_VERIFIED") || 
+        finalReasonCodes.includes("PHYSICIAN_OVERSIGHT_VERIFIED") ||
+        finalReasonCodes.includes("CLINICAL_PROTOCOL_ALIGNED") ||
+        finalReasonCodes.includes("PATIENT_SAFETY_ASSESSED");
+
       finalReasonCodes = finalReasonCodes.filter(c => 
         c !== "HIPAA_COMPLIANCE_VERIFIED" && 
         c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
-        c !== "CLINICAL_PROTOCOL_ALIGNED"
+        c !== "CLINICAL_PROTOCOL_ALIGNED" &&
+        c !== "PATIENT_SAFETY_ASSESSED"
       );
-      if (hadComplianceAssertion && !finalReasonCodes.includes("UNANCHORED_REGULATORY_CLAIM")) {
+
+      const isClinicalExfilOrUnanchored = 
+        finalReasonCodes.includes("BULK_PATIENT_RECORD_EXFILTRATION_HAZARD") ||
+        finalReasonCodes.includes("DATA_MINIMIZATION_VIOLATION") ||
+        finalReasonCodes.includes("UNAUTHORIZED_PHI_DISCLOSURE") ||
+        hadComplianceAssertion;
+
+      if (isClinicalExfilOrUnanchored && !finalReasonCodes.includes("UNANCHORED_REGULATORY_CLAIM")) {
         finalReasonCodes.push("UNANCHORED_REGULATORY_CLAIM");
       }
     }
@@ -8052,10 +8001,96 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         !c.startsWith("PHYSICIAN_") && 
         !c.startsWith("PATIENT_") && 
         !c.startsWith("FINANCIAL_") && 
-        !c.startsWith("FIDUCIARY_") &&
+        !c.startsWith("FIDUCIARY_") && 
         !c.startsWith("ZERO_TRUST") &&
         !c.startsWith("CRYPTO_")
       );
+    }
+
+    // =========================================================================
+    // WORK ORDER 0.2.11 / 0.2.12 §1: VERDICT-FLOOR HARD RULE (HIGHEST PRIORITY)
+    // If any escalation detector has fired, the verdict MAY NOT BE APPROVED.
+    // Quorum consensus, adversarial debate, or council scores may NOT override a fired detector.
+    // =========================================================================
+    const ESCALATION_DETECTOR_CODES = [
+      "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
+      "BULK_PATIENT_RECORD_EXFILTRATION",
+      "UNAUTHORIZED_PHI_DISCLOSURE",
+      "DATA_MINIMIZATION_VIOLATION",
+      "UNANCHORED_REGULATORY_CLAIM",
+      "COMPLIANCE_ASSERTION_UNANCHORED",
+      "UNAUTHORIZED_BENEFIT_DELIVERY",
+      "UNANCHORED_AUTHORITY_CLAIM",
+      "UNANCHORED_CHANGE_REQUEST",
+      "UNAUTHORIZED_RESOURCE_ALLOCATION",
+      "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
+      "CRYPTO_MINING_HAZARD",
+      "ACADEMIC_INTEGRITY_VIOLATION",
+      "EVIDENCE_ANCHOR_DEFICIT",
+      "UNANCHORED_FINANCIAL_DIRECTIVE",
+      "NO_INCOME_VERIFICATION",
+      "UNAPPROVED_COUNTERPARTY_DEFICIT",
+      "NAMED_COUNTERPARTY_REQUIRED",
+      "CREDENTIAL_EXFILTRATION_RISK",
+      "CREDENTIAL_EXFILTRATION_HAZARD",
+      "DATA_EXFILTRATION_HAZARD",
+      "DATA_EXFILTRATION_RISK",
+      "PROMPT_INJECTION_OVERRIDE",
+      "PERIMETER_FIREWALL_DEACTIVATION",
+      "UNAPPROVED_SYSTEM_MUTATION"
+    ];
+
+    const hasFiredEscalationDetector = 
+      finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      kernelOutcome.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
+
+    if (hasFiredEscalationDetector) {
+      if (finalVerdict !== "REJECTED") {
+        finalVerdict = "FLAGGED_HUMAN_REVIEW";
+        finalStatus = "FLAGGED_HUMAN_REVIEW";
+        finalActionEligible = false;
+        finalVerified = false;
+        finalApprovalBlocked = true;
+        finalHumanReviewRequired = true;
+        finalPolicyStatus = "FAIL";
+        finalFinality = "NON_FINAL_ADVISORY";
+      }
+
+      // Strip ALL contradictory approval / verified codes
+      finalReasonCodes = finalReasonCodes.filter(c => 
+        c !== "POLICY_COMPLIANCE_VERIFIED" && 
+        c !== "OPERATIONAL_BOUNDARIES_VERIFIED" && 
+        c !== "STRUCTURED_EVIDENCE_VALIDATED" &&
+        c !== "CHANGE_MANAGEMENT_VERIFIED" &&
+        c !== "INFRASTRUCTURE_SCALING_ANCHORED" &&
+        c !== "HIPAA_COMPLIANCE_VERIFIED" &&
+        c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
+        c !== "CLINICAL_PROTOCOL_ALIGNED" &&
+        c !== "ZERO_TRUST_VERIFIED" &&
+        c !== "LEAST_PRIVILEGE_ENFORCED" &&
+        c !== "FINANCIAL_REGULATORY_ALIGNED" &&
+        c !== "FIDUCIARY_CONTROLS_VERIFIED" &&
+        c !== "LEGAL_PRECEDENT_VERIFIED" &&
+        c !== "CONTRACT_ANALYSIS_VERIFIED" &&
+        c !== "READ_ONLY_OBSERVABILITY_VERIFIED" &&
+        c !== "TICKETED_CI_EVIDENCE_ANCHORED" &&
+        c !== "APPROVED_COUNTERPARTY_VERIFIED" &&
+        c !== "WITHIN_DELEGATED_FINANCIAL_AUTHORITY" &&
+        c !== "RECONCILED_INVOICE_PO_MATCH" &&
+        c !== "VENDOR_MASTER_VERIFIED" &&
+        c !== "GOODS_RECEIPT_CONFIRMED" &&
+        c !== "SANCTIONS_SCREENING_CLEARED" &&
+        c !== "BOUNDED_CUSTOMER_SUPPORT_ACTION" &&
+        c !== "STAGING_ENVIRONMENT_SCOPED" &&
+        c !== "PEER_REVIEW_CONFIRMED" &&
+        c !== "ROLLBACK_IMAGE_VERIFIED" &&
+        c !== "VAULT_BOUNDARIES_MAINTAINED"
+      );
+
+      if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
+        finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
+      }
     }
 
     // GROUNDING CHECK SYNCHRONIZATION: Grounding status reflects factual node contradictions & verified facts
@@ -10768,7 +10803,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
           const queryToSearch = searchQuery || userPrompt;
           console.log(`[Google Grounding Fallback] Fetching Google Search grounding for non-Gemini model ${model}...`);
           const searchRes = await geminiClient.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.5-flash',
             contents: [{
               role: 'user',
               parts: [{ text: `Search Google for current real-time details regarding: "${queryToSearch}". Give a highly concise synthesis of current prices, statistics, or status, and extract the exact URLs of the primary search results. Make sure to return actual, valid URLs so the user can check them.` }]
@@ -11352,7 +11387,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
           const queryToSearch = searchQuery || userPrompt;
           console.log(`[Google Grounding Fallback] Fetching Google Search grounding for non-Gemini model ${model} (Stream)...`);
           const searchRes = await geminiClient.models.generateContent({
-            model: 'gemini-3.5-flash',
+            model: 'gemini-2.5-flash',
             contents: [{
               role: 'user',
               parts: [{ text: `Search Google for current real-time details regarding: "${queryToSearch}". Give a highly concise synthesis of current prices, statistics, or status, and extract the exact URLs of the primary search results. Make sure to return actual, valid URLs so the user can check them.` }]
@@ -11934,7 +11969,7 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
             console.log(`[Scraper] Triggering highly resilient Google Search Grounding fallback for URL: ${url}`);
             try {
               const res = await geminiClient.models.generateContent({
-                model: 'gemini-3.5-flash',
+                model: 'gemini-2.5-flash',
                 contents: [{
                   role: 'user',
                   parts: [{
@@ -12894,7 +12929,7 @@ Return ONLY a valid JSON array of these 3 objects. Do not wrap in markdown or an
         console.log(`[GTM] [Fallback-3] Running Gemini 3.5 Flash fallback lead enrichment for query: ${query}`);
         try {
           const response = await geminiAI.models.generateContent({
-            model: "gemini-3.5-flash",
+            model: "gemini-2.5-flash",
             contents: prompt,
             config: {
               responseMimeType: "application/json"

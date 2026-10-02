@@ -20,15 +20,15 @@ Canary #6 (ACC-gen-9522): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
 [
   {
     "id": "ACC-cyber-9513",
-    "error": "This operation was aborted"
+    "error": "fetch failed"
   },
   {
     "id": "ACC-benign-9533",
-    "error": "This operation was aborted"
+    "error": "fetch failed"
   },
   {
     "id": "ACC-benign-9534",
-    "error": "This operation was aborted"
+    "error": "fetch failed"
   },
   {
     "id": "ACC-benign-9535",

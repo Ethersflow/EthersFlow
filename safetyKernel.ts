@@ -1123,16 +1123,16 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const isScheduleOrFormularyExempt = 
     /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(combined);
 
-  const clinicalExfilVerb = /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|fetch|retrieve|get|save|send|email|exfiltrate|transmit|backup|stream|collect|share|disclose|read|query|select|gather)\b/i;
-  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|every|whole|all\s+available|last\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+\s+(?:months?|years?|days?|weeks?)|between\s+.+\s+and\s+.+|historical|unbounded|batch|multi-patient|multiple\s+patients?|across\s+(?:all\s+)?patients?|window|archive|records?|histories|files?|charts?|dossiers?)\b/i;
-  const clinicalPatientDataNoun = /\b(?:patient\s+records?|patient\s+data|patient\s+files?|patient\s+charts?|medical\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|clinical\s+records?|phi|electronic\s+health\s+records?|ehr|emr|health\s+records?|patient\s+histories|patient\s+information|patient\s+demographics|diagnostic\s+reports|patient\s+database|patient\s+table|oncology|cardiology|prescription|treatment|clinical)\b/i;
+  const clinicalExfilVerb = /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|fetch|retrieve|get|save|send|email|exfiltrate|transmit|backup|backed?\s*up|stream|collect|share|disclose|read|query|select|gather|offload|clone|move|store|pass)\b/i;
+  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|every|whole|all\s+available|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
+  const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
 
   const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && (
     (clinicalExfilVerb.test(combined) && clinicalBulkQuantifier.test(combined) && clinicalPatientDataNoun.test(combined)) ||
-    (clinicalExfilVerb.test(combined) && /\b(?:patient\s+records?|patient\s+medical\s+histories|medical\s+histories|treatment\s+notes|clinical\s+charts?|electronic\s+health\s+records?|ehr|emr|phi|health\s+records?)\b/i.test(combined)) ||
-    (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi)\b/i.test(combined)) ||
-    (/\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?)\b/i.test(combined) && /\b(?:last\s+\d+\s+months?|past\s+\d+\s+months?|all\s+patients?|entire|full|across)\b/i.test(combined)) ||
-    /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract)\s+(?:all\s+)?(?:patient|medical)\s+(?:records?|histories|charts?|files?)\b/i.test(combined)
+    (clinicalExfilVerb.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined)) ||
+    (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(combined)) ||
+    (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud)\b/i.test(combined)) ||
+    /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)?\s*(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(combined)
   );
 
   if (isBulkPatientExfiltration) {
@@ -1154,11 +1154,11 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     );
 
   const isCryptoMiningKeyword = 
-    /\b(?:crypto_miner|crypto-miner|crypto_mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining)\b/i.test(combined);
+    /\b(?:crypto_miner|crypto-miner|crypto_mining|crypto\s*mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining|mining\s*process|mining\s*worker|crypto\s*process|mining)\b/i.test(combined);
 
   const isResourcePriorityTrigger = 
-    /\b(?:priority|priority-over-peers|priority\s+over|higher\s+weight|reserve\s+capacity|devote|dedicate|monopolize|precedence)\b/i.test(combined) &&
-    /\b(?:compute|gpu|cpu|tpu|hashrate|mining|cluster|worker|bandwidth|capacity|instance|instances|vms?|virtual\s+machines?|process|task|workload)\b/i.test(combined);
+    /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(combined) &&
+    /\b(?:compute|gpu|cpu|tpu|hashrate|mining|cluster|worker|bandwidth|capacity|instance|instances|vms?|virtual\s+machines?|process|task|workload|batch\s*jobs|job|jobs)\b/i.test(combined);
 
   const isComputeScalingDirective = 
     isResourcePriorityTrigger ||
@@ -1178,14 +1178,15 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   }
 
   // 20. Unauthorized Benefit Delivery & Academic / Financial Integrity Violation (D3)
-  const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout)\b/i;
-  const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
-  const isBenefitSelfInstruction = /\b(?:change\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa|disburse\s+grant|disburse\s+scholarship|grant\s+housing|disburse\s+\$\d+)\b/i.test(combined);
+  const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
+  const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
+  const isBenefitSelfInstruction = /\b(?:change\s+my|bump\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|mark\s+my|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa|disburse\s+grant|disburse\s+scholarship|grant\s+housing|disburse\s+\$\d+)\b/i.test(combined);
 
   if (
     isBenefitSelfInstruction ||
-    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my)\b/i.test(combined)) ||
-    /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?)\b/i.test(combined) ||
+    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(combined)) ||
+    /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?|assignment|assessment)\b/i.test(combined) ||
+    /\b(?:bump\s+my|change\s+my|mark\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa)\b/i.test(combined) ||
     /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(combined)
   ) {
     reasons.push("UNAUTHORIZED_BENEFIT_DELIVERY: Directives altering academic records, issuing unanchored refunds, or granting unverified entitlements.");
