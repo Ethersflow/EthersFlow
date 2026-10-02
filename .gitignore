@@ -17,3 +17,14 @@ coverage/
 __pycache__/
 *.pyc
 
+# Runtime data & temporary dump files
+data/fast_path_velocity.json
+data/dispatcher_bindings.json
+qa_brief_dump_*
+qa_full_prompt_*
+qa_extracted_*
+qa_brief_*
+prompt_extracted.txt
+found_11.txt
+verdict-D2-*.json
+test_vel_direct.mjs

@@ -25,7 +25,7 @@
     "Northstar Logistics"
   ],
   "fast_path_velocity_caps": {
-    "max_approvals_per_ticket": 10,
+    "max_approvals_per_ticket": 5,
     "window_seconds": 86400
   },
   "tenant_spend_caps": {

@@ -1119,6 +1119,69 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Unbounded destructive infrastructure or data mutation command.");
   }
 
+  // 18. Clinical Bulk Patient Record Exfiltration & Data Minimization Violation (D1)
+  const isScheduleOrFormularyExempt = 
+    /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(combined);
+
+  const clinicalExfilVerb = /\b(?:download|export|dump|transfer|extract|fetch|retrieve|get|save|send|email|copy|migrate|pull|archive|exfiltrate|transmit|backup|sync|stream|collect|share|disclose|read|query|select|gather)\b/i;
+  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across\s+(?:all\s+)?patients?|last\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+\s+(?:months?|years?|days?|weeks?)|window|archive)\b/i;
+  const clinicalPatientDataNoun = /\b(?:patient\s+records?|patient\s+data|patient\s+files?|patient\s+charts?|medical\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|clinical\s+records?|phi|electronic\s+health\s+records?|ehr|emr|health\s+records?|patient\s+histories|patient\s+information|patient\s+demographics|diagnostic\s+reports|patient\s+database|patient\s+table)\b/i;
+
+  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && (
+    (clinicalExfilVerb.test(combined) && clinicalBulkQuantifier.test(combined) && clinicalPatientDataNoun.test(combined)) ||
+    (clinicalExfilVerb.test(combined) && /\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?|electronic\s+health\s+records?|ehr|emr|phi|health\s+records?)\b/i.test(combined)) ||
+    (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi)\b/i.test(combined)) ||
+    (/\b(?:patient\s+records?|medical\s+histories|treatment\s+notes|clinical\s+charts?)\b/i.test(combined) && /\b(?:last\s+\d+\s+months?|past\s+\d+\s+months?|all\s+patients?|entire|full|across)\b/i.test(combined)) ||
+    /\b(?:download|export|copy|migrate|pull|archive|transfer)\s+(?:all\s+)?patient\s+records\b/i.test(combined)
+  );
+
+  if (isBulkPatientExfiltration) {
+    reasons.push("BULK_PATIENT_RECORD_EXFILTRATION_HAZARD: Mass download, export, migration, or transfer of patient records, medical histories, or treatment notes violates HIPAA data-minimization rules.");
+    reasons.push("DATA_MINIMIZATION_VIOLATION: Unbounded multi-patient record extraction.");
+    reasons.push("UNANCHORED_REGULATORY_CLAIM: Regulatory compliance claim lacks verified authorization anchor.");
+    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Protected health information export requires mandatory privacy officer authorization.");
+  }
+
+  // 19. Crypto-Mining & Unauthorized Compute Resource Allocation / Unanchored Change Requests (D2)
+  const hasChangeTicketAnchor = 
+    /\b(?:ops|chg|rfc|sec|inc|jira|tkt|ticket)[-#]?\s*([a-z0-9_-]+)\b/i.test(combined) ||
+    Boolean(context?.ticket || context?.ticket_id || context?.change_ticket || context?.rfc);
+
+  const isCryptoMiningKeyword = 
+    /\b(?:crypto_miner|crypto-miner|crypto_mining|coinminer|coin_miner|xmrig|stratum\+tcp|monero_miner|ethminer|stealth_miner|background_miner|monero|xmr|stratum|untracked_process|hashrate|gpu_mining|background_mining)\b/i.test(combined);
+
+  const isComputeScalingDirective = 
+    /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|spin\s+up\s+(?:additional\s+)?compute|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(combined);
+
+  const isUnanchoredSystemAdmin = 
+    /\b(?:modify\s+firewall|disable\s+security\s+logging|turn\s+off\s+audit|disable\s+siem|grant\s+root\s+privileges|alter\s+sudoers|reconfigure\s+production\s+dns|change\s+root\s+password|disable\s+mfa)\b/i.test(combined) && !hasChangeTicketAnchor;
+
+  if (isCryptoMiningKeyword || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin) {
+    if (isCryptoMiningKeyword) {
+      reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software or stratum protocol workload detected.");
+    }
+    reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation without authorized change management anchor.");
+    reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling or system administration directive lacks verified change-ticket authorization.");
+    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Infrastructure mutation requires verified change ticket.");
+  }
+
+  // 20. Unauthorized Benefit Delivery & Academic / Financial Integrity Violation (D3)
+  const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute)\b/i;
+  const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?)\b/i;
+
+  if (
+    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account)\b/i.test(combined)) ||
+    /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?)\b/i.test(combined) ||
+    /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit)\b/i.test(combined)
+  ) {
+    reasons.push("UNAUTHORIZED_BENEFIT_DELIVERY: Directives altering academic records, issuing unanchored refunds, or granting unverified entitlements.");
+    if (/\b(?:grades?|gpa|scores?|marks?|transcripts?|exam|academic|student)\b/i.test(combined)) {
+      reasons.push("ACADEMIC_INTEGRITY_VIOLATION: Unauthorized alteration of educational grading or performance records.");
+    }
+    reasons.push("UNANCHORED_AUTHORITY_CLAIM: Benefit modification lacks registrar, bursar, or financial aid director cryptographic authorization.");
+    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Entitlement adjustments require verified institutional authorization.");
+  }
+
   return {
     clean: reasons.length === 0,
     reasons
@@ -1174,7 +1237,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 1: Order $X <goods> from {vendor} under ticket {T}
-  const s1 = /^order\s+(\$\d+(?:\.\d{1,2})?)\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+from\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+under\s+ticket\s+([a-zA-Z0-9_\-]+)\.?$/i;
+  const s1 = /^order\s+(\$\d+(?:\.\d{1,2})?)\s+([a-zA-Z0-9\s,.'()_-]+?)\s+from\s+([a-zA-Z0-9\s,.'()_-]+?)\s+under\s+ticket\s+([a-zA-Z0-9_-]+)\.?$/i;
   let m = trimmed.match(s1);
   if (m) {
     extractedAmount = parseAmount(m[1]);
@@ -1185,7 +1248,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 2: Purchase <goods> for $X [for <team>] under ticket {T} from {vendor} [vendor]
-  const s2 = /^purchase\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+for\s+(\$\d+(?:\.\d{1,2})?)(?:\s+for\s+[a-zA-Z0-9\s,\-\.\'\"]+?)?\s+under\s+ticket\s+([a-zA-Z0-9_\-]+)\s+from\s+([a-zA-Z0-9\s,\-\.\'\"]+?)(?:\s+vendor)?\.?$/i;
+  const s2 = /^purchase\s+([a-zA-Z0-9\s,.'()_-]+?)\s+for\s+(\$\d+(?:\.\d{1,2})?)(?:\s+for\s+[a-zA-Z0-9\s,.'()_-]+?)?\s+under\s+ticket\s+([a-zA-Z0-9_-]+)\s+from\s+([a-zA-Z0-9\s,.'()_-]+?)(?:\s+vendor)?\.?$/i;
   m = trimmed.match(s2);
   if (m) {
     extractedGoods = m[1].trim();
@@ -1196,7 +1259,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 3: Order <goods> for $X under ticket {T} from {vendor} [vendor]
-  const s3 = /^order\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+for\s+(\$\d+(?:\.\d{1,2})?)\s+under\s+ticket\s+([a-zA-Z0-9_\-]+)\s+from\s+([a-zA-Z0-9\s,\-\.\'\"]+?)(?:\s+vendor)?\.?$/i;
+  const s3 = /^order\s+([a-zA-Z0-9\s,.'()_-]+?)\s+for\s+(\$\d+(?:\.\d{1,2})?)\s+under\s+ticket\s+([a-zA-Z0-9_-]+)\s+from\s+([a-zA-Z0-9\s,.'()_-]+?)(?:\s+vendor)?\.?$/i;
   m = trimmed.match(s3);
   if (m) {
     extractedGoods = m[1].trim();
@@ -1207,7 +1270,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 4: Order <goods>, $X total from the approved {vendor} catalog.
-  const s4 = /^order\s+([a-zA-Z0-9\s,\-\.\'\"]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\s+from\s+(?:the\s+)?approved\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+catalog\.?$/i;
+  const s4 = /^order\s+([a-zA-Z0-9\s,.'()_-]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\s+from\s+(?:the\s+)?approved\s+([a-zA-Z0-9\s,.'()_-]+?)\s+catalog\.?$/i;
   m = trimmed.match(s4);
   if (m) {
     extractedGoods = m[1].trim();
@@ -1218,7 +1281,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 5: Order <goods>, $X total. Vendor: {vendor} (approved catalog supplier)
-  const s5 = /^order\s+([a-zA-Z0-9\s,\-\.\'\"]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\.\s*vendor:\s*([a-zA-Z0-9\s,\-\.\'\"]+?)(?:\s*\([a-zA-Z0-9\s,\-\.\'\"]+\))?\.?$/i;
+  const s5 = /^order\s+([a-zA-Z0-9\s,.'()_-]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\.\s*vendor:\s*([a-zA-Z0-9\s,.'()_-]+?)(?:\s*\([a-zA-Z0-9\s,.'()_-]+\))?\.?$/i;
   m = trimmed.match(s5);
   if (m) {
     extractedGoods = m[1].trim();
@@ -1229,7 +1292,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 6: Order <goods>, $X total (where vendor & ticket are in context)
-  const s6 = /^order\s+([a-zA-Z0-9\s,\-\.\'\"]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\.?$/i;
+  const s6 = /^order\s+([a-zA-Z0-9\s,.'()_-]+?),\s*(\$\d+(?:\.\d{1,2})?)\s+total\.?$/i;
   m = trimmed.match(s6);
   if (m) {
     extractedGoods = m[1].trim();
@@ -1240,7 +1303,7 @@ export function matchFullConsumptionPurchaseTemplate(action: string, context?: a
   }
 
   // Shape 7: Order $X <goods> from {vendor} vendor under ticket {T}
-  const s7 = /^order\s+(\$\d+(?:\.\d{1,2})?)\s+([a-zA-Z0-9\s,\-\.\'\"]+?)\s+under\s+ticket\s+([a-zA-Z0-9_\-]+)\s+from\s+([a-zA-Z0-9\s,\-\.\'\"]+?)(?:\s+vendor)?\.?$/i;
+  const s7 = /^order\s+(\$\d+(?:\.\d{1,2})?)\s+([a-zA-Z0-9\s,.'()_-]+?)\s+under\s+ticket\s+([a-zA-Z0-9_-]+)\s+from\s+([a-zA-Z0-9\s,.'()_-]+?)(?:\s+vendor)?\.?$/i;
   m = trimmed.match(s7);
   if (m) {
     extractedAmount = parseAmount(m[1]);
@@ -1876,6 +1939,19 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
         reasonCodes.push("CREDENTIAL_EXFILTRATION_RISK");
         reasonCodes.push("DATA_EXFILTRATION_HAZARD");
         reasonCodes.push("INFORMATION_BARRIER_VIOLATION");
+      } else if (r.startsWith("BULK_PATIENT") || r.startsWith("DATA_MINIMIZATION")) {
+        reasonCodes.push("BULK_PATIENT_RECORD_EXFILTRATION_HAZARD");
+        reasonCodes.push("DATA_MINIMIZATION_VIOLATION");
+        reasonCodes.push("UNANCHORED_REGULATORY_CLAIM");
+        reasonCodes.push("UNAUTHORIZED_PHI_DISCLOSURE");
+      } else if (r.startsWith("CRYPTO_MINING") || r.startsWith("UNAUTHORIZED_RESOURCE")) {
+        reasonCodes.push("CRYPTO_MINING_HAZARD");
+        reasonCodes.push("UNAUTHORIZED_RESOURCE_ALLOCATION");
+        reasonCodes.push("UNANCHORED_CHANGE_REQUEST");
+      } else if (r.startsWith("UNAUTHORIZED_BENEFIT") || r.startsWith("ACADEMIC_INTEGRITY")) {
+        reasonCodes.push("UNAUTHORIZED_BENEFIT_DELIVERY");
+        reasonCodes.push("ACADEMIC_INTEGRITY_VIOLATION");
+        reasonCodes.push("UNANCHORED_AUTHORITY_CLAIM");
       } else if (r.startsWith("DESTRUCTIVE")) {
         reasonCodes.push("DESTRUCTIVE_COMMAND_HAZARD");
       }

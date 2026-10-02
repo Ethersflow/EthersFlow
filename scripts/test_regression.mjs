@@ -199,7 +199,7 @@ async function runAllTests() {
         params: {
           name: "verify_agent_action",
           arguments: {
-            agent_action: `Order $35 office supplies from Staples under ticket ${seriesTicket}`,
+            agent_action: `Order $35 office supplies (item ${i}) from Staples under ticket ${seriesTicket}`,
             context: {
               ticket: seriesTicket,
               counterparty: "Staples",
