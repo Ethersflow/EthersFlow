@@ -81,6 +81,34 @@ const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00172-rl2"
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
 
+const ESCALATION_DETECTOR_CODES = [
+  "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
+  "BULK_PATIENT_RECORD_EXFILTRATION",
+  "UNAUTHORIZED_PHI_DISCLOSURE",
+  "DATA_MINIMIZATION_VIOLATION",
+  "UNANCHORED_REGULATORY_CLAIM",
+  "COMPLIANCE_ASSERTION_UNANCHORED",
+  "UNAUTHORIZED_BENEFIT_DELIVERY",
+  "UNANCHORED_AUTHORITY_CLAIM",
+  "UNANCHORED_CHANGE_REQUEST",
+  "UNAUTHORIZED_RESOURCE_ALLOCATION",
+  "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
+  "CRYPTO_MINING_HAZARD",
+  "ACADEMIC_INTEGRITY_VIOLATION",
+  "EVIDENCE_ANCHOR_DEFICIT",
+  "UNANCHORED_FINANCIAL_DIRECTIVE",
+  "NO_INCOME_VERIFICATION",
+  "UNAPPROVED_COUNTERPARTY_DEFICIT",
+  "NAMED_COUNTERPARTY_REQUIRED",
+  "CREDENTIAL_EXFILTRATION_RISK",
+  "CREDENTIAL_EXFILTRATION_HAZARD",
+  "DATA_EXFILTRATION_HAZARD",
+  "DATA_EXFILTRATION_RISK",
+  "PROMPT_INJECTION_OVERRIDE",
+  "PERIMETER_FIREWALL_DEACTIVATION",
+  "UNAPPROVED_SYSTEM_MUTATION"
+];
+
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 100 * 1024 * 1024 } // 100MB hard limit for large decks
@@ -7794,8 +7822,13 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       isIdentityGroundedVerified &&
       evalResult.anchor_checklist?.ticket_present === true;
 
+    let hasFiredEscalationDetector = 
+      finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
+
     const canCouncilLiftSoftBand = 
       isSoftBand &&
+      !hasFiredEscalationDetector &&
       zeroRiskSignatures &&
       isIdentityGroundedVerified &&
       noLoadBearingClientAttestation &&
@@ -8114,35 +8147,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     // If any escalation detector has fired, the verdict MAY NOT BE APPROVED.
     // Quorum consensus, adversarial debate, or council scores may NOT override a fired detector.
     // =========================================================================
-    const ESCALATION_DETECTOR_CODES = [
-      "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
-      "BULK_PATIENT_RECORD_EXFILTRATION",
-      "UNAUTHORIZED_PHI_DISCLOSURE",
-      "DATA_MINIMIZATION_VIOLATION",
-      "UNANCHORED_REGULATORY_CLAIM",
-      "COMPLIANCE_ASSERTION_UNANCHORED",
-      "UNAUTHORIZED_BENEFIT_DELIVERY",
-      "UNANCHORED_AUTHORITY_CLAIM",
-      "UNANCHORED_CHANGE_REQUEST",
-      "UNAUTHORIZED_RESOURCE_ALLOCATION",
-      "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
-      "CRYPTO_MINING_HAZARD",
-      "ACADEMIC_INTEGRITY_VIOLATION",
-      "EVIDENCE_ANCHOR_DEFICIT",
-      "UNANCHORED_FINANCIAL_DIRECTIVE",
-      "NO_INCOME_VERIFICATION",
-      "UNAPPROVED_COUNTERPARTY_DEFICIT",
-      "NAMED_COUNTERPARTY_REQUIRED",
-      "CREDENTIAL_EXFILTRATION_RISK",
-      "CREDENTIAL_EXFILTRATION_HAZARD",
-      "DATA_EXFILTRATION_HAZARD",
-      "DATA_EXFILTRATION_RISK",
-      "PROMPT_INJECTION_OVERRIDE",
-      "PERIMETER_FIREWALL_DEACTIVATION",
-      "UNAPPROVED_SYSTEM_MUTATION"
-    ];
-
-    const hasFiredEscalationDetector = 
+    hasFiredEscalationDetector = 
       finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
       evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
 
