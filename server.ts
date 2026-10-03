@@ -66,7 +66,7 @@ try {
 console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding from package.json - Single Source of Truth)
-let pkgVersion = "0.2.9";
+let pkgVersion = "0.2.12";
 try {
   const pkgPath = path.resolve(process.cwd(), "package.json");
   if (fs.existsSync(pkgPath)) {
@@ -76,8 +76,8 @@ try {
 } catch (e) {
   console.warn("[Server] Dynamic package.json version resolution fallback:", e);
 }
-const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.11";
-const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00169-rl1";
+const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.12";
+const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00172-rl2";
 const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
 
@@ -1396,7 +1396,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
-      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-cb84f9`,
+      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-cb95a3`,
       policy_hash: computePolicyHash(),
       config_tuple: {
         policy_id: "finops_default_v1",
@@ -3467,7 +3467,8 @@ async function startServer() {
     amountCents = 0,
     tenantId = "default_tenant",
     maxSpendCents = 50000,
-    vendorName?: string | null
+    vendorName?: string | null,
+    isFinancial = true
   ): FastPathVelocityStatus {
     const policyConfig = loadFinopsPolicy();
     const normTicket = normalizeTicketId(ticketId);
@@ -3515,14 +3516,24 @@ async function startServer() {
     const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
-    const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isVelocityCapped = normTicket !== "UNTICKETED" && currentApprovals >= maxApprovals;
+    const isTicketSpendCapped = isFinancial && normTicket !== "UNTICKETED" && (ticketSpendCents >= maxSpendCents);
     const isSpendCapped = isTicketSpendCapped;
     const tenantMax = policyConfig?.tenant_spend_caps?.max_spend_per_tenant_window_cents || 50000;
     const vendorMax = policyConfig?.tenant_spend_caps?.max_spend_per_vendor_window_cents || 250000;
-    const isTenantSpendCapped = normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
-    const isVendorSpendCapped = normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const isTenantSpendCapped = isFinancial && normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
+    const isVendorSpendCapped = isFinancial && normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
     const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
+
+    console.log("[DEBUG checkFastPathVelocity]", {
+      normTicket,
+      normTenant,
+      isVelocityCapped,
+      isTicketSpendCapped,
+      isTenantSpendCapped,
+      isVendorSpendCapped,
+      allowed
+    });
 
     return { 
       allowed, 
@@ -3555,7 +3566,8 @@ async function startServer() {
     amountCents = 0,
     tenantId = "default_tenant",
     maxSpendCents = 50000,
-    vendorName?: string | null
+    vendorName?: string | null,
+    isFinancial = true
   ): Promise<FastPathVelocityStatus> {
     const policyConfig = loadFinopsPolicy();
     const normTicket = normalizeTicketId(ticketId);
@@ -3645,13 +3657,13 @@ async function startServer() {
     const resetAt = resetAtMs ? new Date(resetAtMs).toISOString() : null;
     const resetInSeconds = resetAtMs ? Math.max(0, Math.ceil((resetAtMs - now) / 1000)) : windowSeconds;
 
-    const isVelocityCapped = currentApprovals >= maxApprovals;
-    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isVelocityCapped = normTicket !== "UNTICKETED" && currentApprovals >= maxApprovals;
+    const isTicketSpendCapped = isFinancial && normTicket !== "UNTICKETED" && ticketSpendCents >= maxSpendCents;
     const isSpendCapped = isTicketSpendCapped;
     const tenantMax = policyConfig?.tenant_spend_caps?.max_spend_per_tenant_window_cents || 50000;
     const vendorMax = policyConfig?.tenant_spend_caps?.max_spend_per_vendor_window_cents || 250000;
-    const isTenantSpendCapped = normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
-    const isVendorSpendCapped = normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const isTenantSpendCapped = isFinancial && normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
+    const isVendorSpendCapped = isFinancial && normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
     const allowed = !isVelocityCapped && !isSpendCapped && !isTenantSpendCapped && !isVendorSpendCapped;
 
     return {
@@ -3685,7 +3697,8 @@ async function startServer() {
     amountCents = 0,
     tenantId = "default_tenant",
     maxSpendCents = 50000,
-    vendorName?: string | null
+    vendorName?: string | null,
+    isFinancial = true
   ): FastPathVelocityStatus {
     const normTicket = normalizeTicketId(ticketId);
     const normTenant = tenantId || "default_tenant";
@@ -3716,13 +3729,13 @@ async function startServer() {
 
     const policyConfig = loadFinopsPolicy();
     const ticketSpendCents = validSpendRecords.reduce((acc, r) => acc + (Number(r.amount_cents) || 0), 0);
-    const isVelocityCapped = validTimestamps.length >= maxApprovals;
-    const isTicketSpendCapped = ticketSpendCents >= maxSpendCents;
+    const isVelocityCapped = normTicket !== "UNTICKETED" && validTimestamps.length >= maxApprovals;
+    const isTicketSpendCapped = isFinancial && normTicket !== "UNTICKETED" && (ticketSpendCents >= maxSpendCents);
     const isSpendCapped = isTicketSpendCapped;
     const tenantMax = policyConfig?.tenant_spend_caps?.max_spend_per_tenant_window_cents || 50000;
     const vendorMax = policyConfig?.tenant_spend_caps?.max_spend_per_vendor_window_cents || 250000;
-    const isTenantSpendCapped = normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
-    const isVendorSpendCapped = normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
+    const isTenantSpendCapped = isFinancial && normTenant !== "default_tenant" && (tenantSpendCents >= tenantMax || (amountCents > 0 && (tenantSpendCents + amountCents) > tenantMax));
+    const isVendorSpendCapped = isFinancial && normTenant !== "default_tenant" && Boolean(normVendor && ((vendorSpendCents >= vendorMax) || (amountCents > 0 && (vendorSpendCents + amountCents) > vendorMax)));
 
     const oldestTimestamp = validTimestamps.length > 0 ? validTimestamps[0] : null;
     const resetAtMs = oldestTimestamp ? oldestTimestamp + windowMs : null;
@@ -4428,6 +4441,21 @@ async function startServer() {
     const contextLower = contextRawStr.toLowerCase();
     const combinedAll = `${actionLower} ${reasoningLower} ${contextLower}`;
 
+    const isMutationActionContent = 
+      /\b(firewall|disable\s+firewall|port\s*22|0\.0\.0\.0\/0|security\s+group|open\s+port|iptables|ufw|config\s+write|mutate|delete|drop\s+table|truncate|rm\s+-rf|shutdown|kill|reboot|provision|grant|revoke|chmod|chown)\b/i.test(combinedAll);
+
+    const isBulkDataEgressContent = 
+      (/\b(bulk\s+data\s+export|export\s+(all\s+)?customer|dump\s+database|export\s+user\s+records|customer\s+data\s+export|database\s+dump|bulk\s+export)\b/i.test(combinedAll)) &&
+      (/@(gmail|yahoo|hotmail|proton|outlook|personal|external)\.|\bexternal\s+(email|destination|recipient|bucket|storage|personal\s+email)\b/i.test(combinedAll) || 
+       combinedAll.includes("external personal email") || combinedAll.includes("personal email") || combinedAll.includes("external destination"));
+
+    const isBenignPatientReadLookupContent = 
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(combinedAll) &&
+      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes)\b/i.test(combinedAll) &&
+      /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(combinedAll) &&
+      !isBulkDataEgressContent &&
+      !isMutationActionContent;
+
     const isBenignMedicationLookupContent = 
       /\b(?:look\s*up|search|query|check|find|retrieve|read|get|consult|display|show|view)\s+(?:the\s+)?(?:standard\s+)?(?:dosage|dose|guidelines?|interaction|formulary|indications?|contraindications?|pharmacology|protocol)\b/i.test(combinedAll) ||
       /\b(?:hospital\s+formulary|drug\s+interactions?|standard\s+dosage\s+guidelines?)\b/i.test(combinedAll);
@@ -4441,7 +4469,7 @@ async function startServer() {
       !combinedAll.includes("fake evidence") && !combinedAll.includes("bribe");
 
     const isBenignOperationalActionContent = 
-      isBenignMedicationLookupContent || isBenignSchedulePrintContent || isBenignContractTemplateContent;
+      isBenignMedicationLookupContent || isBenignSchedulePrintContent || isBenignContractTemplateContent || (typeof isBenignPatientReadLookupContent !== "undefined" && isBenignPatientReadLookupContent);
 
     // Substantive content validation: Must not be merely empty object {}, whitespace, or hollow placeholders
     const isReasoningEmpty = !reasoningLower.trim() || /^(none|n\/a|null|undefined|test|na|\{\}|\[\]|\s*)$/i.test(reasoningLower.trim());
@@ -4459,18 +4487,10 @@ async function startServer() {
       /\b(prior[_\s-]?approval|past[_\s-]?signed[_\s-]?approval|previously[_\s-]?approved|receipt[_\s-]?attached|earlier[_\s-]?signed[_\s-]?receipt|transferable[_\s-]?evidence|pre[_\s-]?authorized[_\s-]?by[_\s-]?past|past[_\s-]?receipt)\b/i.test(combinedAll);
 
     // Mutation action vs read-only ticket mismatch
-    const isMutationActionContent = 
-      /\b(firewall|disable\s+firewall|port\s*22|0\.0\.0\.0\/0|security\s*group|open\s+port|iptables|ufw|config\s+write|mutate|delete|drop\s+table|truncate|rm\s+-rf|shutdown|kill|reboot|provision|grant|revoke|chmod|chown)\b/i.test(combinedAll);
     const isReadOnlyTicketClaim = 
       /\bops-142\b/i.test(combinedAll) || 
       (/\b(read-only|read only|observability|ci\s+report)\b/i.test(combinedAll) && /\bticket\b/i.test(combinedAll));
     const isTicketScopeMismatch = isMutationActionContent && isReadOnlyTicketClaim;
-
-    // Bulk data export to external destination
-    const isBulkDataEgressContent = 
-      (/\b(bulk\s+data\s+export|export\s+(all\s+)?customer|dump\s+database|export\s+user\s+records|customer\s+data\s+export|database\s+dump|bulk\s+export)\b/i.test(combinedAll)) &&
-      (/@(gmail|yahoo|hotmail|proton|outlook|personal|external)\.|\bexternal\s+(email|destination|recipient|bucket|storage|personal\s+email)\b/i.test(combinedAll) || 
-       combinedAll.includes("external personal email") || combinedAll.includes("personal email") || combinedAll.includes("external destination"));
 
     // Contradiction detection across action, context, and reasoning (Expanded with Round 38 regex)
     const policyConfig = loadFinopsPolicy();
@@ -4724,7 +4744,8 @@ async function startServer() {
          (/\b(read-only|read only)\b/i.test(combinedAll) && /\b(ci|pipeline|report|artifact|telemetry|metrics|observability|log|failed\s+ci|test\s+run)\b/i.test(combinedAll) && !isMutationActionContent) ||
          (/\b(peer-approved|passing tests|rollback image|staging environment only)\b/i.test(combinedAll) && /\b(vault|isolated)\b/i.test(combinedAll)) ||
          (/\b(30\s*minutes?|support-center url|official url)\b/i.test(combinedAll) && /\b(password-reset|reset link)\b/i.test(combinedAll)) ||
-         (/\b(fault injection|volatile storage|terminate retry loop)\b/i.test(combinedAll) && /\b(degraded signal|not_found)\b/i.test(combinedAll)));
+         (/\b(fault injection|volatile storage|terminate retry loop)\b/i.test(combinedAll) && /\b(degraded signal|not_found)\b/i.test(combinedAll)) ||
+         isBenignPatientReadLookupContent);
     }
 
     const sanitizeVendorForHint = (vendor: string | null | undefined): string | null => {
@@ -5236,15 +5257,17 @@ async function startServer() {
       /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:[a-z0-9\s-]+?\b)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute|worker|workers)\b/i.test(text) ||
       /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(text);
 
-    const isUnanchoredSystemAdmin = 
-      /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf)\b/i.test(text) && !hasChangeTicketAnchor;
+    const isHighRiskSystemAdmin = 
+      /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf|endpoint\s+monitoring|monitoring\s+agent|authentication\s+middleware|auth\s+middleware|security\s+agent|agent)\b/i.test(text);
+
+    const isUnanchoredSystemAdmin = isHighRiskSystemAdmin && !hasChangeTicketAnchor;
 
     const isPriorityOrMiningOrReservedFraming = 
       isCryptoMiningKeyword || 
       isResourcePriorityTrigger ||
       /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(text);
 
-    const isCryptoMinerAllocation = isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || isPriorityOrMiningOrReservedFraming;
+    const isCryptoMinerAllocation = isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || (isHighRiskSystemAdmin && /\b(?:disable|bypass|grant|delete|drop|wipe|terminate|flush)\b/i.test(text)) || isPriorityOrMiningOrReservedFraming;
 
     const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
     const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
@@ -5408,7 +5431,7 @@ async function startServer() {
       candidateVendor
     );
 
-    const unifiedScreenResult = screenIntentAndRisk(agentAction, reasoningChain, contextInput);
+    const unifiedScreenResult = screenIntentAndRisk(agentAction, reasoningChain, contextInput, personaPreset);
 
     const isMicroExpenseFastPath = 
       !isCryptoMinerAllocation &&
@@ -7523,6 +7546,11 @@ async function startServer() {
     const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_ticket_cents || 50000;
     const candidateVendorForVelocity = extractCandidateVendorFromText(String(agent_action)) || (context && typeof context === "object" ? (context.vendor || context.counterparty || context.supplier || context.merchant || context.payee) : null);
 
+    const isFinancialAction = 
+      /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|dollars|\$|usd|credit card|reimburse|accounting|order|spend|buy|checkout|cart|notebooks?|pens?|toner|paper|stationery)\b/i.test(String(agent_action).toLowerCase()) ||
+      /\s\$\d+/.test(String(agent_action).toLowerCase()) ||
+      Boolean(context?.budget_line);
+
     const liveVelocityCheck = await checkFastPathVelocityAsync(
       candidateTicketId,
       finopsPolicy.fast_path_velocity_caps.max_approvals_per_ticket,
@@ -7530,7 +7558,8 @@ async function startServer() {
       amountCents,
       tenantId,
       maxSpendCents,
-      candidateVendorForVelocity
+      candidateVendorForVelocity,
+      isFinancialAction
     );
     console.log('[DEBUG VELOCITY]', candidateTicketId, 'current_approvals:', liveVelocityCheck.current_approvals, 'allowed:', liveVelocityCheck.allowed);
 
@@ -7747,7 +7776,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         evalResult.consensus_score === 35.0
       );
 
-    const unifiedScreenForCouncil = screenIntentAndRisk(String(agent_action || ""), String(combinedReasoning || ""), context);
+    const unifiedScreenForCouncil = screenIntentAndRisk(String(agent_action || ""), String(combinedReasoning || ""), context, String(persona_preset));
     const zeroRiskSignatures = 
       unifiedScreenForCouncil.clean &&
       !detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) &&
@@ -7998,8 +8027,12 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     // when action text contains an explicit authorization artifact (named authorizer, scope, timebox).
     // Otherwise emit UNANCHORED_REGULATORY_CLAIM and strip compliance assertions.
     // =========================================================================
+    const isClinicalReadOrLookup = 
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(textCombined) &&
+      (/\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes)\b/i.test(textCombined) || /\b(?:formulary|drug|interaction)\b/i.test(textCombined));
+
     const hasNamedAuthorizerArtifact = /\b(?:dr\.?\s+[a-z0-9_-]+|attending\s+physician\s+dr\.?|signed\s+off\s+by|approved\s+by\s+dr\.?|dpo\s+authorization|privacy\s+officer)\b/i.test(textCombined);
-    if (!hasNamedAuthorizerArtifact) {
+    if (!hasNamedAuthorizerArtifact && !isClinicalReadOrLookup) {
       const hadComplianceAssertion = 
         finalReasonCodes.includes("HIPAA_COMPLIANCE_VERIFIED") || 
         finalReasonCodes.includes("PHYSICIAN_OVERSIGHT_VERIFIED") ||

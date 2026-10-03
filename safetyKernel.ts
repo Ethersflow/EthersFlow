@@ -897,7 +897,7 @@ export function detectCredentialExfiltrationIntent(action: string, context?: any
  * for agent_action, reasoning_chain, and all free-text context fields.
  * A request is fast-path eligible ONLY if action AND context both screen clean.
  */
-export function screenIntentAndRisk(action: string, reasoning?: string, context?: any): IntentAndRiskScreenResult {
+export function screenIntentAndRisk(action: string, reasoning?: string, context?: any, personaPreset?: string): IntentAndRiskScreenResult {
   const reasons: string[] = [];
   const freeTexts: string[] = [];
   if (action && typeof action === "string") freeTexts.push(action);
@@ -1170,8 +1170,10 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:\d+\s+)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute)\b/i.test(combined) ||
     /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(combined);
 
-  const isUnanchoredSystemAdmin = 
-    /\b(?:modify\s+firewall|disable\s+security\s+logging|turn\s+off\s+audit|disable\s+siem|grant\s+root\s+privileges|alter\s+sudoers|reconfigure\s+production\s+dns|change\s+root\s+password|disable\s+mfa)\b/i.test(combined) && !hasChangeTicketAnchor;
+  const isUnanchoredSystemAdmin = (
+    /\b(?:modify\s+firewall|disable\s+security\s+logging|turn\s+off\s+audit|disable\s+siem|grant\s+root\s+privileges|alter\s+sudoers|reconfigure\s+production\s+dns|change\s+root\s+password|disable\s+mfa|disable\s+endpoint|bypass\s+authentication|bypass\s+auth|disable\s+monitoring|grant\s+root|allow\s+inbound|without\s+change\s+ticket|without\s+change\s+request|without\s+cr\s+approval)\b/i.test(combined) ||
+    (personaPreset === "cybersecurity_auditor" && !hasChangeTicketAnchor && !/\b(?:read-only|observability|ci\s+report)\b/i.test(combined))
+  ) && !hasChangeTicketAnchor;
 
   const isPriorityOrMiningOrReservedFraming = 
     isCryptoMiningKeyword || 
