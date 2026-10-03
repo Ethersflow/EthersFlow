@@ -1,6 +1,5 @@
 import dotenv from "dotenv";
 dotenv.config();
-
 process.on("unhandledRejection", (reason) => {
   console.warn("[Server] Unhandled Rejection (intercepted):", reason);
 });
@@ -21,6 +20,7 @@ const getResend = () => {
 
 import express from "express";
 import path from "path";
+import { fileURLToPath } from "url";
 import Stripe from "stripe";
 import cors from "cors";
 import admin from "firebase-admin";
@@ -77,8 +77,15 @@ try {
   console.warn("[Server] Dynamic package.json version resolution fallback:", e);
 }
 const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.12";
-const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || "00172-rl2";
-const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || "5be1118";
+let currentFilename = "server.ts";
+try {
+  currentFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
+} catch {
+  currentFilename = path.resolve(process.cwd(), "server.ts");
+}
+const dynamicBuildHash = crypto.createHash("sha256").update(pkgVersion + (fs.existsSync(currentFilename) ? fs.readFileSync(currentFilename, "utf-8") : "ethersflow") + Date.now().toString()).digest("hex");
+const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || dynamicBuildHash.substring(0, 9);
+const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || dynamicBuildHash.substring(0, 7);
 const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
 
 const ESCALATION_DETECTOR_CODES = [
@@ -1424,7 +1431,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
-      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-cb95a3`,
+      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-${dynamicBuildHash.substring(0, 8)}`,
       policy_hash: computePolicyHash(),
       config_tuple: {
         policy_id: "finops_default_v1",
@@ -6766,10 +6773,14 @@ async function startServer() {
       }
     }
 
+    const hasEscalationCodes = reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
     const isFastPathEligible = (verdict === "APPROVED") && 
       !isCryptoMinerAllocation && 
       !isBulkPatientExport && 
       !isUnauthorizedBenefitDelivery &&
+      !hasEscalationCodes &&
+      !detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) &&
+      !/\b(mining|hashrate|stratum|pool|allocate\s+gpu|repurpose\s+cluster|download\s+all|export\s+medical|entire\s+fleet|disable\s+agent|bypass\s+middleware)\b/i.test(`${agentAction} ${reasoningChain}`) &&
       (
         isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || 
         isBenignMedicationLookup || isBenignSchedulePrint || isBenignContractTemplateSummary || 
