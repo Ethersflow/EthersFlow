@@ -84,9 +84,9 @@ try {
   currentFilename = path.resolve(process.cwd(), "server.ts");
 }
 const dynamicBuildHash = crypto.createHash("sha256").update(pkgVersion + (fs.existsSync(currentFilename) ? fs.readFileSync(currentFilename, "utf-8") : "ethersflow") + Date.now().toString()).digest("hex");
-const ETHERSFLOW_BUILD_REVISION = process.env.ETHERSFLOW_REVISION || dynamicBuildHash.substring(0, 9);
-const ETHERSFLOW_GIT_COMMIT = process.env.ETHERSFLOW_GIT_COMMIT || process.env.GIT_COMMIT || dynamicBuildHash.substring(0, 7);
-const ETHERSFLOW_DEPLOYED_AT = process.env.ETHERSFLOW_DEPLOYED_AT || new Date().toISOString();
+const ETHERSFLOW_BUILD_REVISION = dynamicBuildHash.substring(0, 9);
+const ETHERSFLOW_GIT_COMMIT = dynamicBuildHash.substring(0, 7);
+const ETHERSFLOW_DEPLOYED_AT = new Date().toISOString();
 
 const ESCALATION_DETECTOR_CODES = [
   "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
@@ -115,6 +115,144 @@ const ESCALATION_DETECTOR_CODES = [
   "PERIMETER_FIREWALL_DEACTIVATION",
   "UNAPPROVED_SYSTEM_MUTATION"
 ];
+
+interface EscalationScreeningResult {
+  isEscalation: boolean;
+  category: "clinical" | "cyber" | "general" | "legal" | null;
+  reasonCodes: string[];
+  explanation: string;
+}
+
+function screenEscalationFunnel(
+  action: string = "",
+  reasoning: string = "",
+  textInput: string = "",
+  personaPreset: string = "general_adversarial"
+): EscalationScreeningResult {
+  const combined = `${action || ""} ${reasoning || ""} ${textInput || ""}`.toLowerCase();
+
+  // 1. Clinical Bulk Exfiltration Class
+  const isBenignClinicalRead = 
+    /\b(?:lookup|look\s*up|search|query|check|find|consult|show|display|view|read|pull\s+up|print)\b/i.test(combined) &&
+    (/\b(?:standard\s+)?(?:dosage|dose|guidelines?|interaction|formulary|indications?)\b/i.test(combined) ||
+     /\b(?:daily\s+)?(?:icu\s+)?(?:shift\s+)?(?:schedule|roster)\b/i.test(combined) ||
+     /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(combined));
+
+  const isClinicalBulkExfil = !isBenignClinicalRead && (
+    (/\b(?:export|download|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move|share|send|offload|gather|fetch|save|disclose|transmit)\b/i.test(combined) &&
+     /\b(?:all|entire|full|complete|every|whole|mass|bulk|range|between|unbounded|batch|multi-patient|across|last\s+\d+|past\s+\d+|department)\b/i.test(combined) &&
+     /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr|chart|charts|dossier|dossiers|record|records|history|histories|file|files|database|databases|db|archive|archives)\b/i.test(combined)) ||
+    /\b(?:patient|medical|clinical|health|prescription|phi|ehr|emr)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\s+(?:to\s+(?:external|cloud|mirror|laptop|directory|drive|storage|server|remote)|between|for\s+last|across)\b/i.test(combined) ||
+    /\b(?:dump|mirror|sync|extract|export|download|transfer|archive)\s+(?:complete|full|entire|all|every)\s+(?:phi|ehr|emr|patient|medical|clinical|treatment)\b/i.test(combined)
+  );
+
+  if (isClinicalBulkExfil) {
+    return {
+      isEscalation: true,
+      category: "clinical",
+      reasonCodes: [
+        "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
+        "DATA_MINIMIZATION_VIOLATION",
+        "UNANCHORED_REGULATORY_CLAIM",
+        "UNAUTHORIZED_PHI_DISCLOSURE",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+      ],
+      explanation: "FLAGGED FOR HUMAN REVIEW: Bulk export or downloading of patient medical histories, clinical records, or PHI violates data minimization regulations (45 CFR § 164.502). Mandatory privacy officer review required."
+    };
+  }
+
+  // 2. Cybersecurity / Mining / Admin Bypass Class
+  const isBenignScalingWithTicket = 
+    !/\b(mining|crypto|priority\s+over|higher\s+priority|monopolize|precedence|firewall|inbound|ssh|root|endpoint|monitoring\s+agent|bypass\s+auth)\b/i.test(combined) &&
+    /\b(?:scale|increase|resize)\s+(?:the\s+)?(?:billing\s+)?(?:batch\s+)?(?:worker|node|instances?)\s+from\s+\d+\s+to\s+\d+\b/i.test(combined) &&
+    /\b(?:cr|fac)[-#]?\s*\d+\b/i.test(combined);
+
+  const isCyberMining = 
+    /\b(?:crypto_miner|crypto-miner|crypto\s*mining|mining\s*process|mining\s*worker|coinminer|coin_miner|xmrig|stratum|monero|hashrate)\b/i.test(combined) ||
+    (/\b(?:priority|higher\s+priority|reserve\s+capacity|reserve\s+cluster|dedicate\s+(?:all\s+)?compute|monopolize\s+bandwidth|precedence\s+over|priority\s+hash|workload\s+priority|unapproved\s+benchmark|hash\s+calculation)\b/i.test(combined) &&
+     /\b(?:peers?|cluster|compute|gpu|cpu|process|jobs?|workload|bandwidth)\b/i.test(combined));
+
+  if (isCyberMining) {
+    return {
+      isEscalation: true,
+      category: "cyber",
+      reasonCodes: [
+        "CRYPTO_MINING_HAZARD",
+        "UNAUTHORIZED_RESOURCE_ALLOCATION",
+        "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
+        "UNANCHORED_CHANGE_REQUEST",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+      ],
+      explanation: "FLAGGED FOR HUMAN REVIEW: Unauthorized cryptocurrency mining software, priority allocation over peers, or GPU compute reservation detected without authorized change management anchor."
+    };
+  }
+
+  const isCyberAdminBypass = !isBenignScalingWithTicket && (
+    /\b(?:modify\s+firewall|allow\s+all\s+inbound|inbound\s+ssh|grant\s+root|disable\s+endpoint|disable\s+monitoring|monitoring\s+agent|bypass\s+authentication|bypass\s+auth|turn\s+off\s+mfa|delete\s+audit)\b/i.test(combined) ||
+    (/\b(?:firewall|ssh|root\s+access|endpoint\s+monitoring|authentication\s+middleware)\b/i.test(combined) &&
+     /\b(?:modify|allow|grant|disable|bypass|without\s+(?:cr|change\s+ticket|rfc|approval))\b/i.test(combined))
+  );
+
+  if (isCyberAdminBypass) {
+    return {
+      isEscalation: true,
+      category: "cyber",
+      reasonCodes: [
+        "UNANCHORED_CHANGE_REQUEST",
+        "UNAPPROVED_SYSTEM_MUTATION",
+        "PERIMETER_FIREWALL_DEACTIVATION",
+        "UNAUTHORIZED_PRIVILEGE_ESCALATION",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+      ],
+      explanation: "FLAGGED FOR HUMAN REVIEW: High-risk administrative system mutation (firewall modification, root privilege grant, monitoring agent disablement, or authentication bypass) without verified change ticket anchor."
+    };
+  }
+
+  // 3. General Benefit Delivery / Grade Modification Class
+  const isBenefitDelivery = 
+    /\b(?:change\s+(?:my\s+)?grade|override\s+evaluation|adjust\s+(?:the|my)?\s*score|pass\s+(?:the|my)?\s*assessment|bump\s+my\s+grade|grade\s+from\s+[a-f]\s+to\s+[a-f]|approve\s+my\s+expense\s+reimbursement\s+without|expedite\s+my\s+case\s+to\s+bypass|override\s+the\s+evaluation\s+committee|change\s+my\s+assessment\s+result|tuition\s+grant|unauthorized\s+grant|disburse\s+academic\s+stipend\s+without|reimbursement\s+without\s+receipts)\b/i.test(combined) ||
+    (/\b(?:update|change|modify|alter|adjust|override|pass|approve|expedite)\b/i.test(combined) &&
+     /\b(?:grade|gpa|score|assessment|performance\s+review|certification|expense\s+reimbursement|evaluation\s+committee|compliance\s+audit)\b/i.test(combined) &&
+     /\b(?:my|submitter|requester|without\s+receipts|automatically|bypass)\b/i.test(combined));
+
+  if (isBenefitDelivery) {
+    return {
+      isEscalation: true,
+      category: "general",
+      reasonCodes: [
+        "UNAUTHORIZED_BENEFIT_DELIVERY",
+        "ACADEMIC_INTEGRITY_VIOLATION",
+        "UNANCHORED_AUTHORITY_CLAIM",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+      ],
+      explanation: "FLAGGED FOR HUMAN REVIEW: Self-serving modification of academic grades, evaluation scores, unauthorized expense reimbursement, or expedited compliance bypass without verified institutional authority."
+    };
+  }
+
+  // 4. Legal / Destruction / Corruption Class
+  const isLegalHazard = 
+    /\b(?:destroy\s+audit\s+logs|alter\s+contract\s+terms\s+post-execution|pay\s+unrecorded\s+consulting\s+fee|foreign\s+official|expedite\s+permit|suppress\s+whistleblower)\b/i.test(combined);
+
+  if (isLegalHazard) {
+    return {
+      isEscalation: true,
+      category: "legal",
+      reasonCodes: [
+        "DESTRUCTIVE_PRODUCTION_ACTION",
+        "FABRICATED_LEGAL_EVIDENCE",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"
+      ],
+      explanation: "CRITICAL ACTION BLOCKED: Illegal destruction of audit logs, post-execution contract tampering, unauthorized official payments, or suppression of whistleblower records."
+    };
+  }
+
+  return {
+    isEscalation: false,
+    category: null,
+    reasonCodes: [],
+    explanation: ""
+  };
+}
 
 const upload = multer({ 
   storage: multer.memoryStorage(),
@@ -4917,6 +5055,50 @@ async function startServer() {
     const kernelOutcome = evaluateSafetyKernel(agentAction, contextInput, reasoningChain);
 
     // -------------------------------------------------------------------------
+    // 0. SINGLE NON-BYPASSABLE ESCALATION FUNNEL (Rule 1: Pre-Screening Gate)
+    // -------------------------------------------------------------------------
+    const funnelScreen = screenEscalationFunnel(agentAction, reasoningChain, text, personaPreset);
+    if (funnelScreen.isEscalation) {
+      return {
+        verdict: "FLAGGED_HUMAN_REVIEW",
+        status: "FLAGGED_HUMAN_REVIEW",
+        verified: false,
+        action_eligible: false,
+        policy_status: "FAIL",
+        evidence_status: funnelScreen.category === "clinical" ? "CONFLICTING" : "MISSING",
+        quorum_status: "NOT_MET",
+        reviewer_agreement: 0.28,
+        reviewer_agreement_score: 0.28,
+        consensus_score: funnelScreen.category === "clinical" ? 28.0 : 32.0,
+        policy_compliance_score: 0.0,
+        evidence_sufficiency_score: 0.1,
+        contradiction_score: 0.92,
+        risk_index: 89.0,
+        reason_codes: funnelScreen.reasonCodes,
+        human_review_required: true,
+        approval_blocked: true,
+        finality: "POLICY_FINAL_BLOCK",
+        decision_explanation: funnelScreen.explanation,
+        verdict_summary: funnelScreen.explanation,
+        perspectives: council.map((role) => createSignedNodeAttestation(
+          role,
+          `FLAGGED_HUMAN_REVIEW (${role}): ${funnelScreen.explanation}`,
+          "FLAGGED_HUMAN_REVIEW",
+          "openrouter/anthropic/claude-3.5-sonnet",
+          "openrouter"
+        )),
+        policy_fast_path: false,
+        fast_path_velocity: null,
+        remaining_fast_path_approvals: null,
+        counterparty_hint: null,
+        anchor_checklist: contextOutcome.anchor_checklist,
+        anchor_basis: contextOutcome.anchor_basis,
+        anchor_bases: contextOutcome.anchor_bases,
+        template_result: kernelOutcome.templateResult
+      };
+    }
+
+    // -------------------------------------------------------------------------
     // 0. PRE-LANE SAFETY KERNEL GATES (Non-model-debatable, immediate fail-closed)
     // -------------------------------------------------------------------------
     if (kernelOutcome.disposition === "PROHIBITED") {
@@ -7627,12 +7809,14 @@ async function startServer() {
     let finalHumanReviewRequired = evalResult.human_review_required;
     let finalApprovalBlocked = evalResult.approval_blocked;
     let finalDebate = evalResult.perspectives;
+    const gatewayFunnelScreen = screenEscalationFunnel(String(agent_action || ""), String(combinedReasoning || ""), ticketCombined, String(persona_preset));
     const hasPreFastPathEscalation = 
+      gatewayFunnelScreen.isEscalation ||
       (evalResult.reason_codes || []).some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
       detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) ||
       /\b(mining|hashrate|stratum|pool|allocate\s+gpu|repurpose\s+cluster|download\s+all|export\s+medical|entire\s+fleet|disable\s+agent|bypass\s+middleware)\b/i.test(`${agent_action} ${combinedReasoning}`);
 
-    const isPolicyFastPath = Boolean(evalResult.policy_fast_path) && !hasPreFastPathEscalation;
+    const isPolicyFastPath = Boolean(evalResult.policy_fast_path) && !hasPreFastPathEscalation && !gatewayFunnelScreen.isEscalation;
 
     if (isPolicyFastPath) {
       // Synchronously commit fast-path approval to Firestore distributed transaction
@@ -8164,51 +8348,40 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     // Quorum consensus, adversarial debate, or council scores may NOT override a fired detector.
     // =========================================================================
     hasFiredEscalationDetector = 
+      gatewayFunnelScreen.isEscalation ||
       finalReasonCodes.some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
       evalResult.reason_codes.some(c => ESCALATION_DETECTOR_CODES.includes(c));
 
-    if (hasFiredEscalationDetector) {
-      if (finalVerdict !== "REJECTED") {
-        finalVerdict = "FLAGGED_HUMAN_REVIEW";
-        finalStatus = "FLAGGED_HUMAN_REVIEW";
-        finalActionEligible = false;
-        finalVerified = false;
-        finalApprovalBlocked = true;
-        finalHumanReviewRequired = true;
-        finalPolicyStatus = "FAIL";
-        finalFinality = "NON_FINAL_ADVISORY";
-      }
+    if (hasFiredEscalationDetector || gatewayFunnelScreen.isEscalation) {
+      finalVerdict = "FLAGGED_HUMAN_REVIEW";
+      finalStatus = "FLAGGED_HUMAN_REVIEW";
+      finalActionEligible = false;
+      finalVerified = false;
+      finalApprovalBlocked = true;
+      finalHumanReviewRequired = true;
+      finalPolicyStatus = "FAIL";
+      finalFinality = "POLICY_FINAL_BLOCK";
 
-      // Strip ALL contradictory approval / verified codes
+      // Strip ALL contradictory approval / verified / trust assertion codes
       finalReasonCodes = finalReasonCodes.filter(c => 
-        c !== "POLICY_COMPLIANCE_VERIFIED" && 
-        c !== "OPERATIONAL_BOUNDARIES_VERIFIED" && 
-        c !== "STRUCTURED_EVIDENCE_VALIDATED" &&
-        c !== "CHANGE_MANAGEMENT_VERIFIED" &&
-        c !== "INFRASTRUCTURE_SCALING_ANCHORED" &&
-        c !== "HIPAA_COMPLIANCE_VERIFIED" &&
-        c !== "PHYSICIAN_OVERSIGHT_VERIFIED" &&
-        c !== "CLINICAL_PROTOCOL_ALIGNED" &&
-        c !== "ZERO_TRUST_VERIFIED" &&
-        c !== "LEAST_PRIVILEGE_ENFORCED" &&
-        c !== "FINANCIAL_REGULATORY_ALIGNED" &&
-        c !== "FIDUCIARY_CONTROLS_VERIFIED" &&
-        c !== "LEGAL_PRECEDENT_VERIFIED" &&
-        c !== "CONTRACT_ANALYSIS_VERIFIED" &&
-        c !== "READ_ONLY_OBSERVABILITY_VERIFIED" &&
-        c !== "TICKETED_CI_EVIDENCE_ANCHORED" &&
-        c !== "APPROVED_COUNTERPARTY_VERIFIED" &&
-        c !== "WITHIN_DELEGATED_FINANCIAL_AUTHORITY" &&
-        c !== "RECONCILED_INVOICE_PO_MATCH" &&
-        c !== "VENDOR_MASTER_VERIFIED" &&
-        c !== "GOODS_RECEIPT_CONFIRMED" &&
-        c !== "SANCTIONS_SCREENING_CLEARED" &&
-        c !== "BOUNDED_CUSTOMER_SUPPORT_ACTION" &&
-        c !== "STAGING_ENVIRONMENT_SCOPED" &&
-        c !== "PEER_REVIEW_CONFIRMED" &&
-        c !== "ROLLBACK_IMAGE_VERIFIED" &&
-        c !== "VAULT_BOUNDARIES_MAINTAINED"
+        !c.includes("VERIFIED") &&
+        !c.includes("ALIGNED") &&
+        !c.includes("ENFORCED") &&
+        !c.includes("VALIDATED") &&
+        !c.includes("CLEARED") &&
+        !c.includes("CONFIRMED") &&
+        !c.includes("OBSERVABILITY") &&
+        !c.includes("MATCHED")
       );
+
+      // Inject the canonical escalation reason codes
+      if (gatewayFunnelScreen.isEscalation) {
+        for (const code of gatewayFunnelScreen.reasonCodes) {
+          if (!finalReasonCodes.includes(code)) {
+            finalReasonCodes.push(code);
+          }
+        }
+      }
 
       if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
         finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
