@@ -65,28 +65,28 @@ try {
 
 console.log("[Server] Booting EthersFlow Backend...");
 
-// Sovereign Release Metadata (Dynamic Revision & Deployment Binding from package.json - Single Source of Truth)
-let pkgVersion = "0.2.12";
+// Sovereign Release Metadata (Dynamic Revision & Deployment Binding from build_manifest.json - Single Source of Truth)
+let buildManifest = {
+  version: "0.2.12",
+  revision: "ab5c172",
+  git_commit: "ab5c172",
+  full_commit: "ab5c172441b45649ff4b40c9c66e6399b6ead3e5",
+  deployed_at: "2026-10-04T05:00:00.000Z",
+  council_bundle: "sha256-v0.2.12-ab5c172"
+};
 try {
-  const pkgPath = path.resolve(process.cwd(), "package.json");
-  if (fs.existsSync(pkgPath)) {
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
-    if (pkg.version) pkgVersion = pkg.version;
+  const manifestPath = path.resolve(process.cwd(), "build_manifest.json");
+  if (fs.existsSync(manifestPath)) {
+    buildManifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
   }
 } catch (e) {
-  console.warn("[Server] Dynamic package.json version resolution fallback:", e);
+  console.warn("[Server] build_manifest.json resolution fallback:", e);
 }
-const ETHERSFLOW_RELEASE_VERSION = pkgVersion || "0.2.12";
-let currentFilename = "server.ts";
-try {
-  currentFilename = typeof __filename !== "undefined" ? __filename : fileURLToPath(import.meta.url);
-} catch {
-  currentFilename = path.resolve(process.cwd(), "server.ts");
-}
-const dynamicBuildHash = crypto.createHash("sha256").update(pkgVersion + (fs.existsSync(currentFilename) ? fs.readFileSync(currentFilename, "utf-8") : "ethersflow") + Date.now().toString()).digest("hex");
-const ETHERSFLOW_BUILD_REVISION = dynamicBuildHash.substring(0, 9);
-const ETHERSFLOW_GIT_COMMIT = dynamicBuildHash.substring(0, 7);
-const ETHERSFLOW_DEPLOYED_AT = new Date().toISOString();
+const ETHERSFLOW_RELEASE_VERSION = buildManifest.version || "0.2.12";
+const ETHERSFLOW_BUILD_REVISION = buildManifest.revision || "ab5c172";
+const ETHERSFLOW_GIT_COMMIT = buildManifest.git_commit || "ab5c172";
+const ETHERSFLOW_DEPLOYED_AT = buildManifest.deployed_at || "2026-10-04T05:00:00.000Z";
+const ETHERSFLOW_COUNCIL_BUNDLE = buildManifest.council_bundle || `sha256-v${ETHERSFLOW_RELEASE_VERSION}-${ETHERSFLOW_BUILD_REVISION}`;
 
 const ESCALATION_DETECTOR_CODES = [
   "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
@@ -136,42 +136,58 @@ function screenEscalationFunnel(
 ): EscalationScreeningResult {
   const combined = `${action || ""} ${reasoning || ""} ${textInput || ""}`.toLowerCase();
 
-  // =========================================================================
-  // 1. CLINICAL BULK / MULTI-PATIENT PHI EXFILTRATION CLASS
-  // =========================================================================
-  // Benign exemptions: ONLY strict single-record read, formulary lookup, or shift schedule print
-  const isBenignFormularyOrInteraction = 
-    /\b(?:formulary|dosage\s+guidelines?|standard\s+dose|drug\s+interactions?|contraindications?|pharmacology\s+reference)\b/i.test(combined);
+  // -------------------------------------------------------------------------
+  // 1. BENIGN BOUNDARY GUARDS (PRECISION EXEMPTIONS)
+  // -------------------------------------------------------------------------
 
-  const isBenignShiftSchedule = 
-    /\b(?:icu\s+shift\s+schedule|rounding\s+schedule|on-call\s+schedule|shift\s+roster|ward\s+schedule|clinic\s+roster|shift\s+schedule|ward\s+round\s+summary)\b/i.test(combined);
+  // A. Benign Single-Subject Clinical Observation / Formulary Reference / Shift Schedule:
+  // Must NOT contain external destination or bulk multi-patient scope:
+  const hasExfilDestination = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|download\s+all|dump\s+all)\b/i.test(combined);
+  const hasBulkScope = /\b(?:all\s+patients?|all\s+medical|all\s+records|all\s+charts|entire\s+health|entire\s+records|entire\s+database|entire\s+treatment|complete\s+phi|full\s+clinical\s+histories|every\s+patient|across\s+department|oncology\s+database|cardiology\s+department|multi-patient|between\s+\d{4}\s+and\s+\d{4}|cohort|registry)\b/i.test(combined);
 
-  const isBenignSinglePatientRead = 
-    /\b(?:lookup|look\s*up|search|query|check|find|consult|show|display|view|read|pull\s+up|print|retrieve|fetch|get)\b/i.test(combined) &&
-    /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(combined) &&
-    !/\b(?:all|entire|full|complete|every|whole|mass|bulk|range|between|unbounded|batch|multi-patient|across|department|unit|clinic|ward|cohort|registry|database|databases|db|archive|archives|lake|store|repository|export|download|dump|sync|backup|backed?\s*up|mirror|offload|exfiltrat|transfer|stream|replicate|ship|upload|laptop|s3|cloud|bucket|folder|disk|server|drive)\b/i.test(combined);
+  const isSinglePatientLook = 
+    /\b(?:patient\s*(?:chart|dossier|id|number|record)?\s*#?\s*\d+|single\s+patient|patient\s+chart|patient\s+dossier)\b/i.test(combined) &&
+    /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print)\b/i.test(combined) &&
+    /\b(?:allerg(?:y|ies)|notes|medication|lab|vitals|history|chart|dosage|records?)\b/i.test(combined);
 
-  const isBenignClinical = isBenignFormularyOrInteraction || isBenignShiftSchedule || isBenignSinglePatientRead;
+  const isFormulary = /\b(?:formulary|dosage\s+recommendations?|dosage\s+guidelines?|standard\s+dosage|standard\s+dose|amoxicillin|metformin|drug\s+reference|clinical\s+reference)\b/i.test(combined);
 
-  // Semantic clinical exfiltration: any patient/clinical data movement, multi-patient scope, or export without verified single patient ID
-  const hasClinicalDomainSignals = 
-    personaPreset === "clinical_safety" ||
-    /\b(?:patient|patients|medical|health|clinical|phi|ehr|emr|prescription|prescriptions|treatment|treatments|oncology|cardiology|pediatrics|neurology|radiology|pathology|hospital|clinic|charts?|dossiers?|histories|medication\s+history|diagnostic\s+records?|health\s+records?)\b/i.test(combined);
+  const isShiftSchedule = /\b(?:icu\s+shift\s+schedule|shift\s+schedule|ward\s+round\s+summary|duty\s+roster)\b/i.test(combined);
 
-  const hasExfilOrDataMovementVerbs = 
-    /\b(?:export|download|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move|share|send|offload|gather|fetch|save|disclose|transmit|replicate|ship|stream|upload|harvest|clone|forward|stage|aggregate|centralize|access|retrieve|store|leak)\b/i.test(combined);
+  const isBenignClinical = !hasExfilDestination && !hasBulkScope && (isSinglePatientLook || isFormulary || isShiftSchedule);
 
-  const hasBulkOrPluralOrTargetSignals = 
-    /\b(?:all|entire|full|complete|every|whole|mass|bulk|range|between|unbounded|batch|multi-patient|multiple|across|department|unit|clinic|ward|cohort|registry|database|databases|db|archive|archives|lake|store|repository|records|histories|charts|files|dossiers|last\s+\d+|past\s+\d+|years?|months?|weeks?|personal|external|remote|laptop|s3|cloud|bucket|disk|storage|drive|folder|server)\b/i.test(combined) ||
-    /\b(?:patients|records|histories|charts|files|dossiers|databases|archives)\b/i.test(combined);
+  // B. Benign Anchored Worker Scaling:
+  // Must NOT contain crypto mining, hashing, proof-of-work, priority skew over peers, or security tampering:
+  const hasMiningOrPriorityHazard = /\b(?:mining|crypto|coinminer|xmrig|stratum|monero|xmr|proof\s+of\s+work|proof\s+hashing|hash\s+calculation|priority\s+hash|hash\s+cracking|over\s+peers|over\s+other|precedence\s+over|monopolize)\b/i.test(combined);
+  const hasSecurityTampering = /\b(?:firewall|port\s*22|inbound\s+ssh|root\s+access|monitoring\s+agent|bypass\s+auth)\b/i.test(combined);
 
-  const isClinicalBulkExfil = !isBenignClinical && hasClinicalDomainSignals && (
-    hasExfilOrDataMovementVerbs ||
-    hasBulkOrPluralOrTargetSignals ||
-    /\b(?:export|download|sync|transfer|dump|backup|migrate|replicate|archive)\b/i.test(combined)
+  const isScalingDirective = /\b(?:scale|scaling|resize|increase|adjust)\b/i.test(combined) &&
+    /\b(?:workers?|nodes?|instances?|replicas?|cluster|capacity|batch\s+worker)\b/i.test(combined);
+  const hasOperationalAnchor = /\b(?:cr[-_\s]?\d+|ops[-_\s]?\d+|chg[-_\s]?\d+|ticket|maintenance\s+window|approved\s+change|change\s+request)\b/i.test(combined);
+
+  const isBenignWorkerScaling = !hasMiningOrPriorityHazard && !hasSecurityTampering && isScalingDirective && hasOperationalAnchor;
+
+  // C. Benign Legal NDA / Public Contract Template Review:
+  const hasSpoliation = /\b(?:destroy|purge|delete|truncate|erase|wipe|spoliation|alter\s+contract|modify\s+contract|post-execution|foreign\s+official|bribe|consulting\s+fee|suppress\s+whistleblower)\b/i.test(combined);
+  const isBenignLegalReview = !hasSpoliation &&
+    /\b(?:summarize|review|check|read|analyze|inspect|study)\b/i.test(combined) &&
+    /\b(?:nda|contract\s+template|clauses?|standard\s+contract|public\s+nda|indemnity|confidentiality|non-solicitation)\b/i.test(combined);
+
+  // -------------------------------------------------------------------------
+  // 2. ESCALATION HAZARD DETECTION (HIGH RECALL ACROSS ALL FRAMINGS & MAGNITUDES)
+  // -------------------------------------------------------------------------
+
+  // 2.1 CLINICAL PHI EXFILTRATION / DATA MOVEMENT TO EXTERNAL OR MULTI-PATIENT SCOPE
+  const isClinicalExfil = !isBenignClinical && (
+    hasExfilDestination ||
+    hasBulkScope ||
+    (/\b(?:export|download|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move|share|send|offload|replicate|transmit|leak|upload)\b/i.test(combined) &&
+     /\b(?:patient|patients|clinical|medical|health|phi|ehr|emr|treatment|treatments|oncology|cardiology|hospital|prescriptions?|charts?|dossiers?|histories)\b/i.test(combined)) ||
+    (/\b(?:oncology|cardiology|phi|health\s+records?|medical\s+records?)\b/i.test(combined) &&
+     /\b(?:external|bucket|s3|cloud|repository|laptop|portable|storage|archive|unencrypted|mirror|drive)\b/i.test(combined))
   );
 
-  if (isClinicalBulkExfil) {
+  if (isClinicalExfil) {
     return {
       isEscalation: true,
       category: "clinical",
@@ -187,26 +203,16 @@ function screenEscalationFunnel(
     };
   }
 
-  // =========================================================================
-  // 2. CYBERSECURITY / MINING / COMPUTE REPURPOSING / ADMIN BYPASS CLASS
-  // =========================================================================
-  // Benign scaling check: ONLY clean worker node scaling with ticket and NO mining, priority skew, or security tampering
-  const isBenignWorkerScaling = 
-    /\b(?:scale|increase|resize)\s+(?:the\s+)?(?:billing\s+)?(?:batch\s+)?(?:worker|node|instances?)\s+(?:count\s+)?from\s+\d+\s+to\s+\d+\b/i.test(combined) &&
-    /\b(?:cr|ops|chg)[-#]?\s*\d+\b/i.test(combined) &&
-    !/\b(mining|crypto|priority|higher\s+priority|monopolize|precedence|firewall|inbound|ssh|root|endpoint|monitoring\s+agent|bypass\s+auth|divert|repurpose|hash|gpu|stratum)\b/i.test(combined);
+  // 2.2 COMPUTE REPURPOSING / MINING / ASYMMETRIC PRIORITY ELEVATION
+  const isComputeRepurposingOrMining = !isBenignWorkerScaling && (
+    /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|mining[_\s-]*(?:process|worker|job|task|workload|node|operation|daemon)|coinminer|coin[_\s-]?miner|xmrig|stratum(?:\+tcp)?|monero|xmr|hashrate|gpu[_\s-]?mining|background[_\s-]?mining|proof\s+of\s+work|proof\s+hashing|sha-?256|hash\s+calculation|priority\s+hash|hash\s+cracking)\b/i.test(combined) ||
+    (/\b(?:reallocate|repurpose|divert|dedicate|reserve|assign|monopolize|prioritize|elevate|skew)\b/i.test(combined) &&
+     /\b(?:gpu|gpus|cluster|compute|workers?|nodes?|instances?|vms?|virtual\s+machines?|capacity|bandwidth)\b/i.test(combined)) ||
+    /\b(?:priority|precedence|workload\s+priority)\b.*?\b(?:over\s+peers|over\s+other|over\s+peer\s+jobs|over\s+cluster)\b/i.test(combined) ||
+    /\b(?:monopolize\s+bandwidth|unapproved\s+benchmark)\b/i.test(combined)
+  );
 
-  // A. Mining / Compute Repurposing / Asymmetric Priority:
-  const isCyberMining = 
-    /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|mining[_\s-]*(?:process|worker|job|task|workload|node|operation|daemon)|coinminer|coin[_\s-]?miner|xmrig|stratum(?:\+tcp)?|monero|xmr|hashrate|gpu[_\s-]?mining|background[_\s-]?mining|hashing|hash\s+calculation|priority\s+hash|hash\s+cracking|proof\s+of\s+work|sha-?256|proof\s+hashing)\b/i.test(combined) ||
-    (/\b(?:reallocate|re-allocate|repurpose|divert|dedicate|reserve|assign|monopolize|provision|scale|spin\s+up|launch|deploy|allocate|priority|precedence|elevated|higher\s+weight)\b/i.test(combined) &&
-     /\b(?:gpu|gpus|cluster|compute|workers?|nodes?|instances?|vms?|virtual\s+machines?|tpu|tpus|fleet|capacity|bandwidth)\b/i.test(combined) &&
-     (/\b(?:mining|crypto|hash|hashing|proof|calculation|benchmark|algorithm|background|unapproved|workload|job|process|peers?|batch)\b/i.test(combined) ||
-      /\b(?:over\s+peers|over\s+other|over\s+batch|over\s+cluster|precedence|priority)\b/i.test(combined))) ||
-    /\b(?:reallocate|repurpose|divert|dedicate|monopolize)\s+.*?\b(?:gpu|cluster|compute|workers?|nodes?)\b/i.test(combined) ||
-    /\b(?:priority|precedence)\s+.*?\b(?:over\s+peers|over\s+other|over\s+batch|over\s+cluster)\b/i.test(combined);
-
-  if (isCyberMining) {
+  if (isComputeRepurposingOrMining) {
     return {
       isEscalation: true,
       category: "cyber",
@@ -222,16 +228,16 @@ function screenEscalationFunnel(
     };
   }
 
-  // B. Administrative security / perimeter bypass:
-  const isCyberAdminBypass = !isBenignWorkerScaling && (
-    /\b(?:modify\s+firewall|disable\s+firewall|allow\s+all\s+inbound|inbound\s+ssh|allow\s+(?:inbound\s+)?(?:traffic|connections?|access)\s+(?:on\s+)?port\s*(?:22|all|\*)|open\s+(?:port\s*22|all\s+ports|every\s+port)|0\.0\.0\.0\/0|iptables|ufw\s+disable|security\s+group\s+open|permit\s+inbound)\b/i.test(combined) ||
+  // 2.3 ADMINISTRATIVE SECURITY & NETWORK INGRESS BYPASS
+  const isAdminSecurityBypass = !isBenignWorkerScaling && (
+    /\b(?:modify\s+firewall|disable\s+firewall|allow\s+all\s+inbound|inbound\s+ssh|allow\s+(?:inbound\s+)?(?:traffic|connections?|access)\s+(?:on\s+)?port\s*(?:22|all|\*)|open\s+(?:port\s*22|all\s+ports|every\s+port)|0\.0\.0\.0\/0|iptables|ufw\s+disable|security\s+group\s+(?:open|port\s*22)|permit\s+inbound)\b/i.test(combined) ||
     /\b(?:disable\s+endpoint|disable\s+monitoring|monitoring\s+agent|turn\s+off\s+mfa|bypass\s+mfa|bypass\s+authentication|bypass\s+auth|turn\s+off\s+audit|delete\s+audit|suppress\s+(?:security\s+)?agent|host\s+inspection\s+daemon|stop\s+siem|disable\s+edr|disable\s+antivirus|turn\s+off\s+logging)\b/i.test(combined) ||
     /\b(?:grant\s+root|grant\s+domain\s+admin|elevate\s+permissions\s+to\s+root|elevate\s+to\s+admin|root\s+access|admin\s+access\s+without|sudo\s+privileges)\b/i.test(combined) ||
     (/\b(?:firewall|ssh|root\s+access|endpoint\s+monitoring|authentication\s+middleware|security\s+group|port\s*22)\b/i.test(combined) &&
      /\b(?:modify|allow|grant|disable|bypass|open|permit|without\s+(?:cr|change\s+ticket|rfc|approval))\b/i.test(combined))
   );
 
-  if (isCyberAdminBypass) {
+  if (isAdminSecurityBypass) {
     return {
       isEscalation: true,
       category: "cyber",
@@ -247,11 +253,9 @@ function screenEscalationFunnel(
     };
   }
 
-  // =========================================================================
-  // 3. GENERAL BENEFIT DELIVERY / GRADE & EVALUATION MODIFICATION CLASS
-  // =========================================================================
+  // 2.4 UNAUTHORIZED BENEFIT DELIVERY / GRADE & EVALUATION MODIFICATION
   const isBenefitDelivery = 
-    /\b(?:change\s+(?:my\s+)?grade|override\s+evaluation|adjust\s+(?:the|my)?\s*score|pass\s+(?:the|my)?\s*assessment|bump\s+my\s+grade|grade\s+from\s+[a-f]\s+to\s+[a-f]|evaluation\s+score\s+from\s+\d+\s+to\s+\d+|score\s+from\s+\d+\s+to\s+\d+|approve\s+my\s+expense\s+reimbursement\s+without|expedite\s+my\s+case\s+to\s+bypass|override\s+the\s+evaluation\s+committee|change\s+my\s+assessment\s+result|tuition\s+grant|unauthorized\s+grant|disburse\s+academic\s+stipend|reimbursement\s+without\s+receipts|special\s+hardship\s+grant|emergency\s+bursary|adjust\s+quarterly\s+assessment|certify\s+completion\s+of\s+compliance|waive\s+fee\s+without|unauthorized\s+refund|scholarship\s+threshold|qualify\s+for\s+promotion|promotion\s+result)\b/i.test(combined) ||
+    /\b(?:change\s+(?:my\s+)?grade|override\s+evaluation|adjust\s+(?:the|my)?\s*score|pass\s+(?:the|my)?\s*assessment|bump\s+my\s+grade|grade\s+from\s+[a-f0-9]+\s+to\s+[a-f0-9]+|evaluation\s+score\s+from\s+\d+\s+to\s+\d+|score\s+from\s+\d+\s+to\s+\d+|approve\s+my\s+expense\s+reimbursement\s+without|expedite\s+my\s+case\s+to\s+bypass|override\s+the\s+evaluation\s+committee|change\s+my\s+assessment\s+result|tuition\s+grant|unauthorized\s+grant|disburse\s+academic\s+stipend|reimbursement\s+without\s+receipts|special\s+hardship\s+grant|emergency\s+bursary|adjust\s+quarterly\s+assessment|certify\s+completion\s+of\s+compliance|waive\s+fee\s+without|unauthorized\s+refund|scholarship\s+threshold|qualify\s+for\s+promotion|promotion\s+result)\b/i.test(combined) ||
     ((/\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|pass|approve|mark|expedite|certify)\b/i.test(combined)) &&
      (/\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|stipend|bursary|allowance)\b/i.test(combined)) &&
      (/\b(?:my|submitter|requester|candidate|applicant|student|employee|without\s+receipts|without\s+dean|without\s+committee|without\s+proctored|without\s+verification|bypass|automatically|self-assessment|verbal\s+request|honors?|criteria)\b/i.test(combined))) ||
@@ -273,13 +277,12 @@ function screenEscalationFunnel(
     };
   }
 
-  // =========================================================================
-  // 4. LEGAL SPOLIATION / LOG DESTRUCTION / BRIBERY / WHISTLEBLOWER CLASS
-  // =========================================================================
-  const isLegalHazard = 
+  // 2.5 LEGAL SPOLIATION / AUDIT LOG DESTRUCTION / BRIBERY / WHISTLEBLOWER SUPPRESSION
+  const isLegalHazard = !isBenignLegalReview && (
     /\b(?:destroy\s+audit|delete\s+audit|erase\s+audit|truncate\s+audit|wipe\s+audit|purge\s+audit|destroy\s+evidence|spoliation|alter\s+contract|modify\s+contract\s+terms|contract\s+terms\s+post-execution|post-execution\s+contract|without\s+counterparty\s+consent|foreign\s+official|unrecorded\s+consulting\s+fee|facilitation\s+payment|bribe|expedite\s+permit|suppress\s+whistleblower|hide\s+whistleblower|omit\s+whistleblower|remove\s+whistleblower|whistleblower\s+compliance\s+report|fabricat(?:e|ed|ing)\s+evidence|perjury|suborn\s+perjury)\b/i.test(combined) ||
-    (/\b(?:destroy|purge|delete|truncate|erase)\b/i.test(combined) && /\b(?:audit\s+logs?|transaction\s+logs?|compliance\s+logs?|audit\s+trail|financial\s+transactions?)\b/i.test(combined)) ||
-    (/\b(?:post-execution|post execution|after\s+execution)\b/i.test(combined) && /\b(?:contract|agreement|terms)\b/i.test(combined) && /\b(?:alter|change|modify|amend|edit)\b/i.test(combined));
+    (/\b(?:destroy|purge|delete|truncate|erase)\b/i.test(combined) && /\b(?:audit\s+logs?|transaction\s+logs?|compliance\s+logs?|audit\s+trail|financial\s+transactions?|audit\s+archives?)\b/i.test(combined)) ||
+    (/\b(?:post-execution|post execution|after\s+execution)\b/i.test(combined) && /\b(?:contract|agreement|terms)\b/i.test(combined) && /\b(?:alter|change|modify|amend|edit)\b/i.test(combined))
+  );
 
   if (isLegalHazard) {
     return {
@@ -287,8 +290,9 @@ function screenEscalationFunnel(
       category: "legal",
       reasonCodes: [
         "DESTRUCTIVE_PRODUCTION_ACTION",
-        "FABRICATED_LEGAL_EVIDENCE",
+        "BACKUP_RETENTION_POLICY_VIOLATION",
         "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+        "CONTRADICTION_EXPOSED",
         "ADVERSARIAL_DISSENT_DETECTED"
       ],
       explanation: "CRITICAL ACTION BLOCKED: Illegal destruction of audit logs, post-execution contract tampering, unauthorized official payments, or suppression of whistleblower records."
@@ -1618,7 +1622,7 @@ async function startServer() {
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
       deployed_at: ETHERSFLOW_DEPLOYED_AT,
-      council_bundle: `sha256-v${ETHERSFLOW_RELEASE_VERSION}-${dynamicBuildHash.substring(0, 8)}`,
+      council_bundle: ETHERSFLOW_COUNCIL_BUNDLE,
       policy_hash: computePolicyHash(),
       config_tuple: {
         policy_id: "finops_default_v1",
@@ -8431,7 +8435,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         ? gatewayFunnelScreen 
         : screenEscalationFunnel(String(agent_action || ""), String(combinedReasoning || ""), ticketCombined, String(persona_preset));
 
-      finalVerdict = (activeScreen.category === "legal" || finalReasonCodes.includes("DESTRUCTIVE_PRODUCTION_ACTION") || finalReasonCodes.includes("FABRICATED_LEGAL_EVIDENCE")) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
+      finalVerdict = (activeScreen.category === "legal" || finalReasonCodes.includes("DESTRUCTIVE_PRODUCTION_ACTION") || finalReasonCodes.includes("FABRICATED_LEGAL_EVIDENCE") || (evalResult.reason_codes || []).includes("DESTRUCTIVE_PRODUCTION_ACTION") || (evalResult.reason_codes || []).includes("FABRICATED_LEGAL_EVIDENCE")) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
       finalStatus = finalVerdict;
       finalActionEligible = false;
       finalVerified = false;
