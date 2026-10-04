@@ -7627,7 +7627,12 @@ async function startServer() {
     let finalHumanReviewRequired = evalResult.human_review_required;
     let finalApprovalBlocked = evalResult.approval_blocked;
     let finalDebate = evalResult.perspectives;
-    const isPolicyFastPath = Boolean(evalResult.policy_fast_path);
+    const hasPreFastPathEscalation = 
+      (evalResult.reason_codes || []).some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
+      detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) ||
+      /\b(mining|hashrate|stratum|pool|allocate\s+gpu|repurpose\s+cluster|download\s+all|export\s+medical|entire\s+fleet|disable\s+agent|bypass\s+middleware)\b/i.test(`${agent_action} ${combinedReasoning}`);
+
+    const isPolicyFastPath = Boolean(evalResult.policy_fast_path) && !hasPreFastPathEscalation;
 
     if (isPolicyFastPath) {
       // Synchronously commit fast-path approval to Firestore distributed transaction
