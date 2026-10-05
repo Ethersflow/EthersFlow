@@ -1,11 +1,52 @@
 # @ethersflow/mcp-server
 
-> Model Context Protocol (MCP) server for **EthersFlow** — the multi-model trust layer that verifies AI outputs and agent action directives through adversarial consensus before execution.
+> Model Context Protocol (MCP) server for **EthersFlow** — the action-verification layer for the agentic web (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
 [![GitHub Repository](https://img.shields.io/badge/GitHub-Ethersflow%2FEthersFlow-blue.svg)](https://github.com/Ethersflow/EthersFlow)
 [![npm version](https://img.shields.io/npm/v/@ethersflow/mcp-server.svg)](https://www.npmjs.com/package/@ethersflow/mcp-server)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## 🏛️ Architecture Overview
+
+KYA establishes who your agent is and what it's allowed to do. **KYAA (Know Your Agent's Action)** verifies what it is actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
+
+```
+   +-------------------------------------------------------------+
+   |             Agent Host / MCP Client Environment             |
+   |      (Claude Desktop · Cursor · LangChain · Custom Agent)    |
+   +------------------------------+------------------------------+
+                                  | MCP Tool Call: verify_agent_action
+                                  v
+   +-------------------------------------------------------------+
+   |            @ethersflow/mcp-server (stdio / SSE / HTTP)       |
+   +------------------------------+------------------------------+
+                                  | HTTPS /api/v1/verify
+                                  v
++-------------------------------------------------------------------------------+
+|                 EthersFlow Action-Verification Gateway (KYAA)                 |
+|                                                                               |
+|   +-----------------------+               +-------------------------------+   |
+|   |  Deterministic Kernel | (fast-path)   |  Adversarial Frontier Council |   |
+|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)    |   |
+|   +-----------+-----------+               +---------------+---------------+   |
+|               |                                           |                   |
+|               +---------------------+---------------------+                   |
+|                                     |                                         |
+|                                     v                                         |
+|                       +---------------------------+                           |
+|                       |  Ed25519 Signature Engine |                           |
+|                       +-------------+-------------+                           |
++-------------------------------------+-----------------------------------------+
+                                      | Ed25519-Signed Verdict Receipt
+                                      v
+              +-----------------------------------------------+
+              |   APPROVED / FLAGGED / REJECTED Decision Gate |
+              |          (Agent halts or executes)            |
+              +-----------------------------------------------+
+```
 
 ---
 

@@ -705,7 +705,7 @@ Respond ONLY with a raw JSON object (no markdown, no backticks) matching:
               </div>
               <h2 className="text-2xl sm:text-3xl font-black text-white mb-2">Supported Models & BYOK Architecture</h2>
               <p className="text-slate-400 text-sm font-medium max-w-3xl leading-relaxed">
-                EthersFlow eliminates single-model blindspots by federating review nodes across diverse model architectures. Choose between our zero-config managed routing or Bring Your Own Keys (BYOK) for customized infrastructure.
+                EthersFlow surfaces and reduces single-model blindspots by federating review nodes across a council of heterogeneous frontier models across independent providers. Choose between our zero-config managed routing or Bring Your Own Keys (BYOK) for customized infrastructure.
               </p>
             </div>
 

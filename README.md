@@ -1,6 +1,6 @@
-# EthersFlow — Developer Toolkit & Trust Layer
+# EthersFlow — Action Verification Layer (KYAA)
 
-Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI outputs through adversarial consensus. MCP server, SDKs, and API docs.
+EthersFlow is the action-verification layer for the agentic web (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
 [![API Status](https://img.shields.io/badge/API-0.2.8-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
@@ -13,33 +13,43 @@ Developer toolkit for EthersFlow — a multi-model trust layer that verifies AI 
 
 ## Overview
 
+KYA establishes who your agent is and what it's allowed to do. KYAA — Know Your Agent's Action — verifies what it's actually doing, one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
+
 EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions before execution, providing dual-control verification and cryptographic audit trails.
 
 ```
-                           +-------------------------------------+
-                           |      Autonomous AI Agent            |
-                           +------------------+------------------+
-                                              | Proposed Action
-                                              v
-+----------------------------------------------------------------------------------------+
-|                        EthersFlow Verification Gateway                                 |
-|                                                                                        |
-|  +----------------------+   +----------------------+   +----------------------------+  |
-|  | Direct Pragmatist    |   | Constructive Skeptic |   | Lateral Synthesizer        |  |
-|  +----------+-----------+   +----------+-----------+   +-------------+--------------+  |
-|             +--------------------------+-----------------------------+                 |
-|                                        | Adversarial Cross-Examination                 |
-|                                        v                                               |
-|                         +-----------------------------+                                |
-|                         | Federated Consensus Engine  |                                |
-|                         +--------------+--------------+                                |
-|                                        | Ed25519 Signature                             |
-+----------------------------------------+-----------------------------------------------+
-                                         | Signed Verdict
-                                         v
-                 +----------------------------------------------+
-                 |  APPROVED / FLAGGED / REJECTED Decision Gate |
-                 +----------------------------------------------+
+   +-------------------------------------------------------------+
+   |             Agent Host / MCP Client Environment             |
+   |      (Claude Desktop · Cursor · LangChain · Custom Agent)    |
+   +------------------------------+------------------------------+
+                                  | MCP Tool Call: verify_agent_action
+                                  v
+   +-------------------------------------------------------------+
+   |            @ethersflow/mcp-server (stdio / SSE / HTTP)       |
+   +------------------------------+------------------------------+
+                                  | HTTPS /api/v1/verify
+                                  v
++-------------------------------------------------------------------------------+
+|                 EthersFlow Action-Verification Gateway (KYAA)                 |
+|                                                                               |
+|   +-----------------------+               +-------------------------------+   |
+|   |  Deterministic Kernel | (fast-path)   |  Adversarial Frontier Council |   |
+|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)    |   |
+|   +-----------+-----------+               +---------------+---------------+   |
+|               |                                           |                   |
+|               +---------------------+---------------------+                   |
+|                                     |                                         |
+|                                     v                                         |
+|                       +---------------------------+                           |
+|                       |  Ed25519 Signature Engine |                           |
+|                       +-------------+-------------+                           |
++-------------------------------------+-----------------------------------------+
+                                      | Ed25519-Signed Verdict Receipt
+                                      v
+              +-----------------------------------------------+
+              |   APPROVED / FLAGGED / REJECTED Decision Gate |
+              |          (Agent halts or executes)            |
+              +-----------------------------------------------+
 ```
 
 ---

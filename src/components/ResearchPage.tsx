@@ -716,7 +716,7 @@ export function ResearchPage({ onClose }: ResearchPageProps) {
                       <p className="text-xs sm:text-sm font-sans text-indigo-950 font-semibold leading-relaxed mb-0">
                         <strong>Is Multi-Agent Verification Expensive?</strong> Querying multiple models over several rounds costs more API tokens than a single pass. 
                         <br /><br />
-                        <strong>The Investment Math:</strong> While running FAC increases token costs by roughly 7x, it drops the AI's critical reasoning failure rate from 15.4% to less than 0.05%. This completely eliminates the need for expensive secondary manual verifiers and speeds up compliance reviews by 85%. You spend pennies on API processing to save thousands of dollars in auditing labor.
+                        <strong>The Investment Math:</strong> While running FAC increases token costs by roughly 7x, it drops the AI's critical reasoning failure rate from 15.4% to less than 0.05%. This removes most of the manual secondary-review burden from compliance queues and speeds up compliance reviews by 85%. You spend pennies on API processing to save thousands of dollars in auditing labor.
                       </p>
                     </div>
 

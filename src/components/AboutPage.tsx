@@ -39,27 +39,30 @@ export function AboutPage({ onClose }: AboutPageProps) {
             <span className="text-[10px] uppercase tracking-[0.2em] font-black text-indigo-750">EthersFlow Corporate Manifesto</span>
           </div>
           <h1 className="text-5xl sm:text-7xl font-sans font-black tracking-tight leading-[0.95] uppercase mb-8">
-            The verification layer <br />
-            <span className="text-indigo-600">for agentic systems.</span>
+            The action-verification layer <br />
+            <span className="text-indigo-600">for the agentic web (KYAA).</span>
           </h1>
           <p className="text-xl sm:text-2xl font-bold text-gray-700 leading-relaxed tracking-tight">
-            EthersFlow builds the review, routing, and evidence systems that help teams inspect model disagreement, enforce policies before consequential actions, and preserve a record of how decisions were reached. People use EthersFlow to run multi-perspective reviews in the Console; developers extend the same capability into applications and agent workflows through API and MCP.
+            KYA establishes who your agent is and what it is allowed to do. <span className="text-indigo-600 font-black">KYAA (Know Your Agent's Action)</span> verifies what it is actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
+          </p>
+          <p className="mt-4 text-base sm:text-lg text-gray-500 font-semibold leading-relaxed">
+            EthersFlow provides this verification through two doors: an interactive Review Console for human teams to evaluate complex strategies and model disagreements, and high-performance API & MCP servers for autonomous agents requiring cryptographically signed clearance before execution.
           </p>
         </div>
 
         {/* Core Narrative / Dual Column */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 sm:gap-20 mb-24 border-t border-gray-200/60 pt-16">
           <div>
-            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-6">// THE PARADIGM SHIFT</h3>
+            <h3 className="text-xs font-black uppercase tracking-[0.3em] text-indigo-600 mb-6">// THE CATEGORY GAP</h3>
             <h2 className="text-2xl sm:text-3xl font-sans font-black tracking-tight mb-6 uppercase text-gray-950">
-              The Transparency Crisis of Closed Intelligence
+              Identity & Authorization Leave a Dangerous Empty Box
             </h2>
             <div className="space-y-6 text-[#1d1d1f]/80 font-medium text-base leading-relaxed">
               <p>
-                In the race for model deployment, software has defaulted to a fragile structure: relying on single-provider black-box models to make consequential decisions in finance, legal evaluation, infrastructure operations, and customer transactions.
+                Agent identity standards (KYA) and authorization protocols (Google AP2, FIDO, OAuth mandates) prove <em>who</em> an agent represents and <em>what</em> permissions it holds.
               </p>
               <p>
-                When a single model hallucinates or strays from intent, the mistake remains invisible until execution. At EthersFlow, we recognized that the path to dependable autonomous software is not simply a larger single model—it is <strong>independent, multi-model review</strong>.
+                Yet as open agent protocols concede, authorization cannot guarantee that a specific composed action is safe. A fully authorized agent can still execute a lookalike vendor payment, an unintentional parameter drift, or a data leakage payload. EthersFlow exists to fill that empty box: <strong>verifying the semantic legitimacy of each specific action before it executes</strong>.
               </p>
             </div>
           </div>
@@ -71,10 +74,10 @@ export function AboutPage({ onClose }: AboutPageProps) {
             </h2>
             <div className="space-y-6 text-[#1d1d1f]/80 font-medium text-base leading-relaxed">
               <p>
-                <strong>Federated Consensus Protocol</strong> is our architecture for coordinating specialized reviewer roles, model routing, adversarial challenge, quorum evaluation, and evidence synthesis.
+                <strong>Federated Consensus Protocol</strong> is our engine for coordinating specialized reviewer roles, heterogeneous model routing, adversarial cross-examination, and cryptographic attestation.
               </p>
               <p>
-                We do not train generic models. EthersFlow builds the verification and arbitration infrastructure that holds autonomous systems accountable before they act.
+                We do not replace identity or authorization providers — we bind identity attestations directly into signed Ed25519 verdicts so auditors, operators, and compliance officers have an immutable record of clearance before any high-stakes tool call fires.
               </p>
             </div>
           </div>

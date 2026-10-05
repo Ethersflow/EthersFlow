@@ -270,6 +270,7 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
           <ul className="space-y-4 text-sm font-bold text-[#86868b]">
             <li><a href="/protocol" onClick={(e) => { e.preventDefault(); setView('protocol'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Protocol</a></li>
             <li><a href="/pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
+            <li><a href="/evidence" onClick={(e) => { e.preventDefault(); setView('main'); setTimeout(() => { const el = document.getElementById('evidence'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 100); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Red Team & Evidence</span><span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-400/30 rounded text-[9px] font-black uppercase">R25</span></a></li>
             <li><a href="/developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
             <li><a href="/api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
             <li><a href="/try-it" onClick={(e) => { e.preventDefault(); setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Try-It Sandbox</span><span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded text-[9px] font-black uppercase">Demo</span></a></li>
@@ -5086,6 +5087,28 @@ function NestedAgentLibraryUnused() { return null; }
               <span className="px-1.5 py-0.5 bg-sky-50 text-sky-600 border border-sky-200 rounded text-[9px] font-black uppercase">Gateway</span>
             </button>
 
+            <button 
+              onClick={() => {
+                if (view !== 'main' && view !== 'auth') {
+                  setView('main');
+                  setTimeout(() => {
+                    const el = document.getElementById('evidence');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }, 100);
+                } else {
+                  const el = document.getElementById('evidence');
+                  if (el) el.scrollIntoView({ behavior: 'smooth' });
+                }
+              }}
+              className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
+                isDark ? 'text-gray-300' : 'text-gray-500'
+              }`}
+            >
+              <Shield className="w-4 h-4 text-rose-500" />
+              <span>Red Team</span>
+              <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded text-[9px] font-black uppercase">R25</span>
+            </button>
+
             {/* Pricing drop down trigger wrapper */}
             <div 
               className="relative"
@@ -5685,16 +5708,16 @@ function NestedAgentLibraryUnused() { return null; }
             </div>
 
             <h1 className="text-4xl sm:text-6xl lg:text-[68px] font-black text-[#1d1d1f] mb-6 sm:mb-8 tracking-tight leading-[1.05]">
-              Make AI actions reviewable{' '}
-              <StreamingHeroText text="before they execute." />
+              Every AI decision and agent action,{' '}
+              <StreamingHeroText text="verified before it executes." />
             </h1>
 
             <p className="text-lg sm:text-xl text-gray-600 font-bold mb-8 sm:mb-10 leading-relaxed max-w-2xl">
-              Choose reviewer roles and the LLM behind each perspective, inspect disagreement and evidence, and—if you are building an agent—extend the same review through API or MCP before a consequential action.
+              EthersFlow is the action-verification layer for the agentic web. Whether you're a team evaluating high-stakes decisions in our <span className="text-indigo-600 font-black">interactive Review Console</span>, or a developer safeguarding autonomous workflows through our <span className="text-indigo-600 font-black">KYAA gateway (API & MCP)</span> — an adversarial council of independent models examines what is about to happen and returns a signed, verifiable verdict before execution.
             </p>
 
             {/* Primary and Secondary Hero CTAs */}
-            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-6">
               <button 
                 onClick={() => {
                   setMessages([]);
@@ -5707,7 +5730,7 @@ function NestedAgentLibraryUnused() { return null; }
                 }}
                 className="w-full sm:w-auto px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-2xl shadow-xl shadow-indigo-100 transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 cursor-pointer"
               >
-                <span>Try the Console</span>
+                <span>Launch Review Console</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -5718,8 +5741,24 @@ function NestedAgentLibraryUnused() { return null; }
                 }}
                 className="w-full sm:w-auto px-8 py-4 bg-white border-2 border-gray-200 hover:border-gray-900 text-gray-800 font-black rounded-2xl transition-all text-sm uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>PROTECT AN AGENT ACTION</span>
+                <span>Protect Agent Actions (API/MCP)</span>
               </button>
+            </div>
+
+            {/* Two Surfaces Explainer Badge */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8 max-w-2xl">
+              <div className="bg-white/80 border border-gray-200/80 rounded-2xl p-3.5 shadow-sm text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 block mb-0.5">Surface 01 · Human Teams</span>
+                <p className="text-xs text-gray-600 font-bold leading-relaxed">
+                  Interactive Console to cross-examine complex questions, strategies, and documents across diverse models.
+                </p>
+              </div>
+              <div className="bg-white/80 border border-gray-200/80 rounded-2xl p-3.5 shadow-sm text-left">
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 block mb-0.5">Surface 02 · Autonomous Agents</span>
+                <p className="text-xs text-gray-600 font-bold leading-relaxed">
+                  KYAA Gate (API / MCP) delivering cryptographically signed Ed25519 verdicts before tools and transfers execute.
+                </p>
+              </div>
             </div>
             
             {/* Problem Accordion */}
@@ -5817,6 +5856,119 @@ function NestedAgentLibraryUnused() { return null; }
           </div>
         </div>
 
+        {/* Block B: Category Section & Stack Architecture Diagram */}
+        <div className="w-full bg-white border-y border-gray-150 py-16 sm:py-24">
+          <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
+            <div className="text-center max-w-4xl mx-auto mb-14">
+              <div className="text-[10px] sm:text-xs font-black text-indigo-600 uppercase tracking-[0.4em] mb-4">
+                Category Architecture
+              </div>
+              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#1d1d1f] tracking-tight mb-6 leading-tight">
+                Identity answers who. Authorization answers may it. Nobody answers: is this specific action legitimate?
+              </h2>
+              <p className="text-base sm:text-lg text-gray-600 font-medium leading-relaxed">
+                Agent identity (KYA) and agent authorization (AP2, OAuth mandates, Agent Cards) are maturing fast — but the A2A specification says it outright: the protocol "does not decide which agent should be trusted, what data it may see, or whether its output is safe." A perfectly authorized agent can still compose a perfectly wrong action: a lookalike vendor, a disguised transfer, a payload that honors the letter of the mandate and violates its intent. EthersFlow closes that gap — per action, before execution, with a signed verdict any auditor can check.
+              </p>
+            </div>
+
+            {/* Stack Diagram Row (Responsive: horizontal on desktop, vertical on mobile with rotated arrows) */}
+            <div className="bg-slate-900 rounded-[36px] p-6 sm:p-10 lg:p-12 shadow-2xl border border-slate-800 mb-12">
+              <div className="text-[11px] font-mono font-bold uppercase tracking-widest text-slate-400 mb-8 flex items-center justify-between">
+                <span>The Agentic Trust Stack</span>
+                <span className="text-indigo-400 font-sans font-black text-xs">KYA → AP2 → KYAA → EXECUTION</span>
+              </div>
+
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 lg:gap-2">
+                {/* 1. IDENTITY (KYA) */}
+                <div className="flex-1 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Layer 01</span>
+                    <h3 className="text-base font-black text-white mb-2">IDENTITY (KYA)</h3>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                      Who is the agent? Whose authority?
+                    </p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-slate-700/60 text-[11px] font-mono text-slate-400">
+                    Sumsub, Entrust, Persona…
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center justify-center py-1 lg:py-0 px-2 text-indigo-400">
+                  <ArrowRight className="w-5 h-5 hidden lg:block" />
+                  <ChevronDown className="w-5 h-5 lg:hidden" />
+                </div>
+
+                {/* 2. AUTHORIZATION */}
+                <div className="flex-1 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Layer 02</span>
+                    <h3 className="text-base font-black text-white mb-2">AUTHORIZATION</h3>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                      (AP2 · FIDO · OAuth)<br />What is it allowed to do?
+                    </p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-slate-700/60 text-[11px] font-mono text-slate-400">
+                    Google, Visa, Mastercard, A2A
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center justify-center py-1 lg:py-0 px-2 text-indigo-400">
+                  <ArrowRight className="w-5 h-5 hidden lg:block" />
+                  <ChevronDown className="w-5 h-5 lg:hidden" />
+                </div>
+
+                {/* 3. ACTION VERIFICATION (KYAA) — Highlighted */}
+                <div className="flex-1 bg-indigo-950/90 border-2 border-indigo-500 rounded-2xl p-5 flex flex-col justify-between shadow-xl shadow-indigo-950/50 relative">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-[9px] font-black uppercase tracking-wider px-3 py-0.5 rounded-full whitespace-nowrap shadow-sm">
+                    ◄── EthersFlow lives here ──►
+                  </div>
+                  <div className="pt-1">
+                    <span className="text-[10px] font-mono font-bold text-indigo-300 uppercase tracking-wider block mb-1">Layer 03</span>
+                    <h3 className="text-base font-black text-white mb-2 flex items-center gap-1.5">
+                      <span>ACTION VERIFICATION (KYAA)</span>
+                    </h3>
+                    <p className="text-xs text-indigo-100 font-semibold leading-relaxed">
+                      Is THIS action legitimate? Signed verdict BEFORE execution.
+                    </p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-indigo-800 text-[11px] font-medium text-indigo-300 italic">
+                    the empty box in every stack diagram
+                  </div>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center justify-center py-1 lg:py-0 px-2 text-indigo-400">
+                  <ArrowRight className="w-5 h-5 hidden lg:block" />
+                  <ChevronDown className="w-5 h-5 lg:hidden" />
+                </div>
+
+                {/* 4. EXECUTION */}
+                <div className="flex-1 bg-slate-800/80 border border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between">
+                  <div>
+                    <span className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider block mb-1">Layer 04</span>
+                    <h3 className="text-base font-black text-white mb-2">EXECUTION</h3>
+                    <p className="text-xs text-slate-300 font-medium leading-relaxed">
+                      Consequential action runs only with signed cryptographic clearance.
+                    </p>
+                  </div>
+                  <div className="pt-4 mt-4 border-t border-slate-700/60 text-[11px] font-mono text-emerald-400 font-bold">
+                    Safe Execution State
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Block C: KYAA Explainer Strip */}
+            <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-6 sm:p-8 text-center max-w-4xl mx-auto shadow-sm">
+              <p className="text-base sm:text-lg text-indigo-950 font-bold leading-relaxed">
+                KYA establishes who your agent is and what it's allowed to do. <span className="text-indigo-600 font-black">KYAA — Know Your Agent's Action</span> — verifies what it's actually doing, one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* 3-Step Verification Pipeline on Homepage */}
         <div className="w-full bg-slate-50/70 border-y border-gray-100 py-16 sm:py-24">
           <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
@@ -5899,6 +6051,71 @@ function NestedAgentLibraryUnused() { return null; }
                 Developer Hub →
               </button>
             </div>
+          </div>
+        </div>
+
+        {/* Block D: Proof Section / Red Team Evidence */}
+        <div id="evidence" className="w-full bg-slate-900 text-white py-16 sm:py-28 border-y border-slate-800 scroll-mt-20">
+          <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
+            <div className="max-w-4xl mx-auto text-center mb-12">
+              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black uppercase tracking-widest mb-6">
+                <Shield className="w-4 h-4 text-rose-400" />
+                <span>Empirical Red Team Campaign</span>
+              </div>
+              <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-6">
+                We attacked our own gate. Then we published what broke.
+              </h2>
+              <p className="text-base sm:text-lg text-slate-300 font-medium leading-relaxed text-left sm:text-center">
+                311 pre-registered, incident-grounded attacks across 13 attack families — every scenario written down and hash-locked before a single test ran. The gate stopped 92.3% (169/183, 95% CI 87.6–95.4), issued zero wrong approvals, and approved 63/63 legitimate purchases in under half a second. We found four doors — including a unanimous AI council approving a lookalike vendor at 94.8 confidence, with every member's transcript signed. Then we closed all four doors and re-verified the fixes with fresh pre-registered batteries: identity is now a kernel fact the deliberative layer cannot overturn, and replay attempts are caught, not re-approved. Read the full findings — numbers, methods, signed transcripts:
+              </p>
+            </div>
+
+            {/* Metrics cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-12 max-w-5xl mx-auto">
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
+                <div className="text-2xl sm:text-3xl font-black text-indigo-400 mb-1">311</div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pre-registered Attacks</div>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
+                <div className="text-2xl sm:text-3xl font-black text-emerald-400 mb-1">92.3%</div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Gate Interception (169/183)</div>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
+                <div className="text-2xl sm:text-3xl font-black text-sky-400 mb-1">0</div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Wrong Approvals</div>
+              </div>
+              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
+                <div className="text-2xl sm:text-3xl font-black text-purple-400 mb-1">63/63</div>
+                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legitimate Purchases (&lt;0.5s)</div>
+              </div>
+            </div>
+
+            {/* Paper CTA Link + Era Tag */}
+            <div className="max-w-2xl mx-auto text-center space-y-4">
+              <a
+                href="/reports/ethersflow-r25-four-doors.pdf"
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-3 px-8 py-4 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-2xl text-sm uppercase tracking-wider transition-all shadow-xl shadow-rose-950/40 cursor-pointer"
+              >
+                <FileText className="w-5 h-5" />
+                <span>Read Full R25 Findings Paper (PDF)</span>
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
+                Results from the R25 red-team campaign, September 2026 (build 0.2.3). Independent acceptance QA of the current build is in progress; the full third-party battery publishes on gate pass.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Block E: Fusion Line */}
+        <div className="w-full bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 text-white py-10 px-6 border-b border-indigo-700/50 shadow-inner">
+          <div className="max-w-5xl mx-auto text-center">
+            <p className="text-base sm:text-xl font-black tracking-tight leading-relaxed text-indigo-50">
+              Same engine, two doors: the Review Console for humans who want to watch the debate; the API and MCP server for agents that need a signed verdict in the loop.
+            </p>
           </div>
         </div>
 

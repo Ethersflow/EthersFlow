@@ -542,7 +542,7 @@ export const ProPlanDetailedPage: React.FC<PricingViewProps> = ({
           </div>
 
           <p className="text-base text-gray-500 font-medium leading-relaxed mb-8">
-            EthersFlow Pro provides unlimited access to EthersFlow's robust trust verdict engines. By evaluating multiple active agents at once, Pro exposes logical contradictions, resolves hallucinations, and guarantees total confidentiality with on-device Zero-Data-Retention filters.
+            EthersFlow Pro provides unlimited access to EthersFlow's robust trust verdict engines. By evaluating multiple active agents at once, Pro exposes logical contradictions, surfaces hallucinations, and enforces strict confidentiality with on-device Zero-Data-Retention filters.
           </p>
 
           <button 
@@ -709,7 +709,7 @@ export const MaxPlanDetailedPage: React.FC<PricingViewProps> = ({
           </div>
 
           <p className="text-base text-gray-500 font-medium leading-relaxed mb-8">
-            EthersFlow Max is engineered for power users handling enormous file volumes, long context vectors, and security operations. It unlocks access to premium frontier intelligence panels (leveraging Claude 3.5 Sonnet, GPT-4o, and Gemini 2.0 Pro) with dedicated high-priority CPU queues and sovereign SLA rerouting guarantees.
+            EthersFlow Max is engineered for power users handling enormous file volumes, long context vectors, and security operations. It unlocks access to premium frontier intelligence panels (leveraging a council of heterogeneous frontier models across independent providers) with dedicated high-priority CPU queues and sovereign SLA rerouting commitments.
           </p>
 
           <button 
@@ -889,12 +889,12 @@ export const EnterprisePlanDetailedPage: React.FC<PricingViewProps> = ({
               </div>
               <h3 className="text-2xl font-black text-white mb-2">Sovereign Deployment</h3>
               <p className="text-xs text-indigo-200/60 font-medium mb-8 leading-relaxed">
-                Dedicated cloud nodes, client-owned KMS encryption keys, customizable review quorum rules, and guaranteed latency SLAs.
+                Dedicated cloud nodes, client-owned KMS encryption keys, customizable review quorum rules, and strict latency SLA commitments.
               </p>
               
               <div className="mb-10 pb-6 border-b border-gray-800">
                 <span className="text-3xl font-black text-indigo-300">Custom Contract</span>
-                <span className="text-xs font-bold block text-gray-500 mt-1">SLA guarantees + On-premises / VPC capabilities</span>
+                <span className="text-xs font-bold block text-gray-500 mt-1">SLA commitments + On-premises / VPC capabilities</span>
               </div>
 
               <ul className="space-y-4 mb-8 text-sm font-bold text-gray-200">

@@ -1,6 +1,6 @@
 {
   "name": "EthersFlow",
-  "description": "EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions.",
+  "description": "EthersFlow (KYAA) verifies what AI decisions and autonomous agents actually do — one signed, adversarially examined action at a time. The action-verification layer for the agentic web.",
   "requestFramePermissions": ["camera", "microphone"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
