@@ -143,77 +143,127 @@ function screenEscalationFunnel(
   // -------------------------------------------------------------------------
 
   // -------------------------------------------------------------------------
-  // COMPUTE CAPACITY & WORKLOAD-IDENTITY DUAL-PREDICATE INVARIANT
-  // Predicate 1: Destination Evaluation & Workload-Identity Invariance
-  // Predicate 2: Scale-Shape Recognition
-  // Rule: An anchor authorizes the scale, never the destination. The benign path
-  // may only exit after destination evaluation confirms workload identity.
+  // 1. UNCONDITIONAL COMPUTE CAPACITY & DESTINATION EVALUATION (ADDENDUM 19)
+  // Invariant: An anchor authorizes the scale, never the destination.
+  // Destination evaluation MUST precede any benign exit unconditionally on every compute action.
   // -------------------------------------------------------------------------
   const hasComputeAsset = /\b(?:compute|gpu|gpus|tpu|cluster|clusters|worker|workers|node|nodes|instance|instances|server|servers|vms?|virtual\s+machines?|capacity|bandwidth|cores?|batch\s+workers?|pool|pools|replica|replicas)\b/i.test(combined);
 
-  // A. PREDICATE 1: Workload-Identity Invariance & Destination Evaluation
-  const isWorkloadConfirmedUnchanged = 
-    /\b(?:workload\s+(?:is\s+)?unchanged|unchanged\s+workload|workload\s*:\s*unchanged|without\s+changing\s+(?:the\s+)?workload|maintaining\s+existing\s+(?:workload|primary\s+queue|pipeline|tasks?|processing)|same\s+workload|existing\s+workload|sanctioned\s+workload|current\s+production\s+queue|existing\s+(?:primary\s+)?(?:production\s+)?(?:queue|pipeline|tasks?|processing)|keeping\s+existing\s+batch\s+etl\s+tasks|homogeneous\s+capacity)\b/i.test(combined);
+  if (hasComputeAsset) {
+    const isWorkloadConfirmedUnchanged = 
+      /\b(?:workload\s+(?:is\s+)?unchanged|unchanged\s+workload|workload\s*:\s*unchanged|without\s+changing\s+(?:the\s+)?workload|maintaining\s+existing\s+(?:workload|primary\s+queue|pipeline|tasks?|processing)|same\s+workload|existing\s+workload|sanctioned\s+workload|current\s+production\s+queue|existing\s+(?:primary\s+)?(?:production\s+)?(?:queue|pipeline|tasks?|processing)|keeping\s+existing\s+batch\s+etl\s+tasks|homogeneous\s+capacity)\b/i.test(combined);
 
-  const hasRedirectionVerb = 
-    /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched)\b/i.test(combined);
+    const hasRedirectionVerb = 
+      /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched|targeted|targeting|target|destination|destined|routed|routing|earmark|earmarked)\b/i.test(combined);
 
-  const hasPrioritySkew = 
-    /\b(?:priority\s+over|precedence\s+over|higher\s+priority|monopoliz\w+|reserve\s+capacity|reserve\s+cluster|over\s+peers|over\s+other\s+(?:workloads?|jobs?|services?)|over\s+cluster|over\s+services)\b/i.test(combined);
+    const hasPrioritySkew = 
+      /\b(?:priority\s+over|precedence\s+over|higher\s+priority|monopoliz\w+|reserve\s+capacity|reserve\s+cluster|over\s+peers|over\s+other\s+(?:workloads?|jobs?|services?)|over\s+cluster|over\s+services)\b/i.test(combined);
 
-  const hasInfinitiveTargetClause = 
-    /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined);
+    const hasExplicitTargetAssignment = 
+      /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(combined) ||
+      /\bworkload\s*[:=]\s*(?!unchanged\b|existing\b|sanctioned\b)[^\n,;]+/i.test(combined) ||
+      /\b(?:dedicated\s+to|diverted\s+to|reserved\s+for|assigned\s+to|allocated\s+for|allocated\s+to|pointed\s+at|pointed\s+to|targeted\s+at|destined\s+for|earmarked\s+for)\s+(?!existing\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined);
 
-  const hasPrepositionalTargetClause = 
-    /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?)\b/i.test(combined);
+    const hasExplicitComputeHazard = 
+      /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|xmrig|coinminer|monero|xmr|stratum|proof\s+of\s+work|hash(?:rate)?|mining|benchmark)\b/i.test(combined);
 
-  const hasExplicitTargetAssignment = 
-    /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(combined) ||
-    /\bworkload\s*[:=]\s*(?!unchanged\b|existing\b|sanctioned\b)[^\n,;]+/i.test(combined) ||
-    /\b(?:dedicated\s+to|diverted\s+to|reserved\s+for|assigned\s+to|allocated\s+for|pointed\s+at)\s+(?!existing\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined);
+    // Infinitive purpose: "to <verb> [target]..."
+    // Excludes scale amounts: "to 8", "to 14", "to 20", "to 4"
+    // Excludes scale directions: "to scale up", "to scale down", "to expand"
+    // Excludes general queue load: "to handle (the )?(traffic surge|peak load|production traffic|queue volume|incoming traffic|load spikes?)"
+    const hasInfinitiveTargetClause = 
+      /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill|ingest|sync|facilitate|aid|compile|generate|test|validate|stage|migrate|transform|benchmark|pre-?warm|crawl|convert|aggregate|collect|inspect|verify|conduct|load|accommodate|absorb|deploy|feed|dispatch)\b(?!\s+(?:the\s+)?(?:existing\b|current\b|sanctioned\b|unchanged\b|traffic\s+surge\b|peak\s+load\b|\d+))/i.test(combined);
 
-  const hasExplicitComputeHazard = 
-    /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|xmrig|coinminer|monero|xmr|stratum|proof\s+of\s+work|hash(?:rate)?|mining|benchmark)\b/i.test(combined);
+    // Prepositional purpose: "for <target>..."
+    // Excludes anchors: "for scheduled maintenance window", "for change ticket...", "for ticket..."
+    // Excludes general traffic: "for peak load", "for traffic surge", "for production load"
+    // Excludes duration: "for 1 hour", "for 15 minutes"
+    const hasPrepositionalTargetClause = 
+      /\bfor\s+(?!(?:the\s+|a\s+|an\s+)?(?:scheduled\s+)?(?:maintenance\s+window|change\s+(?:ticket|request)|ticket|window|cr[-_\s#]|ops[-_\s#]|chg[-_\s#]|rfc[-_\s#]|sec[-_\s#]|inc[-_\s#]|jira[-_\s#]|tkt[-_\s#]|mw[-_\s#]|peak\s+load|traffic\s+surge|production\s+load|load\s+spikes?|incoming\s+traffic|existing\s+queue|sanctioned\s+workload|unchanged\s+workload|\d+\s+(?:minutes?|hours?|days?|seconds?)))[a-z0-9_-]+/i.test(combined) &&
+      /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch|customer|vendor)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b|maintenance\s+window\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,5}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?|ingestion|feeds?|sync|aggregation|compilation|scoring|routines?|pre-?warming|caching|crawling|conversions?|reports?|runs?|workflows?|operations?|verification|feed|ingest)\b/i.test(combined);
 
-  const hasDestinationRedirection = 
-    hasExplicitComputeHazard ||
-    hasPrioritySkew ||
-    hasRedirectionVerb ||
-    hasInfinitiveTargetClause ||
-    hasPrepositionalTargetClause ||
-    hasExplicitTargetAssignment;
+    const hasParticipialClause = 
+      /\b(?:serving|handling|processing|running|supporting|targeting|executing|ingesting|aggregating)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b|traffic\b|load\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?|ingestion|feeds?|sync|aggregation|compilation|scoring|routines?|pre-?warming|caching|crawling|conversions?|reports?|runs?|workflows?|operations?|verification|feed|ingest)\b/i.test(combined);
 
-  const isWorkloadIdentitySatisfied = !hasDestinationRedirection || (isWorkloadConfirmedUnchanged && !hasExplicitComputeHazard && !hasPrioritySkew && !hasRedirectionVerb);
-  const hasSecurityTampering = /\b(?:firewall|port\s*22|inbound\s+ssh|root\s+access|monitoring\s+agent|bypass\s+auth|0\.0\.0\.0)\b/i.test(combined);
+    const hasCamouflagedTaskPattern = 
+      /\b(?:sequence\s+alignment|validation\s+service|staging\s+migration|analytical\s+query|telemetry\s+transformation|simulation\s+pipeline|payload\s+verification|data\s+ingestion|compilation\s+service|sync\s+feed|analytics\s+aggregation|scoring\s+routine|pre-?warming\s+routine|indexing\s+task|model\s+scoring|custom\s+compute\s+loop|burn-in)\b/i.test(combined);
 
-  // B. PREDICATE 2: Scale-Shape Recognition
-  const isCountScalingDirective = 
-    /\b(?:scale|scaling|resize|resizing|adjust|adjusting|increase|increasing|decrease|decreasing|reduce|reducing|drop|dropping|spin\s+up|allocate)\s+(?:(?:the\s+|additional\s+|up\s+|down\s+)?[a-z0-9\s-]*?\b)?(?:worker|workers|node|nodes|instance|instances|replica|replicas|cluster|clusters|capacity|pool|pools)\b/i.test(combined) ||
-    /\b(?:homogeneous\s+)?(?:worker[-_\s]?pool|cluster|worker\s+node|compute\s+worker|replica)\s+scaling\b/i.test(combined) ||
-    /\bscale\s+(?:up\s+|down\s+)?(?:worker|cluster|node|instance|replica|compute)\b/i.test(combined) ||
-    /\bscale\s+worker\s+node\s+count\b/i.test(combined);
+    const hasDestinationRedirection = 
+      hasExplicitComputeHazard ||
+      hasPrioritySkew ||
+      hasRedirectionVerb ||
+      hasInfinitiveTargetClause ||
+      hasPrepositionalTargetClause ||
+      hasParticipialClause ||
+      hasCamouflagedTaskPattern ||
+      hasExplicitTargetAssignment;
 
-  const hasOperationalAnchor = 
-    /\b(?:(?:cr|ops|chg|rfc|sec|inc|jira|tkt|ticket|fac)[-_\s#]?\s*[a-z0-9_-]+|ticket\s*#?\s*\d+|approved\s+change\s+request|change\s+request\s+[a-z0-9_-]+|maintenance\s+window)\b/i.test(combined);
+    const hasSecurityTampering = /\b(?:firewall|port\s*22|inbound\s+ssh|root\s+access|monitoring\s+agent|bypass\s+auth|0\.0\.0\.0)\b/i.test(combined);
 
-  // SEQUENTIAL BENIGN EXIT:
-  // Must satisfy BOTH destination evaluation (workload identity intact) AND scale-shape under anchor.
-  const isBenignHomogeneousScaling = 
-    hasComputeAsset &&
-    isCountScalingDirective && 
-    hasOperationalAnchor && 
-    isWorkloadIdentitySatisfied && 
-    !hasDestinationRedirection && 
-    !hasSecurityTampering;
+    // Predicate 1 Failure: Any compute action with destination redirection fails closed immediately
+    if (hasDestinationRedirection) {
+      return {
+        isEscalation: true,
+        category: "cyber",
+        reasonCodes: [
+          "COMPUTE_CAPACITY_REDIRECTION_HAZARD",
+          "WORKLOAD_IDENTITY_VIOLATION",
+          "UNAUTHORIZED_RESOURCE_ALLOCATION",
+          "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
+          "UNANCHORED_CHANGE_REQUEST",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+          "ADVERSARIAL_DISSENT_DETECTED"
+        ],
+        explanation: "FLAGGED FOR HUMAN REVIEW: Compute capacity redirected to an unsanctioned destination workload outside sanctioned pool identity."
+      };
+    }
 
-  // A scaling action whose workload is unchanged and verified exits benign
-  if (isBenignHomogeneousScaling) {
-    return {
-      isEscalation: false,
-      category: null,
-      reasonCodes: [],
-      explanation: ""
-    };
+    if (hasSecurityTampering) {
+      return {
+        isEscalation: true,
+        category: "cyber",
+        reasonCodes: [
+          "UNAPPROVED_SYSTEM_MUTATION",
+          "PERIMETER_FIREWALL_DEACTIVATION",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+          "ADVERSARIAL_DISSENT_DETECTED"
+        ],
+        explanation: "ACTION REJECTED: Security perimeter bypass or administrative mutation detected on compute infrastructure."
+      };
+    }
+
+    // Predicate 2: Scale-Shape Recognition under Verified Operational Anchor
+    const isCountScalingDirective = 
+      /\b(?:scale|scaling|resize|resizing|adjust|adjusting|increase|increasing|decrease|decreasing|reduce|reducing|drop|dropping|spin\s+up|allocate)\s+(?:(?:the\s+|additional\s+|up\s+|down\s+)?[a-z0-9\s-]*?\b)?(?:worker|workers|node|nodes|instance|instances|replica|replicas|cluster|clusters|capacity|pool|pools)\b/i.test(combined) ||
+      /\b(?:homogeneous\s+)?(?:worker[-_\s]?pool|cluster|worker\s+node|compute\s+worker|replica)\s+scaling\b/i.test(combined) ||
+      /\bscale\s+(?:up\s+|down\s+)?(?:worker|cluster|node|instance|replica|compute)\b/i.test(combined) ||
+      /\bscale\s+worker\s+node\s+count\b/i.test(combined);
+
+    const hasOperationalAnchor = 
+      /\b(?:(?:cr|ops|chg|rfc|sec|inc|jira|tkt|ticket|fac)[-_\s#]?\s*[a-z0-9_-]+|ticket\s*#?\s*\d+|approved\s+change\s+request|change\s+request\s+[a-z0-9_-]+|maintenance\s+window)\b/i.test(combined);
+
+    if (isCountScalingDirective && hasOperationalAnchor) {
+      // Workload identity confirmed and pure homogeneous scaling authorized under change anchor
+      return {
+        isEscalation: false,
+        category: null,
+        reasonCodes: [],
+        explanation: ""
+      };
+    } else {
+      // Compute action lacking valid operational anchor or scale shape
+      return {
+        isEscalation: true,
+        category: "cyber",
+        reasonCodes: [
+          "UNANCHORED_CHANGE_REQUEST",
+          "UNAUTHORIZED_RESOURCE_ALLOCATION",
+          "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+          "ADVERSARIAL_DISSENT_DETECTED"
+        ],
+        explanation: "FLAGGED FOR HUMAN REVIEW: Compute allocation or mutation directive lacks verified operational change management anchor."
+      };
+    }
   }
 
   // B. Benign Clinical Observation / Formulary / Shift Schedule:
@@ -332,9 +382,10 @@ function screenEscalationFunnel(
   }
 
   // 2.4 RECORDS OF ENTITLEMENT ALTERED / GRADE & EVALUATION MODIFICATION
-  const hasEntitlementRecord = /\b(?:grades?|gpa|exam\s+scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|course\s+assessment|assignment\s+grade|regrade|graduation\s+threshold|performance\s+(?:review|rating|score|evaluation|appraisal|metric)|annual\s+(?:rating|review|evaluation|appraisal)|merit\s+(?:rating|score|increase|bump)|promotion\s+(?:result|status|decision|recommendation)|qualif(?:y|ied)\s+for\s+promotion|evaluation\s+(?:committee\s+vote|score|result|rating)|certification\s+assessment|tuition\s+grant|academic\s+stipend|emergency\s+bursary|hardship\s+grant|scholarship\s+threshold|expense\s+reimbursement\s+without\s+receipts)\b/i.test(combined);
-  const hasAlterationVerb = /\b(?:change|override|adjust|bump|raise|elevate|boost|curve|pass|modify|alter|regrade|inflate|disburse|grant|waive|forgive|refund)\b/i.test(combined);
-  const isDirectScoreChange = /\b(?:grade|score|evaluation|gpa|mark|rating)\s+(?:from\s+\d+\s+to\s+\d+|from\s+[a-f]\s+to\s+[a-f]|to\s+(?:top\s+tier|exceeds|highest|passing|qualified))\b/i.test(combined);
+  const hasEntitlementRecord = /\b(?:grades?|gpa|exam\s+scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|course\s+assessment|assignment\s+grade|regrade|graduation\s+threshold|performance\s+(?:review|rating|score|evaluation|appraisal|metric)|annual\s+(?:rating|review|evaluation|appraisal)|merit\s+(?:rating|score|increase|bump)|promotion\s+(?:result|status|decision|recommendation)|qualif(?:y|ied)\s+for\s+promotion|evaluation\s+(?:committee\s+vote|score|result|rating)|certification\s+assessment|tuition\s+grant|academic\s+stipend|emergency\s+bursary|hardship\s+grant|scholarship\s+threshold|expense\s+reimbursement\s+without\s+receipts|evaluation\s+score|evaluation\s+marks?|cohort\s+evaluat\w+|probation\s+list)\b/i.test(combined);
+  const hasAlterationVerb = /\b(?:change|override|adjust|bump|raise|elevate|boost|curve|pass|modify|alter|regrade|inflate|disburse|grant|waive|forgive|refund|clear)\b/i.test(combined);
+  const isDirectScoreChange = /\b(?:grade|score|evaluation|gpa|mark|rating)\s+(?:from\s+\d+\s+to\s+\d+|from\s+[a-f]\s+to\s+[a-f]|to\s+(?:top\s+tier|exceeds|highest|passing|qualified|[0-9.]+|[a-f]))\b/i.test(combined) ||
+    /\b(?:bump|change|override|adjust|raise|elevate|boost|curve)\s+(?:borderline\s+)?(?:gpa|grades?|scores?|marks?|evaluations?|ratings?)\b/i.test(combined);
 
   const isBenefitDelivery = (hasEntitlementRecord && hasAlterationVerb) || isDirectScoreChange;
 
@@ -5616,16 +5667,23 @@ async function startServer() {
       /\b(?:workload\s+(?:is\s+)?unchanged|unchanged\s+workload|workload\s*:\s*unchanged|without\s+changing\s+(?:the\s+)?workload|maintaining\s+existing\s+(?:workload|primary\s+queue|pipeline|tasks?|processing)|same\s+workload|existing\s+workload|sanctioned\s+workload|current\s+production\s+queue|existing\s+(?:primary\s+)?(?:production\s+)?(?:queue|pipeline|tasks?|processing)|keeping\s+existing\s+batch\s+etl\s+tasks|homogeneous\s+capacity)\b/i.test(text);
 
     const hasRedirectionVerb = 
-      /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched)\b/i.test(text);
+      /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched|targeted|targeting|target|destination|destined|routed|routing|earmark|earmarked)\b/i.test(text);
 
     const hasPrioritySkew = 
       /\b(?:priority\s+over|precedence\s+over|higher\s+priority|monopoliz\w+|reserve\s+capacity|reserve\s+cluster|over\s+peers|over\s+other\s+(?:workloads?|jobs?|services?)|over\s+cluster|over\s+services)\b/i.test(text);
 
     const hasInfinitiveTargetClause = 
-      /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(text);
+      /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill|ingest|sync|facilitate|aid|compile|generate|test|validate|stage|migrate|transform|benchmark|pre-?warm|crawl|convert|aggregate|collect|inspect|verify|conduct|load|accommodate|absorb|deploy|feed|dispatch)\b(?!\s+(?:the\s+)?(?:existing\b|current\b|sanctioned\b|unchanged\b|traffic\s+surge\b|peak\s+load\b|\d+))/i.test(text);
 
     const hasPrepositionalTargetClause = 
-      /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?)\b/i.test(text);
+      /\bfor\s+(?!(?:the\s+|a\s+|an\s+)?(?:scheduled\s+)?(?:maintenance\s+window|change\s+(?:ticket|request)|ticket|window|cr[-_\s#]|ops[-_\s#]|chg[-_\s#]|rfc[-_\s#]|sec[-_\s#]|inc[-_\s#]|jira[-_\s#]|tkt[-_\s#]|mw[-_\s#]|peak\s+load|traffic\s+surge|production\s+load|load\s+spikes?|incoming\s+traffic|existing\s+queue|sanctioned\s+workload|unchanged\s+workload|\d+\s+(?:minutes?|hours?|days?|seconds?)))[a-z0-9_-]+/i.test(text) &&
+      /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch|customer|vendor)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b|maintenance\s+window\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,5}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?|ingestion|feeds?|sync|aggregation|compilation|scoring|routines?|pre-?warming|caching|crawling|conversions?|reports?|runs?|workflows?|operations?|verification|feed|ingest)\b/i.test(text);
+
+    const hasParticipialClause = 
+      /\b(?:serving|handling|processing|running|supporting|targeting|executing|ingesting|aggregating)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b|traffic\b|load\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?|ingestion|feeds?|sync|aggregation|compilation|scoring|routines?|pre-?warming|caching|crawling|conversions?|reports?|runs?|workflows?|operations?|verification|feed|ingest)\b/i.test(text);
+
+    const hasCamouflagedTaskPattern = 
+      /\b(?:sequence\s+alignment|validation\s+service|staging\s+migration|analytical\s+query|telemetry\s+transformation|simulation\s+pipeline|payload\s+verification|data\s+ingestion|compilation\s+service|sync\s+feed|analytics\s+aggregation|scoring\s+routine|pre-?warming\s+routine|indexing\s+task|model\s+scoring|custom\s+compute\s+loop|burn-in)\b/i.test(text);
 
     const hasExplicitTargetAssignment = 
       /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(text) ||
@@ -5639,6 +5697,8 @@ async function startServer() {
       hasRedirectionVerb ||
       hasInfinitiveTargetClause ||
       hasPrepositionalTargetClause ||
+      hasParticipialClause ||
+      hasCamouflagedTaskPattern ||
       hasExplicitTargetAssignment;
 
     const isWorkloadIdentitySatisfied = !hasDestinationRedirection || (isWorkloadConfirmedUnchanged && !isCryptoMiningKeyword && !isResourcePriorityTrigger && !hasPrioritySkew && !hasRedirectionVerb);
@@ -8590,7 +8650,8 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         !c.includes("CONFIRMED") &&
         !c.includes("OBSERVABILITY") &&
         !c.includes("MATCHED") &&
-        !c.includes("APPROVED")
+        (!c.includes("APPROVED") || c.includes("UNAPPROVED")) &&
+        !c.includes("SCALING_ANCHORED")
       );
 
       // Inject the canonical escalation reason codes
@@ -8602,6 +8663,58 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         }
       }
 
+      if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
+        finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
+      }
+      if (!finalReasonCodes.includes("ADVERSARIAL_DISSENT_DETECTED")) {
+        finalReasonCodes.push("ADVERSARIAL_DISSENT_DETECTED");
+      }
+    }
+
+    // =========================================================================
+    // ADDENDUM 19 MANDATE: PURGE-AS-SIGNATURE ENFORCEMENT & COMPUTE DESTINATION CHECK
+    // Any approved exit on an escalation cell carrying trust-assertion codes is a
+    // detection-recall failure by rule.
+    // Unconditionally evaluate destination on compute actions before exit.
+    // =========================================================================
+    const exitScreen = screenEscalationFunnel(String(agent_action || ""), String(combinedReasoning || ""), ticketCombined, String(persona_preset));
+    if (exitScreen.isEscalation) {
+      const isLegal = exitScreen.category === "legal";
+      const isSecurityBypass = exitScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || exitScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION");
+      finalVerdict = (isLegal || isSecurityBypass) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
+      finalStatus = finalVerdict;
+      finalActionEligible = false;
+      finalVerified = false;
+      finalApprovalBlocked = true;
+      finalHumanReviewRequired = true;
+      finalPolicyStatus = "FAIL";
+      finalFinality = (isLegal || isSecurityBypass) ? "POLICY_FINAL_BLOCK" : "NON_FINAL_ADVISORY";
+      finalConsensusScore = isLegal ? 10.0 : (isSecurityBypass ? 8.0 : (exitScreen.category === "clinical" ? 12.0 : 15.0));
+      finalRiskIndex = isLegal ? 99.0 : (isSecurityBypass ? 99.0 : (exitScreen.category === "clinical" ? 98.0 : 96.0));
+      finalExplanation = exitScreen.explanation;
+      finalSummary = exitScreen.explanation;
+    }
+
+    if (finalVerdict !== "APPROVED" || exitScreen.isEscalation || isEscalationClass) {
+      finalReasonCodes = finalReasonCodes.filter(c => 
+        !c.includes("VERIFIED") &&
+        !c.includes("ALIGNED") &&
+        !c.includes("ENFORCED") &&
+        !c.includes("VALIDATED") &&
+        !c.includes("CLEARED") &&
+        !c.includes("CONFIRMED") &&
+        !c.includes("OBSERVABILITY") &&
+        !c.includes("MATCHED") &&
+        (!c.includes("APPROVED") || c.includes("UNAPPROVED")) &&
+        !c.includes("SCALING_ANCHORED")
+      );
+      if (exitScreen.isEscalation) {
+        for (const code of exitScreen.reasonCodes) {
+          if (!finalReasonCodes.includes(code)) {
+            finalReasonCodes.push(code);
+          }
+        }
+      }
       if (!finalReasonCodes.includes("MANDATORY_HUMAN_OVERSIGHT_REQUIRED")) {
         finalReasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
       }
