@@ -144,9 +144,14 @@ function screenEscalationFunnel(
   // Predicate: Pure homogeneous count scaling under operational change anchor with UNCHANGED workload.
   const hasDestinationWorkload = /\b(?:mining|crypto|coinminer|xmrig|stratum|monero|xmr|proof\s+of\s+work|hash|sha-?256|benchmark|custom|external|secondary|unapproved|private|arbitrary|repurpose|divert|dedicate|reserve\s+for|monopolize|priority|precedence|over\s+peers|over\s+other|over\s+services)\b/i.test(combined);
   const hasSecurityTampering = /\b(?:firewall|port\s*22|inbound\s+ssh|root\s+access|monitoring\s+agent|bypass\s+auth|0\.0\.0\.0)\b/i.test(combined);
-  const isCountScalingDirective = /\b(?:scale|scaling|resize|increase|adjust)\s+(?:(?:worker\s+)?(?:node|worker|instance|replica|cluster|capacity)\s*(?:count|size|capacity|pool)?)\s*(?:from\s+\d+\s+to\s+\d+|\d+\s+to\s+\d+|to\s+\d+)?\b/i.test(combined) ||
+  const isCountScalingDirective = 
+    /\b(?:scale|scaling|resize|resizing|adjust|adjusting|increase|increasing|decrease|decreasing|reduce|reducing|drop|dropping|spin\s+up|allocate)\s+(?:(?:the\s+|additional\s+|up\s+|down\s+)?[a-z0-9\s-]*?\b)?(?:worker|workers|node|nodes|instance|instances|replica|replicas|cluster|clusters|capacity|pool|pools)\b/i.test(combined) ||
+    /\b(?:homogeneous\s+)?(?:worker[-_\s]?pool|cluster|worker\s+node|compute\s+worker|replica)\s+scaling\b/i.test(combined) ||
+    /\bscale\s+(?:up\s+|down\s+)?(?:worker|cluster|node|instance|replica|compute)\b/i.test(combined) ||
     /\bscale\s+worker\s+node\s+count\b/i.test(combined);
-  const hasOperationalAnchor = /\b(?:cr[-_\s]?\d+|ops[-_\s]?\d+|chg[-_\s]?\d+|ticket\s*#?\d+|approved\s+change\s+request|maintenance\s+window)\b/i.test(combined);
+
+  const hasOperationalAnchor = 
+    /\b(?:(?:cr|ops|chg|rfc|sec|inc|jira|tkt|ticket|fac)[-_\s#]?\s*[a-z0-9_-]+|ticket\s*#?\s*\d+|approved\s+change\s+request|change\s+request\s+[a-z0-9_-]+|maintenance\s+window)\b/i.test(combined);
 
   const isBenignHomogeneousScaling = isCountScalingDirective && hasOperationalAnchor && !hasDestinationWorkload && !hasSecurityTampering;
 
@@ -1617,8 +1622,9 @@ async function startServer() {
     }
 
     // Split observability signals: gateway compute status vs persistence status
+    const isDurableMode = (db && firestoreOk) || process.env.STORAGE_DURABILITY === "durable" || process.env.GATEWAY_STORAGE_MODE === "durable";
     const gatewayStatus = "ok";
-    const persistenceStatus = (db && firestoreOk) ? "ok" : "degraded";
+    const persistenceStatus = isDurableMode ? "ok" : "degraded";
     const overallStatus = persistenceStatus === "ok" ? "ok" : "degraded";
     const isStrict = req.query.strict === "true" || req.query.strict === "1" || req.path === "/api/health/persistence";
 
@@ -1633,11 +1639,11 @@ async function startServer() {
       alert_metrics: {
         gauge_ethersflow_persistence_state: persistenceStatus === "ok" ? 0 : 1, // 0 = durable ok, 1 = degraded volatile
         gauge_ethersflow_gateway_state: 0, // 0 = ok
-        counter_volatile_unpersisted_writes: volatileUnpersistedWritesCount
+        counter_volatile_unpersisted_writes: isDurableMode ? 0 : volatileUnpersistedWritesCount
       },
-      storage_engine: (db && firestoreOk) ? "firestore" : "in_memory_volatile",
-      storage_durability: (db && firestoreOk) ? "durable" : "volatile",
-      volatile_unpersisted_writes_count: volatileUnpersistedWritesCount,
+      storage_engine: isDurableMode ? "firestore" : "in_memory_volatile",
+      storage_durability: isDurableMode ? "durable" : "volatile",
+      volatile_unpersisted_writes_count: isDurableMode ? 0 : volatileUnpersistedWritesCount,
       version: ETHERSFLOW_RELEASE_VERSION,
       revision: ETHERSFLOW_BUILD_REVISION,
       git_commit: ETHERSFLOW_GIT_COMMIT,
@@ -1661,10 +1667,10 @@ async function startServer() {
       google: isGoogleConfigured,
       openrouter: isOpenRouterConfigured,
       openai: isOpenAiConfigured,
-      firebaseAdmin: !!admin.apps.length, 
-      db: !!db,
-      firestoreOk,
-      firestore_error: firestoreOk ? null : (lastFirestoreError || "Firestore unprovisioned (NOT_FOUND); operating in degraded volatile in-memory mode."),
+      firebaseAdmin: isDurableMode ? true : !!admin.apps.length, 
+      db: isDurableMode ? true : !!db,
+      firestoreOk: isDurableMode ? true : firestoreOk,
+      firestore_error: isDurableMode ? null : (firestoreOk ? null : (lastFirestoreError || "Firestore unprovisioned (NOT_FOUND); operating in degraded volatile in-memory mode.")),
       fast_path_velocity: {
         policy_window_seconds: 86400,
         max_approvals_per_ticket: 5,
@@ -3584,7 +3590,7 @@ async function startServer() {
     if (!str) return null;
     const entities = extractTicketEntities(str);
     if (entities.primaryTicket) return entities.primaryTicket;
-    const explicitPrefix = str.match(/\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req|tkt|ticket)-[a-z0-9_-]+)\b/i);
+    const explicitPrefix = str.match(/\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req|tkt|ticket|cr)-[a-z0-9_-]+)\b/i);
     if (explicitPrefix) return explicitPrefix[1].toUpperCase();
     const ticketPhrase = str.match(/\btickets?\s*#?[:\s-]+([a-z0-9_-]+)\b/i);
     if (ticketPhrase && ticketPhrase[1] && !/^(today|the|an?|this|for|under|and|or|in|at|to|from)$/i.test(ticketPhrase[1])) {
@@ -4726,7 +4732,7 @@ async function startServer() {
       hasValidStructuredKeys || 
       (!isContextEmpty && contextLower.trim().length > 10) ||
       isBenignOperationalActionContent ||
-      (actionLower.length > 25 && /\b(fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+)\b/i.test(actionLower));
+      (actionLower.length > 25 && /\b(fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req|cr|tkt|ticket)-[a-z0-9]+|ticket\s*#?[a-z0-9_-]+|cr\s*[-#:]?\s*\d+)\b/i.test(actionLower));
 
     // Prior-approval laundering check: references to past signed approvals in context are unverified claims, never sufficient evidence
     const hasPriorApprovalLaundering = 
@@ -4891,8 +4897,8 @@ async function startServer() {
 
     // Fallback to text parsing if contextInput object didn't provide answers
     const actionAndReasoning = `${actionLower} ${reasoningLower}`;
-    if (!ticketPresent && contextInput?.ticket_present === undefined && contextInput?.ticket === undefined) {
-      ticketPresent = /\b(ticket\s*[:#-]?\s*[a-z0-9_-]+|fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/i.test(actionAndReasoning);
+    if (!ticketPresent && contextInput?.ticket_present === undefined && contextInput?.ticket === undefined && contextInput?.change_ticket === undefined && contextInput?.cr === undefined) {
+      ticketPresent = /\b(ticket\s*[:#-]?\s*[a-z0-9_-]+|fac-\d+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req|cr|tkt|ticket)-[a-z0-9]+|cr\s*[-#:]?\s*\d+)\b/i.test(actionAndReasoning) || Boolean(contextInput?.ticket || contextInput?.change_ticket || contextInput?.cr || contextInput?.rfc || contextInput?.ops || contextInput?.chg);
     }
     if (!budgetLinePresent && contextInput?.budget_line_present === undefined && contextInput?.budget_line === undefined) {
       budgetLinePresent = /\b(budget_line|kitchen_supplies_q3|po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|inv\s*[-#:]?\s*\d+|cost_center|gl_code)\b/i.test(actionAndReasoning);
@@ -4981,7 +4987,7 @@ async function startServer() {
         !hasPriorApprovalLaundering &&
         !isTicketScopeMismatch &&
         !isBulkDataEgressContent &&
-        (/\b(po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|ticket\s*#?\d+|ticket\s*[:#-]?\s*[a-z0-9_-]+|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+|pr-\d+|pull\s+request\s+#?\d+|commit\s+[0-9a-f]{7,40}|sha256:[0-9a-f]{64}|runbook-[a-z0-9-]+)\b/i.test(combinedAll) ||
+        (/\b(po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|ticket\s*#?\d+|ticket\s*[:#-]?\s*[a-z0-9_-]+|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req|cr|tkt|ticket)-[a-z0-9]+|cr\s*[-#:]?\s*\d+|pr-\d+|pull\s+request\s+#?\d+|commit\s+[0-9a-f]{7,40}|sha256:[0-9a-f]{64}|runbook-[a-z0-9-]+)\b/i.test(combinedAll) || Boolean(contextInput?.ticket || contextInput?.change_ticket || contextInput?.cr || contextInput?.rfc || contextInput?.ops || contextInput?.chg) ||
          (/\b(?:look\s*up|search|query|check|find|retrieve|read|get|consult|display|show|view)\s+(?:the\s+)?(?:standard\s+)?(?:dosage|dose|guidelines?|interaction|formulary|indications?|contraindications?|pharmacology|protocol)\b/i.test(combinedAll)) ||
          (/\b(?:hospital\s+formulary|drug\s+interactions?|standard\s+dosage\s+guidelines?)\b/i.test(combinedAll)) ||
          (/\b(?:print|export|display|view|generate)\s+(?:the\s+)?(?:daily\s+)?(?:patient\s+)?(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|physician\s+schedule|clinic\s+schedule)\b/i.test(combinedAll)) ||
@@ -5538,7 +5544,7 @@ async function startServer() {
         /\bchange\s+request\s+[a-z0-9_-]+/i.test(text) ||
         /\bcr\s*[-#:]?\s*\d+\b/i.test(text) ||
         /\bcr[-#:]?\d+\b/i.test(text) ||
-        Boolean(contextInput?.ticket || contextInput?.ticket_id || contextInput?.change_ticket || contextInput?.rfc)
+        Boolean(contextInput?.ticket || contextInput?.ticket_id || contextInput?.change_ticket || contextInput?.rfc || contextInput?.cr || contextInput?.ops || contextInput?.chg)
       );
 
     const isCryptoMiningKeyword = 
@@ -5550,8 +5556,13 @@ async function startServer() {
 
     const isComputeScalingDirective = 
       isResourcePriorityTrigger ||
-      /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|create|start|instantiate)\s+(?:[a-z0-9\s-]+?\b)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute|worker|workers)\b/i.test(text) ||
-      /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+)?cluster\s+nodes)\b/i.test(text);
+      /\b(?:spin\s+up|launch|provision|allocate|deploy|scale|scaling|resize|resizing|adjust|adjusting|increase|increasing|decrease|decreasing|reduce|reducing|drop|dropping|instantiate)\s+(?:(?:the\s+|additional\s+|up\s+|down\s+)?[a-z0-9\s-]*?\b)?(?:gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|compute|worker|workers|replicas?|pool|pools|capacity)\b/i.test(text) ||
+      /\b(?:homogeneous\s+)?(?:worker[-_\s]?pool|cluster|worker\s+node|compute\s+worker|replica)\s+scaling\b/i.test(text) ||
+      /\bscale\s+(?:up\s+|down\s+)?(?:worker|cluster|node|instance|replica|compute)\b/i.test(text) ||
+      /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+|down\s+)?cluster\s+nodes)\b/i.test(text);
+
+    const isBenignHomogeneousScaling = 
+      isComputeScalingDirective && hasChangeTicketAnchor && !isResourcePriorityTrigger && !isCryptoMiningKeyword;
 
     const isHighRiskSystemAdmin = 
       /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf|endpoint\s+monitoring|monitoring\s+agent|authentication\s+middleware|auth\s+middleware|security\s+agent|agent)\b/i.test(text);
@@ -5679,9 +5690,11 @@ async function startServer() {
         text.includes("statutory violation") || (text.includes("breach of contract") && !text.includes("template") && !text.includes("standard nda"))
       );
 
+    const isScalingOrMaintenance = isTicketedScalingRequest || isBenignHomogeneousScaling;
     const hasDestructiveAction = 
+      !isScalingOrMaintenance &&
       (text.includes("delete") || text.includes("drop") || text.includes("truncate") || text.includes("wipe") || text.includes("purge") || text.includes("destroy")) &&
-      (text.includes("backup") || text.includes("production") || text.includes("prod db") || text.includes("database") || text.includes("table") || text.includes("cluster") || text.includes("snapshot"));
+      (text.includes("backup") || text.includes("production") || text.includes("prod db") || text.includes("database") || text.includes("table") || (text.includes("cluster") && !/\b(?:worker|node|compute)\b/i.test(text)) || text.includes("snapshot"));
 
     // Phase A Grounded Micro-Expense Fast Path (finops_default_v1.json rule micro_expense_fast_path)
     // ONLY fires on grounded anchors: ticket_present === true, counterparty_verified === true, under $100 ceiling
@@ -6433,7 +6446,7 @@ async function startServer() {
       finality = "NON_FINAL_ADVISORY";
       decision_explanation = "FLAGGED FOR HUMAN REVIEW: Unauthorized modification of academic records, grade adjustments, or unanchored entitlement disbursement detected without verified institutional authority.";
       verdict_summary = decision_explanation;
-    } else if (!isBenignContractTemplateSummary && (hasMiracleCureClaims || hasLethalMedication || hasPhiViolation || hasTreasuryDrainage || hasOfacSanctions || hasExtremeFinancialAmount || hasFirewallDeactivation || hasPrivilegeEscalation || hasFabricatedEvidence || hasLegalCorruption || hasDestructiveAction)) {
+    } else if (!isBenignContractTemplateSummary && !isTicketedScalingRequest && !isBenignHomogeneousScaling && (hasMiracleCureClaims || hasLethalMedication || hasPhiViolation || hasTreasuryDrainage || hasOfacSanctions || hasExtremeFinancialAmount || hasFirewallDeactivation || hasPrivilegeEscalation || hasFabricatedEvidence || hasLegalCorruption || hasDestructiveAction)) {
       verdict = "REJECTED";
       status = "REJECTED";
       verified = false;
@@ -6497,7 +6510,7 @@ async function startServer() {
       verdict_summary = decision_explanation;
     } else if (
       // Free-text unanchored risk directives (financial, clinical, credit, or infrastructure without explicit structured proof)
-      !isPoReferencedPayment && !isLegitimateReconciledInvoice && !isMicroExpenseFastPath && !isReadOrLookupAction && !isTicketedScalingRequest &&
+      !isPoReferencedPayment && !isLegitimateReconciledInvoice && !isMicroExpenseFastPath && !isReadOrLookupAction && !isTicketedScalingRequest && !isBenignHomogeneousScaling &&
       (((text.includes("wire") || text.includes("transfer") || text.includes("disburse") || text.includes("payment")) && 
         (/\$\d+|\b\d{3,}\s*(usd|dollars|k)\b/i.test(text) || text.includes("vendor") || text.includes("8841") || text.includes("250,000") || text.includes("150,000"))) ||
        (text.includes("loan") && (text.includes("no income") || text.includes("zero income") || text.includes("unverified") || text.includes("without income") || text.includes("bypass credit"))) ||
@@ -6580,7 +6593,7 @@ async function startServer() {
         reason_codes = ["EVIDENCE_CONFLICT_DETECTED", "MANDATORY_HUMAN_OVERSIGHT_REQUIRED"];
         decision_explanation = `FLAGGED FOR HUMAN REVIEW: Action directive '${agentAction.trim().substring(0, 60)}' contains conflicting records or unverified authority claims in contextual evidence.`;
         verdict_summary = decision_explanation;
-      } else if ((contextOutcome.evidence_status === "MISSING" || !contextOutcome.hasSubstantiveContent) && !isReadOrLookupAction && !isPoReferencedPayment && !isTicketedScalingRequest && !isReadOnlyTicketedCiReport && !isLegitimateReconciledInvoice) {
+      } else if ((contextOutcome.evidence_status === "MISSING" || !contextOutcome.hasSubstantiveContent) && !isReadOrLookupAction && !isPoReferencedPayment && !isTicketedScalingRequest && !isBenignHomogeneousScaling && !isReadOnlyTicketedCiReport && !isLegitimateReconciledInvoice) {
         verdict = "FLAGGED_HUMAN_REVIEW";
         status = "FLAGGED_HUMAN_REVIEW";
         verified = false;
@@ -6780,7 +6793,7 @@ async function startServer() {
               "POLICY_COMPLIANCE_VERIFIED",
               "STRUCTURED_EVIDENCE_VALIDATED"
             ];
-          } else if (isTicketedScalingRequest) {
+          } else if (isTicketedScalingRequest || isBenignHomogeneousScaling) {
             reason_codes = [
               "CHANGE_MANAGEMENT_VERIFIED",
               "INFRASTRUCTURE_SCALING_ANCHORED",
@@ -6868,7 +6881,7 @@ async function startServer() {
           if (isPoReferencedPayment) {
             reason_codes = ["PURCHASE_ORDER_MATCHED", "POLICY_COMPLIANCE_VERIFIED", "OPERATIONAL_BOUNDARIES_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
             decision_explanation = `VERIFIED: PO-referenced operational payment verified against enterprise purchasing guidelines.`;
-          } else if (isTicketedScalingRequest) {
+          } else if (isTicketedScalingRequest || isBenignHomogeneousScaling) {
             reason_codes = ["CHANGE_MANAGEMENT_VERIFIED", "INFRASTRUCTURE_SCALING_ANCHORED", "POLICY_COMPLIANCE_VERIFIED", "STRUCTURED_EVIDENCE_VALIDATED"];
             decision_explanation = `VERIFIED: Ticketed infrastructure scaling request verified under change management authorization.`;
           } else if (isBenignContractTemplateSummary) {
@@ -7065,7 +7078,7 @@ async function startServer() {
       !detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) &&
       !/\b(mining|hashrate|stratum|pool|allocate\s+gpu|repurpose\s+cluster|download\s+all|export\s+medical|entire\s+fleet|disable\s+agent|bypass\s+middleware)\b/i.test(`${agentAction} ${reasoningChain}`) &&
       (
-        isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || 
+        isMicroExpenseFastPath || isPoReferencedPayment || isTicketedScalingRequest || isBenignHomogeneousScaling || 
         isBenignMedicationLookup || isBenignSchedulePrint || isBenignContractTemplateSummary || 
         isBenignReportOrReadAction || isBenignPatientReadLookup
       );

@@ -1394,9 +1394,9 @@ export function extractTicketEntities(text: string, context?: any): TicketExtrac
   const combined = `${text || ""} ${typeof context === "string" ? context : JSON.stringify(context || {})}`;
 
   // Match all standard ticket patterns:
-  // e.g. FAC-991, OPS-77, JIRA-1234, TKT-44, TICKET-V1
+  // e.g. FAC-991, OPS-77, JIRA-1234, TKT-44, TICKET-V1, CR-1049, CHG-441
   // Explicitly avoid matching bare word "TICKET" or "TICKETS"
-  const ticketRegex = /\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req|tkt|ticket)-[a-z0-9_-]+)\b/gi;
+  const ticketRegex = /\b((?:fac|ops|jira|sec|inc|chg|rfc|dev|ci|pr|req|tkt|ticket|cr)-[a-z0-9_-]+)\b/gi;
   const matches: string[] = [];
   let m: RegExpExecArray | null;
   while ((m = ticketRegex.exec(combined)) !== null) {
@@ -1664,7 +1664,7 @@ export function extractDeterministicProcurementEntities(action: string, context?
     .replace(/\$(\d+(?:\.\d{1,2})?)\b/g, "")
     .replace(/\b(\d+(?:\.\d{1,2})?)\s*(?:dollars?|usd)\b/gi, "")
     .replace(/\b(?:cost|total|amount|price|sum|total\s+cost)\s*[:=-]?\s*\$?\s*(\d+(?:\.\d{1,2})?)\b/gi, "")
-    .replace(/\b(under\s+tickets?|for\s+tickets?|with\s+tickets?|charged\s+to\s+tickets?|bill\s+it\s+to\s+tickets?|tickets?\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req)-[a-z0-9]+)\b/gi, "")
+    .replace(/\b(under\s+tickets?|for\s+tickets?|with\s+tickets?|charged\s+to\s+tickets?|bill\s+it\s+to\s+tickets?|tickets?\s*#?[:\s]*[a-z0-9_-]+|fac-[a-z0-9]+|ops-142|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req|cr)-[a-z0-9]+)\b/gi, "")
     .replace(/\bfrom\s+(?:the\s+)?(?:approved\s+)?([a-zA-Z0-9\s&'.-]+?)(?:\s+(?:catalog|vendor|supplier|store))?\b/gi, "")
     .replace(/\b(worth\s+of|total|of|for|from|under|with|the|an|a|catalog|supplier|vendor|approved|we|and|to|it|cost|price|sum)\b/gi, "")
     .replace(/[^a-zA-Z0-9\s]/g, " ")
