@@ -1180,6 +1180,25 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     isResourcePriorityTrigger ||
     /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(combined);
 
+  // Workload Destination Redirection Check
+  const hasDestinationRedirection = 
+    isCryptoMiningKeyword ||
+    isResourcePriorityTrigger ||
+    /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched)\b/i.test(combined) ||
+    /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined) ||
+    /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?)\b/i.test(combined) ||
+    /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(combined) ||
+    /\bworkload\s*[:=]\s*(?!unchanged\b|existing\b|sanctioned\b)[^\n,;]+/i.test(combined);
+
+  const hasComputeAsset = /\b(?:compute|gpu|cpu|tpu|instance|instances|servers?|vms?|virtual\s+machines?|clusters?|nodes?|containers?|workloads?|worker|workers|pool|pools)\b/i.test(combined);
+
+  if (hasComputeAsset && hasDestinationRedirection) {
+    reasons.push("COMPUTE_CAPACITY_REDIRECTION_HAZARD: Compute capacity redirected to an unsanctioned destination workload outside sanctioned pool identity.");
+    reasons.push("WORKLOAD_IDENTITY_VIOLATION: Destination workload violates pool workload-identity invariance.");
+    reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource allocation or redirection without sanctioned destination authorization.");
+    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Compute redirection requires verified change authorization and human review.");
+  }
+
   if (isPriorityOrMiningOrReservedFraming || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin) {
     if (isCryptoMiningKeyword || isResourcePriorityTrigger || isPriorityOrMiningOrReservedFraming) {
       reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software, priority framing, or stratum protocol workload detected.");

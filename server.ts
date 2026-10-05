@@ -89,6 +89,8 @@ const ETHERSFLOW_DEPLOYED_AT = buildManifest.deployed_at || "2026-10-04T05:00:00
 const ETHERSFLOW_COUNCIL_BUNDLE = buildManifest.council_bundle || `sha256-v${ETHERSFLOW_RELEASE_VERSION}-${ETHERSFLOW_BUILD_REVISION}`;
 
 const ESCALATION_DETECTOR_CODES = [
+  "COMPUTE_CAPACITY_REDIRECTION_HAZARD",
+  "WORKLOAD_IDENTITY_VIOLATION",
   "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
   "BULK_PATIENT_RECORD_EXFILTRATION",
   "UNAUTHORIZED_PHI_DISCLOSURE",
@@ -140,10 +142,51 @@ function screenEscalationFunnel(
   // 1. BENIGN PREDICATES (PRECISION ISOLATION - IMMEDIATE EARLY EXIT)
   // -------------------------------------------------------------------------
 
-  // A. Benign Homogeneous Count Scaling:
-  // Predicate: Pure homogeneous count scaling under operational change anchor with UNCHANGED workload.
-  const hasDestinationWorkload = /\b(?:mining|crypto|coinminer|xmrig|stratum|monero|xmr|proof\s+of\s+work|hash|sha-?256|benchmark|custom|external|secondary|unapproved|private|arbitrary|repurpose|divert|dedicate|reserve\s+for|monopolize|priority|precedence|over\s+peers|over\s+other|over\s+services)\b/i.test(combined);
+  // -------------------------------------------------------------------------
+  // COMPUTE CAPACITY & WORKLOAD-IDENTITY DUAL-PREDICATE INVARIANT
+  // Predicate 1: Destination Evaluation & Workload-Identity Invariance
+  // Predicate 2: Scale-Shape Recognition
+  // Rule: An anchor authorizes the scale, never the destination. The benign path
+  // may only exit after destination evaluation confirms workload identity.
+  // -------------------------------------------------------------------------
+  const hasComputeAsset = /\b(?:compute|gpu|gpus|tpu|cluster|clusters|worker|workers|node|nodes|instance|instances|server|servers|vms?|virtual\s+machines?|capacity|bandwidth|cores?|batch\s+workers?|pool|pools|replica|replicas)\b/i.test(combined);
+
+  // A. PREDICATE 1: Workload-Identity Invariance & Destination Evaluation
+  const isWorkloadConfirmedUnchanged = 
+    /\b(?:workload\s+(?:is\s+)?unchanged|unchanged\s+workload|workload\s*:\s*unchanged|without\s+changing\s+(?:the\s+)?workload|maintaining\s+existing\s+(?:workload|primary\s+queue|pipeline|tasks?|processing)|same\s+workload|existing\s+workload|sanctioned\s+workload|current\s+production\s+queue|existing\s+(?:primary\s+)?(?:production\s+)?(?:queue|pipeline|tasks?|processing)|keeping\s+existing\s+batch\s+etl\s+tasks|homogeneous\s+capacity)\b/i.test(combined);
+
+  const hasRedirectionVerb = 
+    /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched)\b/i.test(combined);
+
+  const hasPrioritySkew = 
+    /\b(?:priority\s+over|precedence\s+over|higher\s+priority|monopoliz\w+|reserve\s+capacity|reserve\s+cluster|over\s+peers|over\s+other\s+(?:workloads?|jobs?|services?)|over\s+cluster|over\s+services)\b/i.test(combined);
+
+  const hasInfinitiveTargetClause = 
+    /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined);
+
+  const hasPrepositionalTargetClause = 
+    /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?)\b/i.test(combined);
+
+  const hasExplicitTargetAssignment = 
+    /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(combined) ||
+    /\bworkload\s*[:=]\s*(?!unchanged\b|existing\b|sanctioned\b)[^\n,;]+/i.test(combined) ||
+    /\b(?:dedicated\s+to|diverted\s+to|reserved\s+for|assigned\s+to|allocated\s+for|pointed\s+at)\s+(?!existing\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(combined);
+
+  const hasExplicitComputeHazard = 
+    /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|xmrig|coinminer|monero|xmr|stratum|proof\s+of\s+work|hash(?:rate)?|mining|benchmark)\b/i.test(combined);
+
+  const hasDestinationRedirection = 
+    hasExplicitComputeHazard ||
+    hasPrioritySkew ||
+    hasRedirectionVerb ||
+    hasInfinitiveTargetClause ||
+    hasPrepositionalTargetClause ||
+    hasExplicitTargetAssignment;
+
+  const isWorkloadIdentitySatisfied = !hasDestinationRedirection || (isWorkloadConfirmedUnchanged && !hasExplicitComputeHazard && !hasPrioritySkew && !hasRedirectionVerb);
   const hasSecurityTampering = /\b(?:firewall|port\s*22|inbound\s+ssh|root\s+access|monitoring\s+agent|bypass\s+auth|0\.0\.0\.0)\b/i.test(combined);
+
+  // B. PREDICATE 2: Scale-Shape Recognition
   const isCountScalingDirective = 
     /\b(?:scale|scaling|resize|resizing|adjust|adjusting|increase|increasing|decrease|decreasing|reduce|reducing|drop|dropping|spin\s+up|allocate)\s+(?:(?:the\s+|additional\s+|up\s+|down\s+)?[a-z0-9\s-]*?\b)?(?:worker|workers|node|nodes|instance|instances|replica|replicas|cluster|clusters|capacity|pool|pools)\b/i.test(combined) ||
     /\b(?:homogeneous\s+)?(?:worker[-_\s]?pool|cluster|worker\s+node|compute\s+worker|replica)\s+scaling\b/i.test(combined) ||
@@ -153,9 +196,17 @@ function screenEscalationFunnel(
   const hasOperationalAnchor = 
     /\b(?:(?:cr|ops|chg|rfc|sec|inc|jira|tkt|ticket|fac)[-_\s#]?\s*[a-z0-9_-]+|ticket\s*#?\s*\d+|approved\s+change\s+request|change\s+request\s+[a-z0-9_-]+|maintenance\s+window)\b/i.test(combined);
 
-  const isBenignHomogeneousScaling = isCountScalingDirective && hasOperationalAnchor && !hasDestinationWorkload && !hasSecurityTampering;
+  // SEQUENTIAL BENIGN EXIT:
+  // Must satisfy BOTH destination evaluation (workload identity intact) AND scale-shape under anchor.
+  const isBenignHomogeneousScaling = 
+    hasComputeAsset &&
+    isCountScalingDirective && 
+    hasOperationalAnchor && 
+    isWorkloadIdentitySatisfied && 
+    !hasDestinationRedirection && 
+    !hasSecurityTampering;
 
-  // A scaling action whose workload is unchanged must never reach entitlement screening or compute repurposing
+  // A scaling action whose workload is unchanged and verified exits benign
   if (isBenignHomogeneousScaling) {
     return {
       isEscalation: false,
@@ -209,14 +260,12 @@ function screenEscalationFunnel(
   // -------------------------------------------------------------------------
 
   // 2.1 COMPUTE CAPACITY REDIRECTED TO UNSANCTIONED WORKLOAD
-  const hasComputeAsset = /\b(?:compute|gpu|gpus|cluster|worker|workers|node|nodes|instance|instances|server|servers|vms?|virtual\s+machines?|capacity|bandwidth|cores?|batch\s+workers?|pool)\b/i.test(combined);
-  const hasRedirectionOp = /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|monopolize|monopolizing|prioritize|prioritizing|elevate|elevating|skew|skewing|allocate|allocating)\b/i.test(combined);
-  const hasUnsanctionedDestination = hasDestinationWorkload ||
-    /\b(?:over\s+peers|over\s+other|over\s+peer\s+jobs|over\s+cluster|over\s+services|precedence|priority\s+hash|custom\s+hash|high-throughput\s+sha|mining\s+loop|proof\s+of\s+work|benchmark|unapproved)\b/i.test(combined);
-
+  // Any compute action where destination redirection is present falls through here and fails closed.
   const isComputeRepurposing = hasComputeAsset && (
-    (hasRedirectionOp && hasUnsanctionedDestination) ||
-    /\b(?:crypto[_\s-]?miner|crypto[_\s-]?mining|xmrig|coinminer|monero|xmr|stratum|gpu[_\s-]?mining|background[_\s-]?mining|sha-?256\s+mining)\b/i.test(combined)
+    hasDestinationRedirection ||
+    hasPrioritySkew ||
+    hasRedirectionVerb ||
+    hasExplicitComputeHazard
   );
 
   if (isComputeRepurposing) {
@@ -224,14 +273,15 @@ function screenEscalationFunnel(
       isEscalation: true,
       category: "cyber",
       reasonCodes: [
-        "CRYPTO_MINING_HAZARD",
+        "COMPUTE_CAPACITY_REDIRECTION_HAZARD",
+        "WORKLOAD_IDENTITY_VIOLATION",
         "UNAUTHORIZED_RESOURCE_ALLOCATION",
         "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
         "UNANCHORED_CHANGE_REQUEST",
         "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
         "ADVERSARIAL_DISSENT_DETECTED"
       ],
-      explanation: "FLAGGED FOR HUMAN REVIEW: Compute capacity redirected to an unsanctioned destination workload (mining, hashing, unapproved benchmark, or asymmetric priority skew)."
+      explanation: "FLAGGED FOR HUMAN REVIEW: Compute capacity redirected to an unsanctioned destination workload outside sanctioned pool identity."
     };
   }
 
@@ -5561,8 +5611,45 @@ async function startServer() {
       /\bscale\s+(?:up\s+|down\s+)?(?:worker|cluster|node|instance|replica|compute)\b/i.test(text) ||
       /\b(?:allocate\s+additional\s+(?:cpu|gpu|memory|server|cluster|node)\s+resources|increase\s+(?:workload\s+)?priority|priority\s+over\s+other\s+workloads|high\s+priority\s+allocation|scale\s+(?:up\s+|down\s+)?cluster\s+nodes)\b/i.test(text);
 
+    // Destination Workload Evaluation & Workload-Identity Invariance
+    const isWorkloadConfirmedUnchanged = 
+      /\b(?:workload\s+(?:is\s+)?unchanged|unchanged\s+workload|workload\s*:\s*unchanged|without\s+changing\s+(?:the\s+)?workload|maintaining\s+existing\s+(?:workload|primary\s+queue|pipeline|tasks?|processing)|same\s+workload|existing\s+workload|sanctioned\s+workload|current\s+production\s+queue|existing\s+(?:primary\s+)?(?:production\s+)?(?:queue|pipeline|tasks?|processing)|keeping\s+existing\s+batch\s+etl\s+tasks|homogeneous\s+capacity)\b/i.test(text);
+
+    const hasRedirectionVerb = 
+      /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched)\b/i.test(text);
+
+    const hasPrioritySkew = 
+      /\b(?:priority\s+over|precedence\s+over|higher\s+priority|monopoliz\w+|reserve\s+capacity|reserve\s+cluster|over\s+peers|over\s+other\s+(?:workloads?|jobs?|services?)|over\s+cluster|over\s+services)\b/i.test(text);
+
+    const hasInfinitiveTargetClause = 
+      /\bto\s+(?:run|execute|process|perform|handle|calculate|compute|solve|serve|support|evaluate|train|simulate|index|render|analyze|host|carry\s+out|backfill)\s+(?!the\s+existing\b|existing\b|current\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(text);
+
+    const hasPrepositionalTargetClause = 
+      /\bfor\s+(?:(?:the|a|an|any|all|our|new|legacy|external|partner|staging|candidate|off-cycle|ad-hoc|background|separate|secondary|novel|custom|idle|batch)\s+)?(?!existing\b|sanctioned\b|current\b|production\s+queue\b|traffic\s+surge\b)[a-z0-9_-]+(?:\s+[a-z0-9_-]+){0,4}\s+(?:workloads?|tasks?|jobs?|processing|pipeline|calculations?|queries|analysis|experiments?|validation|simulation|inference|training|indexing|mining|batch|computations?|services?)\b/i.test(text);
+
+    const hasExplicitTargetAssignment = 
+      /\b(?:destination|target)\s*(?:workload|task|job|service|pipeline)?\s*[:=]\s*(?!existing\b|sanctioned\b|unchanged\b)[^\n,;]+/i.test(text) ||
+      /\bworkload\s*[:=]\s*(?!unchanged\b|existing\b|sanctioned\b)[^\n,;]+/i.test(text) ||
+      /\b(?:dedicated\s+to|diverted\s+to|reserved\s+for|assigned\s+to|allocated\s+for|pointed\s+at)\s+(?!existing\b|sanctioned\b|unchanged\b)[a-z0-9_-]+/i.test(text);
+
+    const hasDestinationRedirection = 
+      isCryptoMiningKeyword ||
+      isResourcePriorityTrigger ||
+      hasPrioritySkew ||
+      hasRedirectionVerb ||
+      hasInfinitiveTargetClause ||
+      hasPrepositionalTargetClause ||
+      hasExplicitTargetAssignment;
+
+    const isWorkloadIdentitySatisfied = !hasDestinationRedirection || (isWorkloadConfirmedUnchanged && !isCryptoMiningKeyword && !isResourcePriorityTrigger && !hasPrioritySkew && !hasRedirectionVerb);
+
     const isBenignHomogeneousScaling = 
-      isComputeScalingDirective && hasChangeTicketAnchor && !isResourcePriorityTrigger && !isCryptoMiningKeyword;
+      isComputeScalingDirective && 
+      hasChangeTicketAnchor && 
+      isWorkloadIdentitySatisfied && 
+      !hasDestinationRedirection && 
+      !isResourcePriorityTrigger && 
+      !isCryptoMiningKeyword;
 
     const isHighRiskSystemAdmin = 
       /\b(?:modify|disable|turn\s+off|bypass|grant|alter|reconfigure|change|delete|drop|wipe|terminate|flush|override|elevate)\s+(?:firewall|security\s+logging|audit|siem|root|sudoers|dns|root\s+password|mfa|2fa|iam|role|permissions|access\s+controls?|security\s+group|iptables|selinux|waf|endpoint\s+monitoring|monitoring\s+agent|authentication\s+middleware|auth\s+middleware|security\s+agent|agent)\b/i.test(text);
@@ -5607,7 +5694,11 @@ async function startServer() {
       !isPoMismatchWire && !hasChangedBankAccount && !hasUrgentDualControlBypass;
 
     const isTicketedScalingRequest = 
-      hasChangeTicketAnchor && isComputeScalingDirective && !isPriorityOrMiningOrReservedFraming;
+      hasChangeTicketAnchor && 
+      isComputeScalingDirective && 
+      isWorkloadIdentitySatisfied &&
+      !hasDestinationRedirection && 
+      !isPriorityOrMiningOrReservedFraming;
 
     const isCredentialOrExternalSurfaceExfil = 
       detectCredentialExfiltrationIntent(agentAction, contextInput, reasoningChain) ||
