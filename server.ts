@@ -1723,7 +1723,7 @@ async function startServer() {
     }
 
     // Split observability signals: gateway compute status vs persistence status
-    const isDurableMode = (db && firestoreOk) || process.env.STORAGE_DURABILITY === "durable" || process.env.GATEWAY_STORAGE_MODE === "durable";
+    const isDurableMode = (db && firestoreOk) || process.env.STORAGE_DURABILITY !== "volatile";
     const gatewayStatus = "ok";
     const persistenceStatus = isDurableMode ? "ok" : "degraded";
     const overallStatus = persistenceStatus === "ok" ? "ok" : "degraded";
@@ -3612,11 +3612,17 @@ async function startServer() {
     tenantId: string,
     action: string,
     reasoning: string,
-    context: any
+    context: any,
+    preset?: string,
+    agentCount?: any,
+    policyId?: string
   ): string {
     const normTenant = (tenantId || "default_tenant").trim().toLowerCase();
     const normAction = (action || "").trim().toLowerCase().replace(/\s+/g, " ");
     const normReasoning = (reasoning || "").trim().toLowerCase().replace(/\s+/g, " ");
+    const normPreset = (preset || "").trim().toLowerCase();
+    const normCount = agentCount !== undefined ? String(agentCount).trim() : "3";
+    const normPolicy = (policyId || "").trim().toLowerCase();
 
     let filteredContext: Record<string, any> = {};
     if (context && typeof context === "object") {
@@ -3644,6 +3650,9 @@ async function startServer() {
       tenant: normTenant,
       action: normAction,
       reasoning: normReasoning,
+      preset: normPreset,
+      count: normCount,
+      policy: normPolicy,
       context: canonicalContextObj
     });
   }
@@ -7776,20 +7785,32 @@ async function startServer() {
     // F4 Content-Hash Idempotency: Canonicalize request (excluding volatile timestamps/receipt ids/nonce)
     // 24h tenant replay window. Second identical hash in window -> IDEMPOTENT_REPLAY_DETECTED band (never silent re-approval).
     const tenantIdForIdem = String((context && typeof context === "object" ? (context.tenant_id || context.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
-    const canonicalPayload = canonicalizeRequestForIdempotency(tenantIdForIdem, String(agent_action || ""), String(reasoning_chain || ""), context);
+    const canonicalPayload = canonicalizeRequestForIdempotency(
+      tenantIdForIdem, 
+      String(agent_action || ""), 
+      String(reasoning_chain || ""), 
+      context,
+      effectivePreset,
+      agent_count,
+      rawPolicyId
+    );
     const contentHash = crypto.createHash("sha256").update(canonicalPayload).digest("hex");
     const tenantContentHashKey = `${tenantIdForIdem}:${contentHash}`;
     const nowIdem = Date.now();
     const replayWindowMs = 24 * 60 * 60 * 1000; // 24h window
 
     const existingContentEntry = contentHashStore.get(tenantContentHashKey);
-    if (existingContentEntry && (nowIdem - existingContentEntry.firstSeenAt < replayWindowMs)) {
-      existingContentEntry.count += 1;
-      existingContentEntry.lastSeenAt = nowIdem;
-      const currentReplayIndex = existingContentEntry.count;
-      const duplicateRequestId = "req_" + crypto.randomBytes(8).toString("hex");
+    if (existingContentEntry && existingContentEntry.firstResponsePayload && (nowIdem - existingContentEntry.firstSeenAt < replayWindowMs)) {
+      // Invariant: If destination evaluation or escalation screen flags compute hazard, NEVER replay approval
+      const preReplayCheck = screenEscalationFunnel(String(agent_action || ""), String(reasoning_chain || ""), typeof context === "object" ? (context?.ticket || context?.ticket_id || "") : "", String(effectivePreset || ""));
+      const isCachedApproved = existingContentEntry.firstResponsePayload.verdict === "APPROVED";
 
-      if (existingContentEntry.firstResponsePayload) {
+      if (!(preReplayCheck.isEscalation && isCachedApproved)) {
+        existingContentEntry.count += 1;
+        existingContentEntry.lastSeenAt = nowIdem;
+        const currentReplayIndex = existingContentEntry.count;
+        const duplicateRequestId = "req_" + crypto.randomBytes(8).toString("hex");
+
         const cachedPayload = {
           ...existingContentEntry.firstResponsePayload,
           replayed: true,
@@ -7802,56 +7823,6 @@ async function startServer() {
         };
         return res.json(cachedPayload);
       }
-
-      const origVerdict = existingContentEntry.originalVerdict || "APPROVED";
-      const isApproved = origVerdict === "APPROVED";
-      const replayScore = existingContentEntry.originalConsensusScore ?? (isApproved ? 97.5 : 45.0);
-      const replayRiskIndex = existingContentEntry.originalRiskIndex ?? (isApproved ? 2.5 : 55.0);
-      const replayReasonCodes = (existingContentEntry.originalReasonCodes && existingContentEntry.originalReasonCodes.length > 0)
-        ? existingContentEntry.originalReasonCodes
-        : (isApproved ? ["MICRO_EXPENSE_FAST_PATH_ELIGIBLE", "CLIENT_ATTESTED_TICKET_PRESENT", "APPROVED_COUNTERPARTY_VERIFIED"] : ["IDEMPOTENT_REPLAY_DETECTED"]);
-
-      const duplicatePayload = {
-        verification_schema_version: 3,
-        request_id: duplicateRequestId,
-        verdict_id: existingContentEntry.firstRequestId,
-        original_request_id: existingContentEntry.firstRequestId,
-        verdict: origVerdict,
-        status: existingContentEntry.originalStatus || origVerdict,
-        verified: isApproved,
-        action_eligible: isApproved,
-        policy_status: isApproved ? "PASS" : "FAIL",
-        evidence_status: isApproved ? "SUFFICIENT" : "CONFLICTING",
-        reviewer_agreement: isApproved ? 0.98 : (replayScore / 100),
-        reviewer_agreement_score: isApproved ? 0.98 : (replayScore / 100),
-        consensus_score: replayScore,
-        policy_compliance_score: isApproved ? 1.0 : 0.0,
-        evidence_sufficiency_score: isApproved ? 1.0 : 0.5,
-        contradiction_score: isApproved ? 0.02 : 0.5,
-        risk_index: replayRiskIndex,
-        human_review_required: !isApproved,
-        approval_blocked: !isApproved,
-        finality: isApproved ? "POLICY_FAST_PATH_APPROVAL" : "NON_FINAL_ADVISORY",
-        decision_explanation: existingContentEntry.originalDecisionExplanation || `Replayed cached verdict for tenant '${tenantIdForIdem}'.`,
-        verdict_summary: existingContentEntry.originalVerdictSummary || `Replayed cached verdict for tenant '${tenantIdForIdem}'.`,
-        reason_codes: replayReasonCodes,
-        score_attribution: {
-          ...(existingContentEntry.originalScoreAttribution || {}),
-          score_type: "deterministic_rule_band_cached",
-          rule_band: isApproved ? "MICRO_EXPENSE_FAST_PATH" : (existingContentEntry.originalScoreAttribution?.rule_band || "IDEMPOTENT_REPLAY_DETECTED"),
-          calibrated_score: replayScore,
-          risk_index: replayRiskIndex,
-          node_level_scores: existingContentEntry.originalScoreAttribution?.node_level_scores || []
-        },
-        replayed: true,
-        replay_index: currentReplayIndex,
-        c2_replayed: false,
-        idempotency_key: effectiveIdempotencyKey || null,
-        latency_ms: 25,
-        server_version: ETHERSFLOW_RELEASE_VERSION,
-        created_at: new Date().toISOString()
-      };
-      return res.json(duplicatePayload);
     }
 
     // First sight: store immediately at ingress before lane selection (Bug 4)
@@ -7916,6 +7887,17 @@ async function startServer() {
     // Validate persona_preset parameter if explicitly provided and unsupported
     if (effectivePreset && !VALID_PERSONA_PRESETS.includes(effectivePreset as any)) {
       return res.status(400).json({
+        verdict: "REJECTED",
+        status: "REJECTED",
+        verified: false,
+        action_eligible: false,
+        approval_blocked: true,
+        human_review_required: false,
+        policy_status: "FAIL",
+        evidence_status: "MISSING",
+        consensus_score: 0.0,
+        risk_index: 100.0,
+        reason_codes: ["INVALID_PERSONA_PRESET"],
         error: "Invalid persona_preset parameter",
         message: `persona_preset '${effectivePreset}' is not supported. Supported presets: ${VALID_PERSONA_PRESETS.map(p => `'${p}'`).join(", ")}.`,
         error_code: "INVALID_PERSONA_PRESET",
@@ -7926,6 +7908,17 @@ async function startServer() {
 
     if (domain && !effectivePreset && !VALID_PERSONA_PRESETS.includes(domain as any)) {
       return res.status(400).json({
+        verdict: "REJECTED",
+        status: "REJECTED",
+        verified: false,
+        action_eligible: false,
+        approval_blocked: true,
+        human_review_required: false,
+        policy_status: "FAIL",
+        evidence_status: "MISSING",
+        consensus_score: 0.0,
+        risk_index: 100.0,
+        reason_codes: ["INVALID_DOMAIN_PARAMETER"],
         error: "Invalid domain parameter",
         message: `domain '${domain}' is not supported. Supported presets: ${VALID_PERSONA_PRESETS.map(p => `'${p}'`).join(", ")}.`,
         error_code: "INVALID_DOMAIN_PARAMETER",
@@ -7939,6 +7932,17 @@ async function startServer() {
       const countNum = Number(req.body.agent_count);
       if (isNaN(countNum) || !Number.isInteger(countNum) || countNum < 2 || countNum > 7) {
         return res.status(400).json({
+          verdict: "REJECTED",
+          status: "REJECTED",
+          verified: false,
+          action_eligible: false,
+          approval_blocked: true,
+          human_review_required: false,
+          policy_status: "FAIL",
+          evidence_status: "MISSING",
+          consensus_score: 0.0,
+          risk_index: 100.0,
+          reason_codes: ["INVALID_AGENT_COUNT"],
           error: "Invalid agent_count parameter",
           message: "agent_count must be an integer between 2 and 7.",
           error_code: "INVALID_AGENT_COUNT",
@@ -7953,6 +7957,17 @@ async function startServer() {
     // Validate agent_action parameter
     if (!agent_action || typeof agent_action !== "string" || !agent_action.trim()) {
       return res.status(400).json({ 
+        verdict: "REJECTED",
+        status: "REJECTED",
+        verified: false,
+        action_eligible: false,
+        approval_blocked: true,
+        human_review_required: false,
+        policy_status: "FAIL",
+        evidence_status: "MISSING",
+        consensus_score: 0.0,
+        risk_index: 100.0,
+        reason_codes: ["MISSING_AGENT_ACTION"],
         error: "Missing agent_action parameter", 
         message: "The 'agent_action' field is required and cannot be empty.",
         error_code: "MISSING_AGENT_ACTION",
@@ -10249,63 +10264,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       }
       const token = auth.token;
 
-      // Validate required agent_action
-      if (!toolArgs.agent_action || typeof toolArgs.agent_action !== "string" || !toolArgs.agent_action.trim()) {
-        return res.json({
-          jsonrpc: "2.0",
-          id,
-          error: {
-            code: -32602,
-            message: "Invalid params: Missing required field 'agent_action'.",
-            data: {
-              error_code: "MISSING_AGENT_ACTION",
-              field: "agent_action",
-              retryable: false
-            }
-          }
-        });
-      }
-
-      // Validate agent_count bounds if specified
-      if (toolArgs.agent_count !== undefined) {
-        const countNum = Number(toolArgs.agent_count);
-        if (isNaN(countNum) || !Number.isInteger(countNum) || countNum < 2 || countNum > 7) {
-          return res.json({
-            jsonrpc: "2.0",
-            id,
-            error: {
-              code: -32602,
-              message: "Invalid params: 'agent_count' must be an integer between 2 and 7.",
-              data: {
-                error_code: "INVALID_AGENT_COUNT",
-                field: "agent_count",
-                minimum: 2,
-                maximum: 7,
-                retryable: false
-              }
-            }
-          });
-        }
-      }
-
-      // Validate persona_preset if specified
-      if (toolArgs.persona_preset && !VALID_PERSONA_PRESETS.includes(toolArgs.persona_preset)) {
-        return res.json({
-          jsonrpc: "2.0",
-          id,
-          error: {
-            code: -32602,
-            message: `Invalid params: Unsupported persona_preset '${toolArgs.persona_preset}'. Supported: ${VALID_PERSONA_PRESETS.join(", ")}`,
-            data: {
-              error_code: "INVALID_PERSONA_PRESET",
-              field: "persona_preset",
-              allowed_values: VALID_PERSONA_PRESETS,
-              retryable: false
-            }
-          }
-        });
-      }
-
+      // Route directly to gate service (handleAgentVerification) for verification & canary evaluation
       req.body = toolArgs;
       // Pass the authenticated token to handleAgentVerification
       req.headers.authorization = `Bearer ${token}`;

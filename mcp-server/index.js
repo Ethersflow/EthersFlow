@@ -110,7 +110,21 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: "text",
-          text: "Error: Missing required argument 'agent_action' (or 'action' / 'query').",
+          text: JSON.stringify({
+            verdict: "REJECTED",
+            status: "REJECTED",
+            verified: false,
+            action_eligible: false,
+            approval_blocked: true,
+            human_review_required: false,
+            policy_status: "FAIL",
+            evidence_status: "MISSING",
+            consensus_score: 0.0,
+            risk_index: 100.0,
+            reason_codes: ["MISSING_AGENT_ACTION"],
+            error: "Missing required argument 'agent_action' (or 'action' / 'query').",
+            error_code: "MISSING_AGENT_ACTION"
+          }, null, 2),
         },
       ],
       isError: true,
@@ -142,7 +156,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         agent_action: actionText,
         reasoning_chain: args.reasoning_chain || (typeof args.context === "string" ? args.context : ""),
         context: typeof args.context === "object" ? args.context : undefined,
-        agent_count: args.agent_count || 3,
+        agent_count: args.agent_count !== undefined ? args.agent_count : 3,
         persona_preset: args.persona_preset,
         scope_hint: args.scope_hint || args.scope || args.hint,
         policy_id: args.policy_id || "finops_default_v1",
@@ -153,11 +167,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (!response.ok) {
       const errText = await response.text();
+      let outputText = errText;
+      try {
+        const parsed = JSON.parse(errText);
+        outputText = JSON.stringify(parsed, null, 2);
+      } catch {}
       return {
         content: [
           {
             type: "text",
-            text: `EthersFlow API HTTP Error ${response.status}: ${errText}`,
+            text: outputText,
           },
         ],
         isError: true,
