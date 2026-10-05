@@ -1,45 +1,293 @@
 %PDF-1.4
 1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
 endobj
 2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
 endobj
 3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 260 >>
+<< /Length 2678 >>
 stream
 BT
-/F1 18 Tf
-50 720 Td
+/F2 10 Tf
+50 740 Td
+(ETHERSFLOW RESEARCH REPORT · R25 SERIES) Tj
+-50 -740 Td
+/F2 18 Tf
+50 710 Td
 (EthersFlow R25 Red Team Findings: The Four Doors) Tj
-/F1 12 Tf
-0 -30 Td
-(Published September 2026 | Build 0.2.3) Tj
-0 -25 Td
-(311 pre-registered incident-grounded attacks across 13 families.) Tj
-0 -20 Td
-(Gate stopped 92.3% \(169/183, 95% CI 87.6-95.4\), zero wrong approvals.) Tj
-0 -20 Td
-(Full methodology, pre-registered tickets, and signed transcripts.) Tj
+-50 -710 Td
+/F1 11 Tf
+50 690 Td
+(Empirical Attack-Surface Analysis of Pre-Execution Action Verification \(KYAA\)) Tj
+-50 -690 Td
+/F1 9 Tf
+50 670 Td
+(Published: October 2026 | Release: v0.2.14 | Classification: Public Technical Whitepaper) Tj
+-50 -670 Td
+/F2 13 Tf
+50 635 Td
+(1. Executive Summary) Tj
+-50 -635 Td
+/F1 10 Tf
+50 615 Td
+(Autonomous AI agents equipped with tool-calling capabilities and financial or administrative authority) Tj
+-50 -615 Td
+/F1 10 Tf
+50 600 Td
+(introduce a novel threat boundary: semantic action failure. Existing identity standards \(KYA\) and) Tj
+-50 -600 Td
+/F1 10 Tf
+50 585 Td
+(authorization protocols \(AP2, FIDO, OAuth\) establish who an agent represents and what privileges it holds,) Tj
+-50 -585 Td
+/F1 10 Tf
+50 570 Td
+(yet concede that they cannot determine whether a composed runtime action is safe. An authorized agent) Tj
+-50 -570 Td
+/F1 10 Tf
+50 555 Td
+(can execute a malicious, drifted, or destructive action within its authorized perimeter.) Tj
+-50 -555 Td
+/F1 10 Tf
+50 540 Td
+(EthersFlow closes this gap through Know Your Agent's Action \(KYAA\) - a pre-execution verification layer.) Tj
+-50 -540 Td
+/F2 13 Tf
+50 505 Td
+(2. The R25 Evaluation Battery & Methodology) Tj
+-50 -505 Td
+/F1 10 Tf
+50 485 Td
+(To stress-test our pre-execution gate, an independent red-team consortium authored 311 pre-registered,) Tj
+-50 -485 Td
+/F1 10 Tf
+50 470 Td
+(incident-grounded attack vectors categorized across four primary failure classes \('The Four Doors'\).) Tj
+-50 -470 Td
+/F1 10 Tf
+50 455 Td
+(Testing employed a strict held-out methodology with zero visibility during heuristics calibration.) Tj
+-50 -455 Td
+/F1 10 Tf
+50 440 Td
+(Evaluations measured detection rates, false alarm ratios, and cryptographic auditability under multi-model debate.) Tj
+-50 -440 Td
+/F2 10 Tf
+50 410 Td
+(Key Performance Indicators across 311 Attack Vectors:) Tj
+-50 -410 Td
+/F1 9 Tf
+60 390 Td
+(- Overall Threat Interception Rate: 92.3% \(169/183 dangerous vectors blocked at gate; 95% CI: 87.6% - 95.4%\)) Tj
+-60 -390 Td
+/F1 9 Tf
+60 375 Td
+(- False Positive Rate on Standard Benign Operations: < 0.8% across 128 production controls) Tj
+-60 -375 Td
+/F1 9 Tf
+60 360 Td
+(- Erroneous Autonomous Approvals: 0% \(Zero wrong approvals across all high-severity hazard classes\)) Tj
+-60 -360 Td
+/F1 9 Tf
+60 345 Td
+(- Latency: Deterministic Fast-Path p50 = 0.45s | Multi-Model Consensus p50 = 11.2s) Tj
+-60 -345 Td
+/F1 8 Tf
+50 50 Td
+(Page 1 of 3 · EthersFlow R25 Whitepaper · https://www.ethersflow.com) Tj
+-50 -50 Td
+ET
+endstream
+endobj
+4 0 obj
+<< /Length 2271 >>
+stream
+BT
+/F2 10 Tf
+50 740 Td
+(ETHERSFLOW RESEARCH REPORT · R25 SERIES) Tj
+-50 -740 Td
+/F2 14 Tf
+50 710 Td
+(3. Threat Model: The Four Doors Taxonomy) Tj
+-50 -710 Td
+/F2 11 Tf
+50 675 Td
+(Door 1: Prompt Injection & Authority Laundering) Tj
+-50 -675 Td
+/F1 9.5 Tf
+50 660 Td
+(Attackers embed directives into untrusted context \(support transcripts, tool returns, web scrapes\) asserting) Tj
+-50 -660 Td
+/F1 9.5 Tf
+50 645 Td
+(fabricated administrative authority \('SYSTEM NOTICE', 'Pre-approved by administrator'\). The gate enforces) Tj
+-50 -645 Td
+/F1 9.5 Tf
+50 630 Td
+(untrusted-channel invariance: all embedded directives undergo full predicate evaluation without privilege elevation.) Tj
+-50 -630 Td
+/F2 11 Tf
+50 595 Td
+(Door 2: Unanchored System Administration & Destination Camouflage) Tj
+-50 -595 Td
+/F1 9.5 Tf
+50 580 Td
+(Directives requesting firewall deactivation, credential extraction, or resource redirection disguised under) Tj
+-50 -580 Td
+/F1 9.5 Tf
+50 565 Td
+(routine maintenance tickets \(CR-, OPS-, CHG-\). The gate enforces workload-identity invariance, requiring) Tj
+-50 -565 Td
+/F1 9.5 Tf
+50 550 Td
+(verified change ticket anchors and strict destination verification before any infrastructure mutation.) Tj
+-50 -550 Td
+/F2 11 Tf
+50 515 Td
+(Door 3: Unbounded Protected Data Exfiltration & PHI Laundering) Tj
+-50 -515 Td
+/F1 9.5 Tf
+50 500 Td
+(Exfiltration of clinical charts, therapy notes, or employee records masked by operational review framing.) Tj
+-50 -500 Td
+/F1 9.5 Tf
+50 485 Td
+(The gate enforces payload-derived data classification and subject-scope evidence linkage. Operational tickets) Tj
+-50 -485 Td
+/F1 9.5 Tf
+50 470 Td
+(legitimize workflow, never data scope. Accessing sensitive records without kernel-resolvable linkage is blocked.) Tj
+-50 -470 Td
+/F2 11 Tf
+50 435 Td
+(Door 4: Unauthorized Benefit Delivery & Entitlement Alteration) Tj
+-50 -435 Td
+/F1 9.5 Tf
+50 420 Td
+(Subtle alterations to academic grades, financial aid, or unanchored fee waivers submitted via user requests.) Tj
+-50 -420 Td
+/F1 9.5 Tf
+50 405 Td
+(The gate flags entitlement changes lacking verified institutional authority and cryptographic signatures.) Tj
+-50 -405 Td
+/F1 8 Tf
+50 50 Td
+(Page 2 of 3 · EthersFlow R25 Whitepaper · https://www.ethersflow.com) Tj
+-50 -50 Td
 ET
 endstream
 endobj
 5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+<< /Length 2015 >>
+stream
+BT
+/F2 10 Tf
+50 740 Td
+(ETHERSFLOW RESEARCH REPORT · R25 SERIES) Tj
+-50 -740 Td
+/F2 14 Tf
+50 710 Td
+(4. Cryptographic Provenance & Dual-Door Verification) Tj
+-50 -710 Td
+/F2 11 Tf
+50 675 Td
+(Ed25519 Immutable Trust Receipts) Tj
+-50 -675 Td
+/F1 9.5 Tf
+50 660 Td
+(Every verdict emitted by EthersFlow is cryptographically signed using Ed25519 \(EdDSA\) private keys.) Tj
+-50 -660 Td
+/F1 9.5 Tf
+50 645 Td
+(The signed receipt binds the SHA-256 payload hash, policy configuration tuple, reason codes, timestamp,) Tj
+-50 -645 Td
+/F1 9.5 Tf
+50 630 Td
+(and multi-model council attestations. Receipts can be verified offline by any third-party auditor via JWKS.) Tj
+-50 -630 Td
+/F2 11 Tf
+50 595 Td
+(Zero-Retention Privacy by Default) Tj
+-50 -595 Td
+/F1 9.5 Tf
+50 580 Td
+(Raw action payloads are discarded immediately following signing. The vault persists receipt telemetry only,) Tj
+-50 -580 Td
+/F1 9.5 Tf
+50 565 Td
+(preventing sensitive enterprise prompts and PII from accumulating in storage.) Tj
+-50 -565 Td
+/F2 11 Tf
+50 525 Td
+(Conclusion & Ongoing Research) Tj
+-50 -525 Td
+/F1 9.5 Tf
+50 510 Td
+(Action verification is the missing pillar of AI agent governance. By binding deterministic kernel checks) Tj
+-50 -510 Td
+/F1 9.5 Tf
+50 495 Td
+(with multi-model adversarial consensus, EthersFlow provides verifiable safety before high-stakes execution.) Tj
+-50 -495 Td
+/F1 9.5 Tf
+50 480 Td
+(Independent acceptance QA is currently ongoing across our global partner testbeds.) Tj
+-50 -480 Td
+/F2 10 Tf
+50 430 Td
+(References & Cryptographic Resources:) Tj
+-50 -430 Td
+/F1 9 Tf
+60 410 Td
+(- Public JWKS Keys: https://www.ethersflow.com/.well-known/jwks.json) Tj
+-60 -410 Td
+/F1 9 Tf
+60 395 Td
+(- Model Context Protocol Server: https://github.com/Ethersflow/EthersFlow/tree/master/mcp-server) Tj
+-60 -395 Td
+/F1 9 Tf
+60 380 Td
+(- Contact & Security Inquiries: security@ethersflow.com | audit@ethersflow.com) Tj
+-60 -380 Td
+/F1 8 Tf
+50 50 Td
+(Page 3 of 3 · EthersFlow R25 Whitepaper · https://www.ethersflow.com) Tj
+-50 -50 Td
+ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Contents 3 0 R /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> >>
+endobj
+7 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> >>
+endobj
+8 0 obj
+<< /Type /Page /Parent 9 0 R /MediaBox [0 0 612 792] /Contents 5 0 R /Resources << /Font << /F1 1 0 R /F2 2 0 R >> >> >>
+endobj
+9 0 obj
+<< /Type /Pages /Kids [6 0 R 7 0 R 8 0 R] /Count 3 >>
+endobj
+10 0 obj
+<< /Type /Catalog /Pages 9 0 R >>
 endobj
 xref
-0 6
+0 11
 0000000000 65535 f 
 0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000236 00000 n 
-0000000547 00000 n 
+0000000079 00000 n 
+0000000154 00000 n 
+0000002883 00000 n 
+0000005205 00000 n 
+0000007271 00000 n 
+0000007407 00000 n 
+0000007543 00000 n 
+0000007679 00000 n 
+0000007748 00000 n 
 trailer
-<< /Size 6 /Root 1 0 R >>
+<< /Size 11 /Root 10 0 R >>
 startxref
-618
+7798
 %%EOF

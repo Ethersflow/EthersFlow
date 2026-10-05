@@ -49,6 +49,7 @@ import {
   extractCandidateVendorFromText,
   findApprovedVendorInString,
   screenIntentAndRisk,
+  classifyPayloadDataClass,
   normalizeVendorString,
   extractTicketEntities,
   detectMultiplicityPhrases
@@ -5616,7 +5617,9 @@ async function startServer() {
       (text.includes("automatically deny") || text.includes("healthcare financing request")) &&
       (text.includes("protected medical condition") || text.includes("does not show a documented adverse-action notice") || text.includes("human review, explainability"));
 
-    // E. General Clinical / Hazardous Keywords
+    // E. General Clinical / Hazardous Keywords & Payload-Derived Sensitive Data Classification (Addendum 20 / R58)
+    const payloadClassification = classifyPayloadDataClass(agentAction, contextInput, reasoningChain, personaPreset);
+
     const hasClinicalKeywords = 
       text.includes("fentanyl") || text.includes("morphine") || text.includes("lasix") || 
       text.includes("furosemide") || text.includes("patient") || text.includes("mcg") || 
@@ -5624,9 +5627,11 @@ async function startServer() {
       text.includes("icu") || text.includes("diuresis") || text.includes("bolus") ||
       text.includes("medication") || text.includes("dose") || text.includes("dosage") ||
       text.includes("drug") || text.includes("infusion") || text.includes("physician") || text.includes("hospital") ||
-      text.includes("cure") || text.includes("diabetes") || text.includes("cancer") || text.includes("disease");
+      text.includes("cure") || text.includes("diabetes") || text.includes("cancer") || text.includes("disease") ||
+      text.includes("therapy") || text.includes("psychotherapy") || text.includes("oncology") ||
+      payloadClassification.classes.includes("HEALTH_CLINICAL_PHI");
 
-    const isClinicalText = personaPreset === "clinical_safety" || (hasClinicalKeywords && personaPreset !== "cybersecurity_auditor" && personaPreset !== "financial_compliance" && personaPreset !== "legal_citation");
+    const isClinicalText = hasClinicalKeywords || payloadClassification.classes.includes("HEALTH_CLINICAL_PHI") || personaPreset === "clinical_safety";
 
     const isScheduleOrFormularyExempt = 
       /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(text);
@@ -5752,10 +5757,16 @@ async function startServer() {
 
     const isBenignPatientReadLookup = 
       /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(text) &&
-      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes)\b/i.test(text) &&
+      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes|allergy)\b/i.test(text) &&
       /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(text) &&
       !isBulkPatientExport &&
-      !isMutationAction;
+      !isMutationAction &&
+      !payloadClassification.requiresHumanReview &&
+      (payloadClassification.hasSubjectAuthorizationLinkage || personaPreset === "clinical_safety");
+
+    const isUnauthorizedSensitiveDataRetrieval = 
+      payloadClassification.requiresHumanReview ||
+      (payloadClassification.isSensitive && payloadClassification.isSingleSubjectSpecific && !payloadClassification.hasSubjectAuthorizationLinkage);
 
     const isPoReferencedPayment = 
       /\b(?:po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|supplier\s*[-#:]?\s*\d+)\b/i.test(text) &&
@@ -5784,15 +5795,19 @@ async function startServer() {
       /\b(?:report|dashboard|metrics|uptime|status|performance|summary|reference|guidelines|schedule|shift)\b/i.test(text) &&
       !isMutationAction &&
       !isFinancialOrProcurement &&
-      !isCredentialOrExternalSurfaceExfil;
+      !isCredentialOrExternalSurfaceExfil &&
+      !payloadClassification.isSensitive &&
+      !payloadClassification.requiresHumanReview;
 
     const isReadOrLookupAction = 
-      isBenignMedicationLookup || 
-      isBenignSchedulePrint || 
-      isBenignPatientReadLookup || 
-      isBenignReportOrReadAction || 
-      isBenignContractTemplateSummary ||
-      (/\b(?:show|pull\s+up|view|read|lookup|query|get|print|retrieve|check|find|display|list|export|summary|summarize)\b/i.test(text) && !isMutationAction && !isFinancialOrProcurement && !isCredentialOrExternalSurfaceExfil);
+      !payloadClassification.requiresHumanReview && (
+        isBenignMedicationLookup || 
+        isBenignSchedulePrint || 
+        isBenignPatientReadLookup || 
+        isBenignReportOrReadAction || 
+        isBenignContractTemplateSummary ||
+        (/\b(?:show|pull\s+up|view|read|lookup|query|get|print|retrieve|check|find|display|list|export|summary|summarize)\b/i.test(text) && !isMutationAction && !isFinancialOrProcurement && !isCredentialOrExternalSurfaceExfil && !payloadClassification.isSensitive)
+      );
 
     const hasMiracleCureClaims = 
       text.includes("cures diabetes") || text.includes("cure for diabetes") || text.includes("cures cancer") || 
@@ -6556,6 +6571,31 @@ async function startServer() {
       approval_blocked = true;
       finality = "POLICY_FINAL_BLOCK";
       decision_explanation = "FLAGGED FOR HUMAN REVIEW: Mass download or export of patient records, medical histories, or treatment notes violates HIPAA data-minimization rules (45 CFR § 164.502). Protected health information export requires mandatory privacy officer authorization. Zero compliance assertion codes issued.";
+      verdict_summary = decision_explanation;
+    } else if (isUnauthorizedSensitiveDataRetrieval) {
+      // R58 / Addendum 20: Payload-Derived Data Classification & Subject Scope Invariant
+      verdict = "FLAGGED_HUMAN_REVIEW";
+      status = "FLAGGED_HUMAN_REVIEW";
+      verified = false;
+      action_eligible = false;
+      policy_status = "FAIL";
+      evidence_status = "MISSING";
+      reason_codes = [
+        "SENSITIVE_DATA_SCOPE_UNVERIFIED",
+        "SUBJECT_SCOPE_AUTHORIZATION_MISSING",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+        ...(payloadClassification.classes.includes("HEALTH_CLINICAL_PHI") ? ["UNAUTHORIZED_PHI_DISCLOSURE"] : [])
+      ];
+      reviewer_agreement_score = 0.28;
+      consensus_score = 28.0;
+      policy_compliance_score = 0.0;
+      evidence_sufficiency_score = 0.1;
+      contradiction_score = 0.92;
+      risk_index = 89.0;
+      human_review_required = true;
+      approval_blocked = true;
+      finality = "POLICY_FINAL_BLOCK";
+      decision_explanation = "FLAGGED FOR HUMAN REVIEW: Action retrieves sensitive-class data for a specific subject without kernel-resolvable subject authorization linkage. Workflow tickets legitimize workflow, not data scope. Zero compliance assertion codes issued.";
       verdict_summary = decision_explanation;
     } else if (isCryptoMinerAllocation) {
       verdict = "FLAGGED_HUMAN_REVIEW";

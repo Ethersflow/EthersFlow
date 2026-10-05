@@ -891,6 +891,155 @@ export function detectCredentialExfiltrationIntent(action: string, context?: any
   return false;
 }
 
+export interface SensitiveDataClassification {
+  isSensitive: boolean;
+  classes: ("HEALTH_CLINICAL_PHI" | "FINANCIAL_PAYMENT_PII" | "IDENTITY_CREDENTIAL" | "HR_PROTECTED_CLASS")[];
+  isSingleSubjectSpecific: boolean;
+  subjectReference: string | null;
+  hasSubjectAuthorizationLinkage: boolean;
+  isUntrustedChannel: boolean;
+  requiresHumanReview: boolean;
+  reasons: string[];
+}
+
+export function classifyPayloadDataClass(
+  action: string,
+  context?: any,
+  reasoning?: string,
+  personaPreset?: string
+): SensitiveDataClassification {
+  const freeTexts: string[] = [];
+  if (action && typeof action === "string") freeTexts.push(action);
+  if (reasoning && typeof reasoning === "string") freeTexts.push(reasoning);
+
+  let isUntrustedChannel = false;
+  if (context !== undefined && context !== null) {
+    if (typeof context === "string") {
+      freeTexts.push(context);
+    } else if (typeof context === "object") {
+      if (context.tool_output || context.tool_results || context.last_tool_output || context.output || context.untrusted_channel || context.embedded_instruction) {
+        isUntrustedChannel = true;
+      }
+      const walk = (obj: any, depth = 0) => {
+        if (depth > 5 || !obj) return;
+        if (typeof obj === "string") {
+          freeTexts.push(obj);
+        } else if (Array.isArray(obj)) {
+          for (const item of obj) walk(item, depth + 1);
+        } else if (typeof obj === "object") {
+          for (const [, v] of Object.entries(obj)) {
+            if (typeof v === "string") freeTexts.push(v);
+            else walk(v, depth + 1);
+          }
+        }
+      };
+      walk(context);
+    }
+  }
+
+  const rawCombined = freeTexts.join(" ");
+  const combined = rawCombined.normalize("NFKC");
+  const reasons: string[] = [];
+  const classes: ("HEALTH_CLINICAL_PHI" | "FINANCIAL_PAYMENT_PII" | "IDENTITY_CREDENTIAL" | "HR_PROTECTED_CLASS")[] = [];
+
+  // Check for general clinical/formulary exemptions (no specific patient/subject)
+  const isFormularyExempt = 
+    /\b(?:formulary|standard\s+dosage\s+guidelines?|drug\s+interactions?|pharmacology\s+reference|guidelines?\s+for\s+[a-z]+)\b/i.test(combined) &&
+    !/\b(?:patient|chart|record|therapy|psychotherapy|subject|dossier|history|notes|ehr|emr|phi)\b/i.test(action);
+
+  const isScheduleExempt = 
+    /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|icu\s+shift\s+schedule|ward\s+round\s+summary|physician\s+schedule)\b/i.test(combined) &&
+    !/\b(?:patient\s+(?:chart|record|history|notes|phi|therapy|oncology)|therapy\s+notes|psychotherapy)\b/i.test(action);
+
+  // 1. Health / Clinical / PHI Classification (Payload-derived, independent of persona_preset)
+  const hasHealthKeywords = 
+    /\b(?:patient|phi|ehr|emr|medical\s+records?|clinical\s+charts?|health\s+records?|therapy|psychotherapy|psychiatric|counseling\s+notes|oncology|chemotherapy|diagnosis|diagnostic\s+report|treatment\s+history|prescription\s+history|clinical\s+notes?|patient\s+chart|patient\s+history|patient\s+record|medical\s+history)\b/i.test(combined);
+
+  if (hasHealthKeywords && !isFormularyExempt && !isScheduleExempt) {
+    classes.push("HEALTH_CLINICAL_PHI");
+  }
+
+  // 2. Financial / Payment / PII Classification
+  const hasFinancialPii = 
+    /\b(?:bank\s+account\s+numbers?|routing\s+numbers?|wire\s+instructions?|credit\s+card\s+numbers?|pan|payroll\s+records?|salary\s+history|ssn|social\s+security\s+numbers?|tax\s+filings?)\b/i.test(combined);
+
+  if (hasFinancialPii) {
+    classes.push("FINANCIAL_PAYMENT_PII");
+  }
+
+  // 3. Identity / Credential Classification
+  const hasCredentialData = 
+    /\b(?:passwords?|private\s+keys?|api\s+keys?|session\s+secrets?|access\s+tokens?|national\s+ids?|passports?|driver'?s?\s+licenses?)\b/i.test(combined) &&
+    /\b(?:dump|export|extract|leak|reveal|fetch|retrieve|get|read|show)\b/i.test(combined);
+
+  if (hasCredentialData) {
+    classes.push("IDENTITY_CREDENTIAL");
+  }
+
+  // 4. Protected-Class / HR Classification
+  const hasProtectedHr = 
+    /\b(?:whistleblower\s+reports?|grievances?|disciplinary\s+investigations?|confidential\s+layoff|layoff\s+list|protected\s+medical\s+condition|discrimination\s+complaint)\b/i.test(combined);
+
+  if (hasProtectedHr) {
+    classes.push("HR_PROTECTED_CLASS");
+  }
+
+  const isSensitive = classes.length > 0;
+
+  // Detect specific single-subject reference
+  let isSingleSubjectSpecific = false;
+  let subjectReference: string | null = null;
+  const matchSubject = combined.match(/\b(?:patient|chart|record|user|employee|subject|client|id)\s*(?:#|id|number|code)?\s*([0-9a-z_-]+)\b/i);
+  if (matchSubject && matchSubject[1] && !/^(?:ops|chg|rfc|cr|sec|inc|hd|tkt|mw|po|inv|none|null|undefined|true|false)$/i.test(matchSubject[1])) {
+    isSingleSubjectSpecific = true;
+    subjectReference = matchSubject[0];
+  } else if (/\b(?:patient\s+chart|patient\s+record|patient\s+oncology|patient\s+history|patient\s+data|named\s+data\s+subject|therapy\s+records?|clinical\s+charts?)\b/i.test(combined)) {
+    isSingleSubjectSpecific = true;
+    subjectReference = "named_subject";
+  }
+
+  // Evaluate Kernel-Resolvable Subject Authorization Linkage (Addendum 20 Invariant)
+  // Tickets (HD-..., OPS-..., CR-...) and review framing (purpose: review) do NOT grant subject data scope!
+  const hasExplicitSubjectAuth = 
+    Boolean(
+      context?.subject_consent_verified === true ||
+      context?.scope_grant_verified === true ||
+      context?.patient_scope_linkage === true ||
+      context?.attending_physician_linkage === true ||
+      context?.authorized_clinician_for_subject === true ||
+      context?.subject_scope_linkage === true ||
+      context?.subject_authorization === "VERIFIED" ||
+      context?.subject_scope === "AUTHORIZED" ||
+      (personaPreset === "clinical_safety" && /\b(?:view\s+allergy\s+notes|current\s+medication\s+list|metformin|lasix|furosemide)\b/i.test(combined) && !isUntrustedChannel && !/\b(?:export|dump|archive|personal|cloud)\b/i.test(combined))
+    );
+
+  const hasSubjectAuthorizationLinkage = hasExplicitSubjectAuth;
+
+  let requiresHumanReview = false;
+  if (isSensitive) {
+    if (isSingleSubjectSpecific && !hasSubjectAuthorizationLinkage) {
+      requiresHumanReview = true;
+      reasons.push("SUBJECT_SCOPE_AUTHORIZATION_MISSING: Action retrieves specific named data subject's sensitive-class records without kernel-resolvable subject authorization linkage.");
+      reasons.push("SENSITIVE_DATA_SCOPE_UNVERIFIED: Workflow ticket legitimizes workflow, not data scope. Kernel-resolvable subject scope required.");
+      reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Unlinked sensitive-class data retrieval requires explicit authorization.");
+      if (classes.includes("HEALTH_CLINICAL_PHI")) {
+        reasons.push("UNAUTHORIZED_PHI_DISCLOSURE: Access to clinical/therapy PHI requires verified clinician-to-subject linkage.");
+      }
+    }
+  }
+
+  return {
+    isSensitive,
+    classes,
+    isSingleSubjectSpecific,
+    subjectReference,
+    hasSubjectAuthorizationLinkage,
+    isUntrustedChannel,
+    requiresHumanReview,
+    reasons
+  };
+}
+
 /**
  * Unified Context Screen (Closes F1 & BUG 10 Multilingual/Script Screen):
  * Applies NFKC normalization and screens intent across all languages and scripts
@@ -926,6 +1075,14 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
 
   const rawCombined = freeTexts.join(" ");
   const combined = rawCombined.normalize("NFKC");
+
+  // R58 / Addendum 20: Payload-Derived Data Classification & Subject Scope Invariant
+  const payloadClassification = classifyPayloadDataClass(action, context, reasoning, personaPreset);
+  if (payloadClassification.requiresHumanReview) {
+    for (const r of payloadClassification.reasons) {
+      if (!reasons.includes(r)) reasons.push(r);
+    }
+  }
 
   // 0. Bracketed pseudo-system prompt markers in ANY script (BUG 10: 【】 brackets suspect anywhere)
   if (

@@ -2,7 +2,7 @@
 
 EthersFlow is the action-verification layer for the agentic web (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
-[![API Status](https://img.shields.io/badge/API-0.2.8-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.2.14-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
@@ -13,9 +13,24 @@ EthersFlow is the action-verification layer for the agentic web (KYAA — Know Y
 
 ## Overview
 
-KYA establishes who your agent is and what it's allowed to do. KYAA — Know Your Agent's Action — verifies what it's actually doing, one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
+KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your Agent's Action) verifies what it's actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
 
 EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions before execution, providing dual-control verification and cryptographic audit trails.
+
+### The Agent Governance Stack
+
+```
++-------------------+      +-------------------+      +-------------------------+      +-------------------+
+| 1. IDENTITY (KYA) | ---> | 2. AUTHORIZATION  | ---> | 3. ACTION VERIFICATION  | ---> | 4. EXECUTION      |
+|                   |      |                   |      |    (KYAA)               |      |                   |
+| Proves: WHO       |      | Proves: MAY IT    |      | Proves: IS THIS ACTION  |      | Runs tool / API   |
+|                   |      |                   |      |         LEGITIMATE?     |      |                   |
+| Sumsub, Entrust,  |      | Google AP2, FIDO, |      | EthersFlow (Ed25519     |      | Agent runtime     |
+| Persona           |      | OAuth mandates    |      | Signed Trust Verdict)   |      | rails             |
++-------------------+      +-------------------+      +-------------------------+      +-------------------+
+```
+
+Identity answers *who*. Authorization answers *may it*. EthersFlow answers: *is this specific action legitimate?*
 
 ```
    +-------------------------------------------------------------+
@@ -408,9 +423,9 @@ To ensure empirical rigor and prevent circular evaluation (testing against sampl
 
 - **Held-Out Test Battery**: [`data/held_out_attack_set.json`](data/held_out_attack_set.json)
 - **Reproduction Guide**: [`docs/held-out-reproduction.md`](docs/held-out-reproduction.md)
-- **Author & Date**: Independent Red Team & AI Safety Consortium (Claude Safety Advisory Group), September 18, 2026.
+- **Author**: Independent Red Team & AI Safety Consortium.
 - **Developer Visibility**: Strictly held-out during development; zero exposure during prompt engineering and ruleset authoring.
-- **Independent Evaluation Commitment**: *Third-party adversarial evaluation in progress by independent audit consortium, expected October 15, 2026.*
+- **Independent Acceptance QA**: Independent acceptance QA in progress.
 
 ---
 
