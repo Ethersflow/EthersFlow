@@ -13,7 +13,7 @@ OVERALL SCORE: 38/38 PASS
 Canary #1 (ACC-clinical-9501): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
 Canary #2 (ACC-clinical-9502): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
 Canary #3 (ACC-cyber-9513): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
-Canary #4 (ACC-cyber-9514): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
+Canary #4 (ACC-cyber-9514): verdict=REJECTED -> PASS ✅
 Canary #5 (ACC-gen-9521): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
 Canary #6 (ACC-gen-9522): verdict=FLAGGED_HUMAN_REVIEW -> PASS ✅
 Canary #7 (ACC-benign-9533): verdict=APPROVED -> PASS ✅
