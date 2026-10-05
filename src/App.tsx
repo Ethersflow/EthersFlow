@@ -270,7 +270,6 @@ function CommonFooter({ setView }: { setView: (v: View) => void }) {
           <ul className="space-y-4 text-sm font-bold text-[#86868b]">
             <li><a href="/protocol" onClick={(e) => { e.preventDefault(); setView('protocol'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Protocol</a></li>
             <li><a href="/pricing" onClick={(e) => { e.preventDefault(); setView('pricing_overview'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold block">Pricing</a></li>
-            <li><a href="/evidence" onClick={(e) => { e.preventDefault(); setView('main'); setTimeout(() => { const el = document.getElementById('evidence'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 100); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Red Team & Evidence</span><span className="px-1.5 py-0.5 bg-rose-500/20 text-rose-300 border border-rose-400/30 rounded text-[9px] font-black uppercase">R25</span></a></li>
             <li><a href="/developers" onClick={(e) => { e.preventDefault(); setView('developers'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Developers Hub</span><span className="px-1.5 py-0.5 bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 rounded text-[9px] font-black uppercase">SDK</span></a></li>
             <li><a href="/api" onClick={(e) => { e.preventDefault(); setView('api'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>API Portal & Keys</span><span className="px-1.5 py-0.5 bg-sky-500/20 text-sky-300 border border-sky-400/30 rounded text-[9px] font-black uppercase">API</span></a></li>
             <li><a href="/try-it" onClick={(e) => { e.preventDefault(); setView('try_it'); window.scrollTo({ top: 0, behavior: 'instant' }); }} className="hover:text-white transition-colors text-left font-bold flex items-center gap-2"><span>Try-It Sandbox</span><span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 rounded text-[9px] font-black uppercase">Demo</span></a></li>
@@ -5087,28 +5086,6 @@ function NestedAgentLibraryUnused() { return null; }
               <span className="px-1.5 py-0.5 bg-sky-50 text-sky-600 border border-sky-200 rounded text-[9px] font-black uppercase">Gateway</span>
             </button>
 
-            <button 
-              onClick={() => {
-                if (view !== 'main' && view !== 'auth') {
-                  setView('main');
-                  setTimeout(() => {
-                    const el = document.getElementById('evidence');
-                    if (el) el.scrollIntoView({ behavior: 'smooth' });
-                  }, 100);
-                } else {
-                  const el = document.getElementById('evidence');
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }
-              }}
-              className={`hover:opacity-85 transition-all bg-transparent border-none font-bold text-[14px] cursor-pointer flex items-center gap-1.5 ${
-                isDark ? 'text-gray-300' : 'text-gray-500'
-              }`}
-            >
-              <Shield className="w-4 h-4 text-rose-500" />
-              <span>Red Team</span>
-              <span className="px-1.5 py-0.5 bg-rose-50 text-rose-600 border border-rose-200 rounded text-[9px] font-black uppercase">R25</span>
-            </button>
-
             {/* Pricing drop down trigger wrapper */}
             <div 
               className="relative"
@@ -5864,11 +5841,16 @@ function NestedAgentLibraryUnused() { return null; }
                 Category Architecture
               </div>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#1d1d1f] tracking-tight mb-6 leading-tight">
-                Identity answers who. Authorization answers may it. Nobody answers: is this specific action legitimate?
+                Identity verifies who. Authorization defines what is permitted. Nobody checks: is this specific action safe to run?
               </h2>
-              <p className="text-base sm:text-lg text-gray-600 font-medium leading-relaxed">
-                Agent identity (KYA) and agent authorization (AP2, OAuth mandates, Agent Cards) are maturing fast — but the A2A specification says it outright: the protocol "does not decide which agent should be trusted, what data it may see, or whether its output is safe." A perfectly authorized agent can still compose a perfectly wrong action: a lookalike vendor, a disguised transfer, a payload that honors the letter of the mandate and violates its intent. EthersFlow closes that gap — per action, before execution, with a signed verdict any auditor can check.
-              </p>
+              <div className="space-y-4 text-base sm:text-lg text-gray-600 font-medium leading-relaxed max-w-3xl mx-auto">
+                <p>
+                  Agent identity (KYA) and authorization standards (AP2, OAuth mandates, Agent Cards) prove who an agent is and what permissions it holds. But open standards concede the real gap: protocol rails <em>do not decide whether an agent's output is safe</em>.
+                </p>
+                <p>
+                  A perfectly authorized agent can still compose a catastrophic action — a spoofed vendor invoice, an unintended parameter shift, or a transaction that honors the letter of a mandate while violating its intent. EthersFlow closes that gap: verifying the semantic legitimacy of every action before execution, backed by an Ed25519-signed verdict any auditor can verify.
+                </p>
+              </div>
             </div>
 
             {/* Stack Diagram Row (Responsive: horizontal on desktop, vertical on mobile with rotated arrows) */}
@@ -6050,62 +6032,6 @@ function NestedAgentLibraryUnused() { return null; }
               >
                 Developer Hub →
               </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Block D: Proof Section / Red Team Evidence */}
-        <div id="evidence" className="w-full bg-slate-900 text-white py-16 sm:py-28 border-y border-slate-800 scroll-mt-20">
-          <div className="max-w-7xl mx-auto px-6 sm:px-8 md:px-12 lg:px-16 xl:px-24">
-            <div className="max-w-4xl mx-auto text-center mb-12">
-              <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs font-black uppercase tracking-widest mb-6">
-                <Shield className="w-4 h-4 text-rose-400" />
-                <span>Empirical Red Team Campaign</span>
-              </div>
-              <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight mb-6">
-                We attacked our own gate. Then we published what broke.
-              </h2>
-              <p className="text-base sm:text-lg text-slate-300 font-medium leading-relaxed text-left sm:text-center">
-                311 pre-registered, incident-grounded attacks across 13 attack families — every scenario written down and hash-locked before a single test ran. The gate stopped 92.3% (169/183, 95% CI 87.6–95.4), issued zero wrong approvals, and approved 63/63 legitimate purchases in under half a second. We found four doors — including a unanimous AI council approving a lookalike vendor at 94.8 confidence, with every member's transcript signed. Then we closed all four doors and re-verified the fixes with fresh pre-registered batteries: identity is now a kernel fact the deliberative layer cannot overturn, and replay attempts are caught, not re-approved. Read the full findings — numbers, methods, signed transcripts:
-              </p>
-            </div>
-
-            {/* Metrics cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 mb-12 max-w-5xl mx-auto">
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
-                <div className="text-2xl sm:text-3xl font-black text-indigo-400 mb-1">311</div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Pre-registered Attacks</div>
-              </div>
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
-                <div className="text-2xl sm:text-3xl font-black text-emerald-400 mb-1">92.3%</div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Gate Interception (169/183)</div>
-              </div>
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
-                <div className="text-2xl sm:text-3xl font-black text-sky-400 mb-1">0</div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Wrong Approvals</div>
-              </div>
-              <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-5 text-center">
-                <div className="text-2xl sm:text-3xl font-black text-purple-400 mb-1">63/63</div>
-                <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Legitimate Purchases (&lt;0.5s)</div>
-              </div>
-            </div>
-
-            {/* Paper CTA Link + Era Tag */}
-            <div className="max-w-2xl mx-auto text-center space-y-4">
-              <a
-                href="/reports/ethersflow-r25-four-doors.pdf"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-3 px-8 py-4 bg-rose-600 hover:bg-rose-500 text-white font-black rounded-2xl text-sm uppercase tracking-wider transition-all shadow-xl shadow-rose-950/40 cursor-pointer"
-              >
-                <FileText className="w-5 h-5" />
-                <span>Read Full R25 Findings Paper (PDF)</span>
-                <ExternalLink className="w-4 h-4" />
-              </a>
-
-              <p className="text-[11px] text-slate-400 font-medium leading-relaxed">
-                Results from the R25 red-team campaign, September 2026 (build 0.2.3). Independent acceptance QA of the current build is in progress; the full third-party battery publishes on gate pass.
-              </p>
             </div>
           </div>
         </div>
