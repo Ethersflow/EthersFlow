@@ -998,22 +998,36 @@ export function classifyPayloadDataClass(
     subjectReference = "named_subject";
   }
 
-  // Evaluate Kernel-Resolvable Subject Authorization Linkage (Addendum 20 Invariant)
-  // Tickets (HD-..., OPS-..., CR-...) and review framing (purpose: review) do NOT grant subject data scope!
-  const hasExplicitSubjectAuth = 
-    Boolean(
-      context?.subject_consent_verified === true ||
-      context?.scope_grant_verified === true ||
-      context?.patient_scope_linkage === true ||
-      context?.attending_physician_linkage === true ||
-      context?.authorized_clinician_for_subject === true ||
-      context?.subject_scope_linkage === true ||
-      context?.subject_authorization === "VERIFIED" ||
-      context?.subject_scope === "AUTHORIZED" ||
-      (personaPreset === "clinical_safety" && /\b(?:view\s+allergy\s+notes|current\s+medication\s+list|metformin|lasix|furosemide)\b/i.test(combined) && !isUntrustedChannel && !/\b(?:export|dump|archive|personal|cloud)\b/i.test(combined))
-    );
+  // Evaluate Kernel-Resolvable Subject Authorization Linkage (Scope Awareness)
+  // Non-exfiltration, read-only intent within an authorized workflow
+  const isReadIntent = 
+    /\b(?:view|read|lookup|show|query|get|print|check|display|review|consult|inspect|pull\s+up)\b/i.test(action) &&
+    !/\b(?:export|download|dump|migrate|archive|transfer|sync|mirror|exfiltrate|stream|send|email|s3|public|remote|personal|unencrypted)\b/i.test(action);
 
-  const hasSubjectAuthorizationLinkage = hasExplicitSubjectAuth;
+  // 1. Explicit institutional, DPO, or subject scope grant (valid across all personas)
+  const hasExplicitScopeGrant = Boolean(
+    context?.subject_consent_verified === true ||
+    context?.scope_grant_verified === true ||
+    context?.patient_scope_linkage === true ||
+    context?.attending_physician_linkage === true ||
+    context?.authorized_clinician_for_subject === true ||
+    context?.subject_scope_linkage === true ||
+    context?.subject_authorization === "VERIFIED" ||
+    context?.subject_scope === "AUTHORIZED" ||
+    context?.dpo_approval === true ||
+    context?.audit_scope_authorized === true
+  );
+
+  // 2. Clinical workflow anchored read (routine care in clinical persona or structured chart context)
+  const isClinicalWorkflowAnchored = Boolean(
+    (personaPreset === "clinical_safety" || context?.persona_preset === "clinical_safety" || context?.role === "clinician" || Boolean(context?.chart && !context?.ticket?.startsWith("HD-") && !context?.ticket?.startsWith("OPS-") && !context?.ticket?.startsWith("CR-") && !isUntrustedChannel)) &&
+    isReadIntent &&
+    !isUntrustedChannel &&
+    (isSingleSubjectSpecific || isFormularyExempt || isScheduleExempt) &&
+    !/\b(?:export|dump|archive|personal|cloud|unencrypted|external)\b/i.test(combined)
+  );
+
+  const hasSubjectAuthorizationLinkage = hasExplicitScopeGrant || isClinicalWorkflowAnchored;
 
   let requiresHumanReview = false;
   if (isSensitive) {
@@ -2091,7 +2105,7 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
   // 11. Full-Consumption Template Matching (with B1 Intent Screen & F1 Unified Screen)
   const templateResult = matchFullConsumptionPurchaseTemplate(action, context, reasoning);
 
-  const intentScreen = screenIntentAndRisk(action, reasoning, context);
+  const intentScreen = screenIntentAndRisk(action, reasoning, context, context?.persona_preset);
   if (!intentScreen.clean) {
     for (const r of intentScreen.reasons) {
       if (r.startsWith("ADMIN_MODE") || r.startsWith("POLICY_CHECKS_DISABLED")) {
@@ -2111,6 +2125,10 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
         reasonCodes.push("OUTPUT_FIELD_EXFILTRATION_RISK");
         reasonCodes.push("PROMPT_INJECTION_OVERRIDE");
         reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");
+      } else if (r.startsWith("SENSITIVE_DATA_SCOPE_UNVERIFIED") || r.startsWith("SUBJECT_SCOPE_AUTHORIZATION_MISSING")) {
+        reasonCodes.push("SENSITIVE_DATA_SCOPE_UNVERIFIED");
+        reasonCodes.push("SUBJECT_SCOPE_AUTHORIZATION_MISSING");
+        reasonCodes.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED");
       } else if (r.startsWith("SENSITIVE_DATA")) {
         reasonCodes.push("SENSITIVE_DATA_EXPOSURE");
         reasonCodes.push("INFORMATION_DISCLOSURE_HAZARD");

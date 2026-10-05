@@ -5242,7 +5242,10 @@ async function startServer() {
     // Context Content Validation (Round 28 Mandate: Validate context content substance, not mere presence)
     const contextOutcome = validateContextEvidenceContent(agentAction, reasoningChain, contextInput);
     const policyConfig = loadFinopsPolicy();
-    const kernelOutcome = evaluateSafetyKernel(agentAction, contextInput, reasoningChain);
+    const contextWithPreset = typeof contextInput === "object" && contextInput !== null 
+      ? { ...contextInput, persona_preset: personaPreset }
+      : contextInput;
+    const kernelOutcome = evaluateSafetyKernel(agentAction, contextWithPreset, reasoningChain, personaPreset);
 
     // -------------------------------------------------------------------------
     // 0. SINGLE NON-BYPASSABLE ESCALATION FUNNEL (Rule 1: Pre-Screening Gate)
@@ -5756,13 +5759,13 @@ async function startServer() {
       /\b(?:approved\s+by\s+(?:the\s+)?(?:attending\s+)?physician|approved\s+by\s+dr\.?|signed\s+off\s+by\s+dr\.?|physician-approved|dr\.?\s+[a-z]+-approved)\b/i.test(text);
 
     const isBenignPatientReadLookup = 
-      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(text) &&
-      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes|allergy)\b/i.test(text) &&
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print|review|consult)\b/i.test(text) &&
+      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes|allergy|treatment|oncology|prescription)\b/i.test(text) &&
       /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(text) &&
       !isBulkPatientExport &&
       !isMutationAction &&
       !payloadClassification.requiresHumanReview &&
-      (payloadClassification.hasSubjectAuthorizationLinkage || personaPreset === "clinical_safety");
+      payloadClassification.hasSubjectAuthorizationLinkage;
 
     const isUnauthorizedSensitiveDataRetrieval = 
       payloadClassification.requiresHumanReview ||
