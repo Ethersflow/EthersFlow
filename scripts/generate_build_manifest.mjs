@@ -3,13 +3,18 @@ import { execSync } from "child_process";
 import path from "path";
 
 function main() {
-  let fullCommit = "ab5c172441b45649ff4b40c9c66e6399b6ead3e5";
-  let shortCommit = "ab5c172";
+  let fullCommit = "bde98d5756518a5b4f5c1c8f83a174ab96a4624b";
+  let shortCommit = "bde98d5";
+  try {
+    const existing = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), "build_manifest.json"), "utf-8"));
+    if (existing.full_commit) fullCommit = existing.full_commit;
+    if (existing.git_commit) shortCommit = existing.git_commit;
+  } catch (e) {}
   try {
     fullCommit = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
     shortCommit = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
   } catch (e) {
-    console.warn("Could not query git rev-parse, using fallback commit:", e.message);
+    // Keep existing or default commit
   }
 
   let pkgVersion = "0.2.12";
