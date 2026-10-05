@@ -57,9 +57,9 @@ export function AboutPage({ onClose }: AboutPageProps) {
             <h2 className="text-2xl sm:text-3xl font-sans font-black tracking-tight mb-6 uppercase text-gray-950 dark:text-white">
               Identity & Authorization Leave a Dangerous Empty Box
             </h2>
-            <div className="space-y-6 text-[#1d1d1f]/80 dark:text-zinc-300 font-medium text-base leading-relaxed">
+            <div className="space-y-6 text-gray-700 dark:text-zinc-200 font-medium text-base leading-relaxed">
               <p>
-                Agent identity standards (KYA) and authorization protocols (Google AP2, FIDO, OAuth mandates) prove <em className="text-gray-900 dark:text-zinc-100 font-semibold not-italic underline decoration-indigo-400">who</em> an agent represents and <em className="text-gray-900 dark:text-zinc-100 font-semibold not-italic underline decoration-indigo-400">what</em> permissions it holds.
+                Agent identity standards (KYA) and authorization protocols (Google AP2, FIDO, OAuth mandates) prove <em className="text-gray-900 dark:text-white font-semibold not-italic underline decoration-indigo-400">who</em> an agent represents and <em className="text-gray-900 dark:text-white font-semibold not-italic underline decoration-indigo-400">what</em> permissions it holds.
               </p>
               <p>
                 Yet as open agent protocols concede, authorization cannot guarantee that a specific composed action is safe. A fully authorized agent can still execute a lookalike vendor payment, an unintentional parameter drift, or a data leakage payload. EthersFlow exists to fill that empty box: <strong className="text-gray-950 dark:text-white font-bold">verifying the semantic legitimacy of each specific action before it executes</strong>.
@@ -72,7 +72,7 @@ export function AboutPage({ onClose }: AboutPageProps) {
             <h2 className="text-2xl sm:text-3xl font-sans font-black tracking-tight mb-6 uppercase text-gray-950 dark:text-white">
               Federated Consensus Protocol (FCP)
             </h2>
-            <div className="space-y-6 text-[#1d1d1f]/80 dark:text-zinc-300 font-medium text-base leading-relaxed">
+            <div className="space-y-6 text-gray-700 dark:text-zinc-200 font-medium text-base leading-relaxed">
               <p>
                 <strong className="text-gray-950 dark:text-white font-bold">Federated Consensus Protocol</strong> is our engine for coordinating specialized reviewer roles, heterogeneous model routing, adversarial cross-examination, and cryptographic attestation.
               </p>
@@ -97,7 +97,7 @@ export function AboutPage({ onClose }: AboutPageProps) {
                 <Brain className="w-6 h-6" />
               </div>
               <h4 className="text-lg font-black text-gray-950 dark:text-white uppercase tracking-tight mb-3">Provider-Independent Review</h4>
-              <p className="text-sm font-semibold text-gray-550 dark:text-zinc-400 leading-relaxed">
+              <p className="text-sm font-semibold text-gray-600 dark:text-zinc-300 leading-relaxed">
                 Objective review is impossible when an evaluation depends on a single vendor's architecture. EthersFlow routes decisions across distinct frontier models to neutralize singular cognitive blind spots.
               </p>
             </div>
@@ -108,7 +108,7 @@ export function AboutPage({ onClose }: AboutPageProps) {
                 <ShieldCheck className="w-6 h-6" />
               </div>
               <h4 className="text-lg font-black text-gray-950 dark:text-white uppercase tracking-tight mb-3">Adversarial Review Loop</h4>
-              <p className="text-sm font-semibold text-gray-550 dark:text-zinc-400 leading-relaxed">
+              <p className="text-sm font-semibold text-gray-600 dark:text-zinc-300 leading-relaxed">
                 Reliable decisions require proactive stress-testing. Our protocol coordinates adversarial reviewer roles designed to challenge assumptions, surface contradictions, and verify empirical evidence.
               </p>
             </div>
@@ -119,7 +119,7 @@ export function AboutPage({ onClose }: AboutPageProps) {
                 <Key className="w-6 h-6" />
               </div>
               <h4 className="text-lg font-black text-gray-950 dark:text-white uppercase tracking-tight mb-3">Policy-Enforced Privacy & Provenance</h4>
-              <p className="text-sm font-semibold text-gray-550 dark:text-zinc-400 leading-relaxed">
+              <p className="text-sm font-semibold text-gray-600 dark:text-zinc-300 leading-relaxed">
                 Security and provenance are core architecture. Sensitive data is sanitized before dispatch, while review traces, reviewer votes, dissent, and quorum attestations provide an inspectable review trace.
               </p>
             </div>
