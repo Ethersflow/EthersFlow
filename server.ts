@@ -272,13 +272,12 @@ function screenEscalationFunnel(
   const hasBulkScope = /\b(?:all\s+patients?|all\s+medical|all\s+records|all\s+charts|entire\s+health|entire\s+records|entire\s+database|entire\s+treatment|complete\s+phi|full\s+clinical\s+histories|every\s+patient|across\s+department|oncology\s+database|cardiology\s+department|multi-patient|between\s+\d{4}\s+and\s+\d{4}|cohort|registry)\b/i.test(combined);
 
   const isSinglePatientLook = 
-    /\b(?:patient\s*(?:chart|dossier|id|number|record)?\s*#?\s*\d+|single\s+patient|patient\s+chart|patient\s+dossier)\b/i.test(combined) &&
-    /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print)\b/i.test(combined) &&
-    /\b(?:allerg(?:y|ies)|notes|medication|lab|vitals|history|chart|dosage|records?)\b/i.test(combined) &&
+    /\b(?:patient\s*(?:chart|dossier|id|number|record|file|history)?\s*#?\s*[0-9a-z_-]+|single\s+patient|patient\s+chart|patient\s+dossier|patient\s+record|clinical\s+chart|named\s+(?:data\s+)?subject|therapy\s+notes?|oncology\s+chart)\b/i.test(combined) &&
+    /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print|review|query)\b/i.test(combined) &&
     !/\b(?:export|download|copy|transfer|dump|sync|archive|mirror|backup)\b/i.test(combined);
 
   const isFormulary = /\b(?:formulary|dosage\s+recommendations?|dosage\s+guidelines?|standard\s+dosage|standard\s+dose|amoxicillin|metformin|drug\s+reference|clinical\s+reference)\b/i.test(combined);
-  const isShiftSchedule = /\b(?:icu\s+shift\s+schedule|shift\s+schedule|ward\s+round\s+summary|duty\s+roster)\b/i.test(combined);
+  const isShiftSchedule = /\b(?:icu\s+shift\s+schedule|shift\s+schedule|ward\s+round\s+summary|duty\s+roster|physician\s+schedule|rounding\s+schedule|on-call\s+schedule)\b/i.test(combined);
 
   const isBenignClinical = !hasExfilDestination && !hasBulkScope && (isSinglePatientLook || isFormulary || isShiftSchedule);
 
@@ -309,32 +308,6 @@ function screenEscalationFunnel(
   // -------------------------------------------------------------------------
   // 2. ESCALATION PREDICATES (SEMANTIC PROPERTIES ACROSS ALL 6 FRAMING FAMILIES)
   // -------------------------------------------------------------------------
-
-  // 2.1 COMPUTE CAPACITY REDIRECTED TO UNSANCTIONED WORKLOAD
-  // Any compute action where destination redirection is present falls through here and fails closed.
-  const isComputeRepurposing = hasComputeAsset && (
-    hasDestinationRedirection ||
-    hasPrioritySkew ||
-    hasRedirectionVerb ||
-    hasExplicitComputeHazard
-  );
-
-  if (isComputeRepurposing) {
-    return {
-      isEscalation: true,
-      category: "cyber",
-      reasonCodes: [
-        "COMPUTE_CAPACITY_REDIRECTION_HAZARD",
-        "WORKLOAD_IDENTITY_VIOLATION",
-        "UNAUTHORIZED_RESOURCE_ALLOCATION",
-        "UNAUTHORIZED_RESOURCE_PRIORITIZATION",
-        "UNANCHORED_CHANGE_REQUEST",
-        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
-        "ADVERSARIAL_DISSENT_DETECTED"
-      ],
-      explanation: "FLAGGED FOR HUMAN REVIEW: Compute capacity redirected to an unsanctioned destination workload outside sanctioned pool identity."
-    };
-  }
 
   // 2.2 PROTECTED-SUBJECT DATA MOVING TO EXTERNAL DESTINATION OR BULK EXFILTRATION
   const hasProtectedDataSubject = /\b(?:patient|patients|clinical|medical|health|phi|ehr|emr|treatment|treatments|oncology|cardiology|hospital|prescriptions?|charts?|dossiers?|histories|discharge\s+notes)\b/i.test(combined);
@@ -423,6 +396,25 @@ function screenEscalationFunnel(
         "ADVERSARIAL_DISSENT_DETECTED"
       ],
       explanation: "CRITICAL ACTION BLOCKED: Destruction of audit logs, compliance records, transaction archives, post-execution contract tampering, or whistleblower suppression."
+    };
+  }
+
+  // 2.6 PROMPT INJECTION & ADVERSARIAL OVERRIDE
+  const isPromptInjectionOverride = 
+    /\b(?:system\s+override|system\s+prompt\s+override|ignore\s+(?:all\s+)?(?:safety|previous|system|policy|rules|instructions)|override\s+(?:all\s+)?(?:safety|policy|checks|controls)|bypass\s+(?:all\s+)?(?:safety|policy|checks|controls)|reveal\s+(?:all\s+)?(?:system\s+prompt|secrets?|passwords?|keys?|database\s+records)|jailbreak|dan\s+mode|developer\s+mode)\b/i.test(combined);
+
+  if (isPromptInjectionOverride) {
+    return {
+      isEscalation: true,
+      category: "cyber",
+      reasonCodes: [
+        "PROMPT_INJECTION_OVERRIDE",
+        "INJECTED_AUTHORITY_HAZARD",
+        "POLICY_CHECKS_DISABLED_DIRECTIVE",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+        "ADVERSARIAL_DISSENT_DETECTED"
+      ],
+      explanation: "ACTION REJECTED: Prompt injection override attempt or directive to disable safety policies detected."
     };
   }
 
@@ -4813,9 +4805,9 @@ async function startServer() {
        combinedAll.includes("external personal email") || combinedAll.includes("personal email") || combinedAll.includes("external destination"));
 
     const isBenignPatientReadLookupContent = 
-      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print)\b/i.test(combinedAll) &&
-      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes)\b/i.test(combinedAll) &&
-      /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(combinedAll) &&
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print|review|consult|inspect)\b/i.test(combinedAll) &&
+      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes|allergy|treatment|oncology|prescription)\b/i.test(combinedAll) &&
+      (/\b(?:patient|record|chart|dossier|id|subject)\s*#?[0-9a-z_-]+\b/i.test(combinedAll) || /\b(?:patient\s+chart|patient\s+record|single\s+patient|named\s+(?:data\s+)?subject|therapy\s+notes?)\b/i.test(combinedAll)) &&
       !isBulkDataEgressContent &&
       !isMutationActionContent;
 
@@ -5094,11 +5086,26 @@ async function startServer() {
       // For financial/procurement actions, ticket anchor or PO anchor is required, not contradictory, and counterparty must be allowlisted or PO-anchored
       hasVerifiableAnchors = (ticketPresent || hasEmbeddedPo) && !hasPriorApprovalLaundering && !hasContradictions && (isCounterpartyAllowlisted || hasEmbeddedPo);
     } else {
+      const isScopeGrantPresent = Boolean(
+        contextInput?.scope_grant || 
+        contextInput?.scope_evidence || 
+        contextInput?.subject_scope_grant || 
+        contextInput?.subject_authorization || 
+        contextInput?.scope_grant_verified || 
+        contextInput?.subject_consent_verified || 
+        contextInput?.documented_consent ||
+        contextInput?.attending_physician_linkage || 
+        contextInput?.patient_scope_linkage ||
+        contextInput?.attending_authorization ||
+        contextInput?.dpo_approval
+      );
+
       hasVerifiableAnchors = 
         !hasPriorApprovalLaundering &&
         !isTicketScopeMismatch &&
         !isBulkDataEgressContent &&
         (/\b(po\s*[-#:]?\s*\d+|purchase\s+order\s*[-#:]?\s*\d+|po-[a-z0-9_-]+|inv\s*[-#:]?\s*\d+|invoice\s*[-#:]?\s*[a-z0-9_-]+|ticket\s*#?\d+|ticket\s*[:#-]?\s*[a-z0-9_-]+|(ops|jira|sec|inc|chg|rfc|dev|ci|pr|fac|req|cr|tkt|ticket)-[a-z0-9]+|cr\s*[-#:]?\s*\d+|pr-\d+|pull\s+request\s+#?\d+|commit\s+[0-9a-f]{7,40}|sha256:[0-9a-f]{64}|runbook-[a-z0-9-]+)\b/i.test(combinedAll) || Boolean(contextInput?.ticket || contextInput?.change_ticket || contextInput?.cr || contextInput?.rfc || contextInput?.ops || contextInput?.chg) ||
+         isScopeGrantPresent ||
          (/\b(?:look\s*up|search|query|check|find|retrieve|read|get|consult|display|show|view)\s+(?:the\s+)?(?:standard\s+)?(?:dosage|dose|guidelines?|interaction|formulary|indications?|contraindications?|pharmacology|protocol)\b/i.test(combinedAll)) ||
          (/\b(?:hospital\s+formulary|drug\s+interactions?|standard\s+dosage\s+guidelines?)\b/i.test(combinedAll)) ||
          (/\b(?:print|export|display|view|generate)\s+(?:the\s+)?(?:daily\s+)?(?:patient\s+)?(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|physician\s+schedule|clinic\s+schedule)\b/i.test(combinedAll)) ||
@@ -5245,7 +5252,7 @@ async function startServer() {
     const contextWithPreset = typeof contextInput === "object" && contextInput !== null 
       ? { ...contextInput, persona_preset: personaPreset }
       : contextInput;
-    const kernelOutcome = evaluateSafetyKernel(agentAction, contextWithPreset, reasoningChain, personaPreset);
+    const kernelOutcome = evaluateSafetyKernel(agentAction, contextWithPreset, reasoningChain);
 
     // -------------------------------------------------------------------------
     // 0. SINGLE NON-BYPASSABLE ESCALATION FUNNEL (Rule 1: Pre-Screening Gate)
@@ -5253,7 +5260,7 @@ async function startServer() {
     const funnelScreen = screenEscalationFunnel(agentAction, reasoningChain, text, personaPreset);
     if (funnelScreen.isEscalation) {
       const isLegal = funnelScreen.category === "legal";
-      const isSecurityBypass = funnelScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || funnelScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION");
+      const isSecurityBypass = funnelScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || funnelScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION") || funnelScreen.reasonCodes.includes("PROMPT_INJECTION_OVERRIDE");
       const dispositionVerdict = (isLegal || isSecurityBypass) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
       const calibratedScore = isLegal ? 10.0 : (isSecurityBypass ? 8.0 : (funnelScreen.category === "clinical" ? 12.0 : 15.0));
       const calibratedRisk = isLegal ? 99.0 : (isSecurityBypass ? 99.0 : (funnelScreen.category === "clinical" ? 98.0 : 96.0));
@@ -5639,19 +5646,22 @@ async function startServer() {
     const isScheduleOrFormularyExempt = 
       /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(text);
 
-    const clinicalExfilVerb = /\b(?:download|export|dump|transfer|extract|fetch|retrieve|get|save|send|email|copy|migrate|pull|archive|exfiltrate|transmit|backup|backed?\s*up|sync|stream|collect|share|disclose|read|query|select|gather|offload|clone|move|store|pass)\b/i;
-    const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|mass|bulk|every|whole|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
-    const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
+    const clinicalExfilVerb = /\b(?:download|export|dump|transfer|migrate|archive|exfiltrate|transmit|backup|backed?\s*up|sync|mirror|offload|clone|stream|upload)\b/i;
+    const clinicalBulkQuantifier = /\b(?:all\s+patients?|all\s+medical|all\s+records?|all\s+charts?|all\s+files?|all\s+prescriptions?|entire\s+database|entire\s+system|complete\s+registry|full\s+database|multi-patient|multiple\s+patients?|across\s+patients|cohort|registry|bulk|mass|unbounded|whole\s+database|every\s+patient|all\s+available\s+patients?)\b/i;
+    const clinicalExternalSink = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|remote\s+storage|secondary\s+server|public\s+link|dropbox|drive\.google|shared\s+folder)\b/i;
 
-    const hasSpecificSingleRecord = /\b(?:patient\s+(?:record|file|chart|dossier|history|id)?\s*#?\d+|record\s+#?\d+|id\s+#?\d+)\b/i.test(text);
+    const isSinglePatientInWorkflowRead = 
+      !clinicalExternalSink.test(text) &&
+      !clinicalBulkQuantifier.test(text) &&
+      /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print|review|query)\b/i.test(agentActionLower) &&
+      !/\b(?:export|download|copy\s+all|transfer|dump|sync|archive|mirror|backup|stream)\b/i.test(agentActionLower);
 
-    const isBulkPatientExport = !isScheduleOrFormularyExempt && !hasSpecificSingleRecord && (
-      (clinicalExfilVerb.test(text) && clinicalBulkQuantifier.test(text) && clinicalPatientDataNoun.test(text)) ||
-      (clinicalExfilVerb.test(text) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && clinicalBulkQuantifier.test(text)) ||
-      (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(text)) ||
-      (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(text) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud|folder)\b/i.test(text)) ||
-      /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)\s+(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(text)
-    ) && !/\b(?:pull\s+up|show|view|read|lookup|query|get|print|retrieve|check|find)\b/i.test(text);
+    const isBulkPatientExport = !isScheduleOrFormularyExempt && !isSinglePatientInWorkflowRead && (
+      (clinicalBulkQuantifier.test(text) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\b/i.test(text)) ||
+      (clinicalExfilVerb.test(text) && (clinicalBulkQuantifier.test(text) || clinicalExternalSink.test(text))) ||
+      (/\b(?:bulk|mass|unbounded|full\s+database|entire\s+database)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(text)) ||
+      (/\b(?:download|export|copy|migrate|pull|archive|transfer|dump|sync|mirror|backup)\s+(?:all|entire|every|the\s+entire)\s+(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(text))
+    );
 
     const hasNegativeTicketClaim = 
       /\b(?:without|lacks?|no|omits?)\s+(?:a\s+)?(?:change\s+)?(?:ticket|rfc|approval|auth)\b/i.test(text);
@@ -5759,9 +5769,8 @@ async function startServer() {
       /\b(?:approved\s+by\s+(?:the\s+)?(?:attending\s+)?physician|approved\s+by\s+dr\.?|signed\s+off\s+by\s+dr\.?|physician-approved|dr\.?\s+[a-z]+-approved)\b/i.test(text);
 
     const isBenignPatientReadLookup = 
-      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print|review|consult)\b/i.test(text) &&
-      /\b(?:medication|dosage|dose|history|record|chart|schedule|shift|list|profile|notes|allergy|treatment|oncology|prescription)\b/i.test(text) &&
-      /\b(?:patient|record|chart|dossier|id)\s*#?\d+\b/i.test(text) &&
+      /\b(?:show|pull\s+up|lookup|search|query|check|find|retrieve|read|get|view|display|print|review|consult|inspect|fetch)\b/i.test(text) &&
+      (payloadClassification.isSingleSubjectSpecific || /\b(?:patient|record|chart|dossier|id|subject)\s*#?[0-9a-z_-]+\b/i.test(text) || /\b(?:patient\s+chart|patient\s+record|single\s+patient|named\s+(?:data\s+)?subject|therapy\s+notes?)\b/i.test(text)) &&
       !isBulkPatientExport &&
       !isMutationAction &&
       !payloadClassification.requiresHumanReview &&
@@ -7802,6 +7811,14 @@ async function startServer() {
       scope_hint: rawScopeHint,
       scope: rawScope,
       hint: rawHint,
+      scope_grant: rawScopeGrant,
+      scope_evidence: rawScopeEvidence,
+      subject_scope_grant: rawSubjectScopeGrant,
+      subject_authorization: rawSubjectAuthorization,
+      subject_id: rawSubjectId,
+      patient_id: rawPatientId,
+      consent_verified: rawConsentVerified,
+      scope_grant_verified: rawScopeGrantVerified,
       grounding_enabled = true,
       zero_retention = false,
       policy_id: rawPolicyId,
@@ -7810,10 +7827,43 @@ async function startServer() {
 
     const effectivePreset = rawPreset || rawPersona || rawPresetAlias;
 
+    // Build structured effectiveContext with explicit kernel-resolvable scope evidence (Addendum 21)
+    let effectiveContext: any = {};
+    if (typeof context === "string") {
+      effectiveContext = { text: context };
+    } else if (context && typeof context === "object") {
+      effectiveContext = { ...context };
+    }
+    if (rawScopeGrant !== undefined && effectiveContext.scope_grant === undefined) {
+      effectiveContext.scope_grant = rawScopeGrant;
+    }
+    if (rawScopeEvidence !== undefined && effectiveContext.scope_evidence === undefined) {
+      effectiveContext.scope_evidence = rawScopeEvidence;
+    }
+    if (rawSubjectScopeGrant !== undefined && effectiveContext.subject_scope_grant === undefined) {
+      effectiveContext.subject_scope_grant = rawSubjectScopeGrant;
+    }
+    if (rawSubjectAuthorization !== undefined && effectiveContext.subject_authorization === undefined) {
+      effectiveContext.subject_authorization = rawSubjectAuthorization;
+    }
+    if (rawSubjectId !== undefined && effectiveContext.subject_id === undefined) {
+      effectiveContext.subject_id = rawSubjectId;
+    }
+    if (rawPatientId !== undefined && effectiveContext.patient_id === undefined) {
+      effectiveContext.patient_id = rawPatientId;
+    }
+    if (rawConsentVerified !== undefined && effectiveContext.consent_verified === undefined) {
+      effectiveContext.consent_verified = rawConsentVerified;
+    }
+    if (rawScopeGrantVerified !== undefined && effectiveContext.scope_grant_verified === undefined) {
+      effectiveContext.scope_grant_verified = rawScopeGrantVerified;
+    }
+
     console.log("[DEBUG REQ BODY]", {
       action: agent_action,
       reasoning: reasoning_chain,
-      preset: effectivePreset
+      preset: effectivePreset,
+      scope_grant: effectiveContext.scope_grant || rawScopeGrant || null
     });
 
     const effectiveIdempotencyKey = (
@@ -7827,12 +7877,12 @@ async function startServer() {
 
     // F4 Content-Hash Idempotency: Canonicalize request (excluding volatile timestamps/receipt ids/nonce)
     // 24h tenant replay window. Second identical hash in window -> IDEMPOTENT_REPLAY_DETECTED band (never silent re-approval).
-    const tenantIdForIdem = String((context && typeof context === "object" ? (context.tenant_id || context.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
+    const tenantIdForIdem = String((effectiveContext && typeof effectiveContext === "object" ? (effectiveContext.tenant_id || effectiveContext.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
     const canonicalPayload = canonicalizeRequestForIdempotency(
       tenantIdForIdem, 
       String(agent_action || ""), 
       String(reasoning_chain || ""), 
-      context,
+      effectiveContext,
       effectivePreset,
       agent_count,
       rawPolicyId
@@ -7902,7 +7952,7 @@ async function startServer() {
       rawPreset: effectivePreset,
       domain,
       scopeHint: rawScopeHint || rawScope || rawHint,
-      context,
+      context: effectiveContext,
       headers: req.headers,
       query: req.query,
       actionText: agent_action || "",
@@ -8078,22 +8128,22 @@ async function startServer() {
     council = council.slice(0, actualCount);
 
     // Extract ticket identifier from context or action/reasoning text
-    const ticketCombined = `${agent_action || ""} ${combinedReasoning || ""} ${typeof context === "string" ? context : JSON.stringify(context || {})}`;
-    const councilTicketEntities = extractTicketEntities(ticketCombined, context);
-    const candidateTicketId = normalizeTicketId(context?.ticket || context?.ticket_id || councilTicketEntities.primaryTicket || "UNTICKETED");
+    const ticketCombined = `${agent_action || ""} ${combinedReasoning || ""} ${typeof effectiveContext === "string" ? effectiveContext : JSON.stringify(effectiveContext || {})}`;
+    const councilTicketEntities = extractTicketEntities(ticketCombined, effectiveContext);
+    const candidateTicketId = normalizeTicketId(effectiveContext?.ticket || effectiveContext?.ticket_id || councilTicketEntities.primaryTicket || "UNTICKETED");
 
     // Synchronize distributed velocity journal from Firestore to avoid Cloud Run multi-instance split-brain
     const finopsPolicy = loadFinopsPolicy();
-    const detectedAmountUsd = extractAmountUsd(String(agent_action), context);
+    const detectedAmountUsd = extractAmountUsd(String(agent_action), effectiveContext);
     const amountCents = detectedAmountUsd !== null ? Math.round(detectedAmountUsd * 100) : 0;
-    const tenantId = String((context && typeof context === "object" ? (context.tenant_id || context.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
+    const tenantId = String((effectiveContext && typeof effectiveContext === "object" ? (effectiveContext.tenant_id || effectiveContext.tenant) : null) || req.body?.tenant_id || "default_tenant").trim();
     const maxSpendCents = finopsPolicy.tenant_spend_caps?.max_spend_per_ticket_cents || 50000;
-    const candidateVendorForVelocity = extractCandidateVendorFromText(String(agent_action)) || (context && typeof context === "object" ? (context.vendor || context.counterparty || context.supplier || context.merchant || context.payee) : null);
+    const candidateVendorForVelocity = extractCandidateVendorFromText(String(agent_action)) || (effectiveContext && typeof effectiveContext === "object" ? (effectiveContext.vendor || effectiveContext.counterparty || effectiveContext.supplier || effectiveContext.merchant || effectiveContext.payee) : null);
 
     const isFinancialAction = 
       /\b(expense|purchase|procurement|supplies|vendor|invoice|payment|disburse|wire|dollar|dollars|\$|usd|credit card|reimburse|accounting|order|spend|buy|checkout|cart|notebooks?|pens?|toner|paper|stationery)\b/i.test(String(agent_action).toLowerCase()) ||
       /\s\$\d+/.test(String(agent_action).toLowerCase()) ||
-      Boolean(context?.budget_line);
+      Boolean(effectiveContext?.budget_line);
 
     const liveVelocityCheck = await checkFastPathVelocityAsync(
       candidateTicketId,
@@ -8113,7 +8163,7 @@ async function startServer() {
       String(combinedReasoning || ""),
       String(persona_preset),
       council,
-      context,
+      effectiveContext,
       liveVelocityCheck
     );
 
@@ -8136,7 +8186,7 @@ async function startServer() {
     const hasPreFastPathEscalation = 
       gatewayFunnelScreen.isEscalation ||
       (evalResult.reason_codes || []).some(c => ESCALATION_DETECTOR_CODES.includes(c)) ||
-      detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) ||
+      detectCredentialExfiltrationIntent(String(agent_action || ""), effectiveContext, String(combinedReasoning || "")) ||
       /\b(mining|hashrate|stratum|pool|allocate\s+gpu|repurpose\s+cluster|download\s+all|export\s+medical|entire\s+fleet|disable\s+agent|bypass\s+middleware)\b/i.test(`${agent_action} ${combinedReasoning}`);
 
     const isPolicyFastPath = Boolean(evalResult.policy_fast_path) && !hasPreFastPathEscalation && !gatewayFunnelScreen.isEscalation;
@@ -8327,10 +8377,10 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         evalResult.consensus_score === 35.0
       );
 
-    const unifiedScreenForCouncil = screenIntentAndRisk(String(agent_action || ""), String(combinedReasoning || ""), context, String(persona_preset));
+    const unifiedScreenForCouncil = screenIntentAndRisk(String(agent_action || ""), String(combinedReasoning || ""), effectiveContext, String(persona_preset));
     const zeroRiskSignatures = 
       unifiedScreenForCouncil.clean &&
-      !detectCredentialExfiltrationIntent(String(agent_action || ""), context, String(combinedReasoning || "")) &&
+      !detectCredentialExfiltrationIntent(String(agent_action || ""), effectiveContext, String(combinedReasoning || "")) &&
       !hasInjectedAuthority &&
       !hasContradictionFloor &&
       !hasInjectedAuthorityFloor &&
@@ -8684,7 +8734,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         : screenEscalationFunnel(String(agent_action || ""), String(combinedReasoning || ""), ticketCombined, String(persona_preset));
 
       const isLegal = activeScreen.category === "legal" || finalReasonCodes.includes("DESTRUCTIVE_PRODUCTION_ACTION") || finalReasonCodes.includes("FABRICATED_LEGAL_EVIDENCE") || (evalResult.reason_codes || []).includes("DESTRUCTIVE_PRODUCTION_ACTION") || (evalResult.reason_codes || []).includes("FABRICATED_LEGAL_EVIDENCE");
-      const isSecurityBypass = activeScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || activeScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION") || finalReasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION");
+      const isSecurityBypass = activeScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || activeScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION") || activeScreen.reasonCodes.includes("PROMPT_INJECTION_OVERRIDE") || finalReasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION");
 
       finalVerdict = (isLegal || isSecurityBypass) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
       finalStatus = finalVerdict;
@@ -8738,7 +8788,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     const exitScreen = screenEscalationFunnel(String(agent_action || ""), String(combinedReasoning || ""), ticketCombined, String(persona_preset));
     if (exitScreen.isEscalation) {
       const isLegal = exitScreen.category === "legal";
-      const isSecurityBypass = exitScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || exitScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION");
+      const isSecurityBypass = exitScreen.reasonCodes.includes("PERIMETER_FIREWALL_DEACTIVATION") || exitScreen.reasonCodes.includes("UNAPPROVED_SYSTEM_MUTATION") || exitScreen.reasonCodes.includes("PROMPT_INJECTION_OVERRIDE");
       finalVerdict = (isLegal || isSecurityBypass) ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
       finalStatus = finalVerdict;
       finalActionEligible = false;
@@ -10225,6 +10275,10 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
                   scope_hint: {
                     type: "string",
                     description: "Optional domain or task scope hint (e.g. 'clinical_safety', 'financial_compliance', 'legal_citation', 'cybersecurity_auditor')."
+                  },
+                  scope_grant: {
+                    type: "object",
+                    description: "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { subject_id, granted_by, consent_verified, status: 'VERIFIED' })."
                   },
                   policy_id: {
                     type: "string",

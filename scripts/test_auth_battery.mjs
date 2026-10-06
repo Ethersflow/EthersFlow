@@ -491,7 +491,7 @@ async function runAuthBattery() {
       headers: { "Content-Type": "application/json" }
     }, { jsonrpc: "2.0", id: "init-test", method: "initialize" });
 
-    const expectedVersion = "0.2.12";
+    const expectedVersion = "0.2.14";
     const vHealth = health.body?.version === expectedVersion;
     const vMcp = mcpRoot.body?.version === expectedVersion;
     const vWellKnown = wellKnown.body?.version === expectedVersion;

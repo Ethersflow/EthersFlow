@@ -259,6 +259,14 @@ const ALLOWED_VERIFY_TOP_LEVEL_FIELDS = new Set([
   "domain",
   "scope",
   "hint",
+  "scope_grant",
+  "scope_evidence",
+  "subject_scope_grant",
+  "subject_authorization",
+  "subject_id",
+  "patient_id",
+  "consent_verified",
+  "scope_grant_verified",
   "zero_retention",
   "injected_velocity_check",
   "amount_usd",
@@ -998,24 +1006,44 @@ export function classifyPayloadDataClass(
     subjectReference = "named_subject";
   }
 
-  // Evaluate Kernel-Resolvable Subject Authorization Linkage (Scope Awareness)
+  // Evaluate Kernel-Resolvable Subject Authorization Linkage (Scope Awareness - Addenda 20 & 21)
   // Non-exfiltration, read-only intent within an authorized workflow
   const isReadIntent = 
-    /\b(?:view|read|lookup|show|query|get|print|check|display|review|consult|inspect|pull\s+up)\b/i.test(action) &&
+    /\b(?:view|read|lookup|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch)\b/i.test(action) &&
     !/\b(?:export|download|dump|migrate|archive|transfer|sync|mirror|exfiltrate|stream|send|email|s3|public|remote|personal|unencrypted)\b/i.test(action);
 
-  // 1. Explicit institutional, DPO, or subject scope grant (valid across all personas)
+  // 1. Explicit institutional, DPO, clinical, or subject scope grant (valid across all personas)
+  const isScopeGrantObjectValid = (obj: any): boolean => {
+    if (!obj) return false;
+    if (typeof obj === "boolean") return obj;
+    if (typeof obj === "string") return /^(verified|authorized|approved|granted|valid|in_scope|true)$/i.test(obj.trim());
+    if (typeof obj === "object") {
+      if (obj.verified === true || obj.status === "VERIFIED" || obj.status === "APPROVED" || obj.status === "AUTHORIZED" || obj.status === "GRANTED") return true;
+      if (obj.granted_by || obj.grant_type || obj.consent_verified || obj.attending_physician || obj.subject_id || obj.patient_id) return true;
+    }
+    return false;
+  };
+
+  const hasContextTextAuthorization = !isUntrustedChannel && /\b(?:documented\s+consent|patient\s+consent(?:\s+verified|\s+on\s+file)?|attending\s+(?:physician\s+)?authorization|authorized\s+clinician(?:\s+for\s+(?:patient|subject))?|verified\s+scope\s+grant|signed\s+patient\s+authorization|attending\s+physician\s+linkage|dpo[-_\s]approved\s+scope|treating\s+physician\s+authorization|authorized\s+care\s+workflow|care\s+team\s+authorization)\b/i.test(combined);
+
   const hasExplicitScopeGrant = Boolean(
+    isScopeGrantObjectValid(context?.scope_grant) ||
+    isScopeGrantObjectValid(context?.scope_evidence) ||
+    isScopeGrantObjectValid(context?.subject_scope_grant) ||
+    isScopeGrantObjectValid(context?.subject_authorization) ||
     context?.subject_consent_verified === true ||
-    context?.scope_grant_verified === true ||
+    context?.consent_verified === true ||
+    context?.documented_consent === true ||
     context?.patient_scope_linkage === true ||
     context?.attending_physician_linkage === true ||
+    context?.attending_authorization === true ||
     context?.authorized_clinician_for_subject === true ||
+    context?.authorized_clinician === true ||
     context?.subject_scope_linkage === true ||
-    context?.subject_authorization === "VERIFIED" ||
     context?.subject_scope === "AUTHORIZED" ||
     context?.dpo_approval === true ||
-    context?.audit_scope_authorized === true
+    context?.audit_scope_authorized === true ||
+    hasContextTextAuthorization
   );
 
   // 2. Clinical workflow anchored read (routine care in clinical persona or structured chart context)
@@ -1024,10 +1052,10 @@ export function classifyPayloadDataClass(
     isReadIntent &&
     !isUntrustedChannel &&
     (isSingleSubjectSpecific || isFormularyExempt || isScheduleExempt) &&
-    !/\b(?:export|dump|archive|personal|cloud|unencrypted|external)\b/i.test(combined)
+    !/\b(?:export|dump|archive|personal|cloud|unencrypted|external|s3|drive)\b/i.test(combined)
   );
 
-  const hasSubjectAuthorizationLinkage = hasExplicitScopeGrant || isClinicalWorkflowAnchored;
+  const hasSubjectAuthorizationLinkage = (hasExplicitScopeGrant || isClinicalWorkflowAnchored) && !isUntrustedChannel;
 
   let requiresHumanReview = false;
   if (isSensitive) {
@@ -1290,22 +1318,25 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("DESTRUCTIVE_COMMAND_HAZARD: Unbounded destructive infrastructure or data mutation command.");
   }
 
-  // 18. Clinical Bulk Patient Record Exfiltration & Data Minimization Violation (D1)
+  // 18. Clinical Bulk Patient Record Exfiltration & Data Minimization Violation (Shape-Driven - Addendum 21)
   const isScheduleOrFormularyExempt = 
     /\b(?:rounding\s+schedule|on-call\s+schedule|shift\s+roster|formulary|drug\s+interaction|standard\s+dosage\s+guidelines?)\b/i.test(combined);
 
-  const clinicalExfilVerb = /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|fetch|retrieve|get|save|send|email|exfiltrate|transmit|backup|backed?\s*up|stream|collect|share|disclose|read|query|select|gather|offload|clone|move|store|pass)\b/i;
-  const clinicalBulkQuantifier = /\b(?:all|entire|full|complete|every|whole|all\s+available|last\s+\d+|(?:last|past)\s+\d+\s+(?:months?|years?|days?|weeks?)|past\s+\d+|between\s+.+\s+and\s+.+|covering\s+a\s+range|historical|unbounded|batch|multi-patient|multiple\s+patients?|across|window|archive|records?|histories|files?|charts?|dossiers?|databases?)\b/i;
-  const clinicalPatientDataNoun = /\b(?:patient|medical|health|phi|clinical|prescription|treatment|ehr|emr|dosage|chart|dossier|histories|notes|records|file|files|archive|database|db|dossiers)\b/i;
+  const clinicalExfilVerb = /\b(?:download|export|dump|transfer|migrate|archive|exfiltrate|transmit|backup|backed?\s*up|sync|mirror|offload|clone|stream|upload)\b/i;
+  const clinicalBulkQuantifier = /\b(?:all\s+patients?|all\s+medical|all\s+records?|all\s+charts?|all\s+files?|all\s+prescriptions?|entire\s+database|entire\s+system|complete\s+registry|full\s+database|multi-patient|multiple\s+patients?|across\s+patients|cohort|registry|bulk|mass|unbounded|whole\s+database|every\s+patient|all\s+available\s+patients?)\b/i;
+  const clinicalExternalSink = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|remote\s+storage|secondary\s+server|public\s+link|dropbox|drive\.google|shared\s+folder)\b/i;
 
-  const hasSpecificSingleRecord = /\b(?:patient\s+(?:record|file|chart|dossier|history|id)?\s*#?\d+|record\s+#?\d+|id\s+#?\d+)\b/i.test(combined);
+  const isSinglePatientInWorkflowRead = 
+    !clinicalExternalSink.test(combined) &&
+    !clinicalBulkQuantifier.test(combined) &&
+    /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print|review|query)\b/i.test(action) &&
+    !/\b(?:export|download|copy\s+all|transfer|dump|sync|archive|mirror|backup|stream)\b/i.test(action);
 
-  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && !hasSpecificSingleRecord && (
-    (clinicalExfilVerb.test(combined) && clinicalBulkQuantifier.test(combined) && clinicalPatientDataNoun.test(combined)) ||
-    (clinicalExfilVerb.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\s*(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined) && clinicalBulkQuantifier.test(combined)) ||
-    (/\b(?:bulk|mass|unbounded|full|entire|complete)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(combined)) ||
-    (/\b(?:patient|medical|health|clinical|prescription|treatment)\s+(?:records?|histories|charts?|files?|dossiers?|archives?|databases?)\b/i.test(combined) && /\b(?:all|entire|full|complete|every|whole|last\s+\d+|past\s+\d+|between|covering|archive|shared|laptop|personal|external|remote|s3|drive|cloud)\b/i.test(combined)) ||
-    /\b(?:download|export|copy|migrate|pull|archive|transfer|dump|extract|sync|mirror|backup|backed?\s*up|move)\s+(?:all|entire|every|full|complete|the)?\s*(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(combined)
+  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && !isSinglePatientInWorkflowRead && (
+    (clinicalBulkQuantifier.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\b/i.test(combined)) ||
+    (clinicalExfilVerb.test(combined) && (clinicalBulkQuantifier.test(combined) || clinicalExternalSink.test(combined))) ||
+    (/\b(?:bulk|mass|unbounded|full\s+database|entire\s+database)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(combined)) ||
+    (/\b(?:download|export|copy|migrate|pull|archive|transfer|dump|sync|mirror|backup)\s+(?:all|entire|every|the\s+entire)\s+(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(combined))
   );
 
   if (isBulkPatientExfiltration) {
