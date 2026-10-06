@@ -5690,7 +5690,7 @@ function NestedAgentLibraryUnused() { return null; }
             </h1>
 
             <p className="text-lg sm:text-xl text-gray-600 font-bold mb-8 sm:mb-10 leading-relaxed max-w-2xl">
-              EthersFlow is the action-verification layer for the agentic web. Whether you're a team evaluating high-stakes decisions in our <span className="text-indigo-600 font-black">interactive Review Console</span>, or a developer safeguarding autonomous workflows through our <span className="text-indigo-600 font-black">KYAA gateway (API & MCP)</span> — an adversarial council of independent models examines what is about to happen and returns a signed, verifiable verdict before execution.
+              EthersFlow is the action-verification layer for AI. Whether you're a team evaluating high-stakes decisions in our <span className="text-indigo-600 font-black">interactive Review Console</span>, or a developer safeguarding autonomous workflows through our <span className="text-indigo-600 font-black">KYAA gateway (API & MCP)</span> — an adversarial council of independent models examines what is about to happen and returns a signed, verifiable verdict before execution.
             </p>
 
             {/* Primary and Secondary Hero CTAs */}

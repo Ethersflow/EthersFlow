@@ -327,6 +327,32 @@
                   "zero_retention": {
                     "type": "boolean",
                     "default": true
+                  },
+                  "context": {
+                    "type": "object",
+                    "description": "Structured contextual evidence, metadata, scope grant, or source document references."
+                  },
+                  "scope_grant": {
+                    "type": "object",
+                    "description": "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { subject_id, granted_by, consent_verified, status: 'VERIFIED' }).",
+                    "properties": {
+                      "subject_id": { "type": "string" },
+                      "granted_by": { "type": "string" },
+                      "consent_verified": { "type": "boolean" },
+                      "status": { "type": "string", "enum": ["VERIFIED", "APPROVED", "AUTHORIZED", "GRANTED", "ACTIVE"] }
+                    }
+                  },
+                  "subject_scope_grant": {
+                    "type": "object",
+                    "description": "Direct subject scope authorization object."
+                  },
+                  "scope_hint": {
+                    "type": "string",
+                    "description": "Domain or task scope hint (e.g. 'clinical_safety', 'financial_compliance', 'legal_citation')."
+                  },
+                  "policy_id": {
+                    "type": "string",
+                    "description": "Policy pack identifier (e.g. 'finops_default_v1')."
                   }
                 }
               }

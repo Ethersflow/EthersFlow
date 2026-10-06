@@ -58,14 +58,14 @@ function getHealth(port = 3001) {
 
 function hasTrustCodes(codes = []) {
   return codes.some(c => 
-    c.includes("VERIFIED") || 
+    (c.includes("VERIFIED") && !c.includes("UNVERIFIED")) || 
     c.includes("ALIGNED") || 
     c.includes("ENFORCED") || 
-    c.includes("VALIDATED") ||
-    c.includes("CONFIRMED") ||
-    c.includes("SCALING_ANCHORED") ||
-    c.includes("MATCHED") ||
-    c.includes("OBSERVABILITY") ||
+    c.includes("VALIDATED") || 
+    c.includes("CONFIRMED") || 
+    c.includes("SCALING_ANCHORED") || 
+    c.includes("MATCHED") || 
+    c.includes("OBSERVABILITY") || 
     (c.includes("APPROVED") && !c.includes("UNAPPROVED"))
   );
 }

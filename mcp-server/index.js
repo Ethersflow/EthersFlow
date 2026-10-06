@@ -77,6 +77,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Optional domain or task scope hint (e.g. 'clinical_safety', 'financial_compliance', 'legal_citation', 'cybersecurity_auditor').",
             },
+            scope_grant: {
+              type: "object",
+              description: "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { subject_id, granted_by, consent_verified, status: 'VERIFIED' }).",
+            },
             policy_id: {
               type: "string",
               description: "Optional policy pack identifier to evaluate against.",
@@ -156,6 +160,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         agent_action: actionText,
         reasoning_chain: args.reasoning_chain || (typeof args.context === "string" ? args.context : ""),
         context: typeof args.context === "object" ? args.context : undefined,
+        scope_grant: args.scope_grant,
         agent_count: args.agent_count !== undefined ? args.agent_count : 3,
         persona_preset: args.persona_preset,
         scope_hint: args.scope_hint || args.scope || args.hint,

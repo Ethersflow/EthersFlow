@@ -68,12 +68,12 @@ console.log("[Server] Booting EthersFlow Backend...");
 
 // Sovereign Release Metadata (Dynamic Revision & Deployment Binding from build_manifest.json - Single Source of Truth)
 let buildManifest = {
-  version: "0.2.12",
-  revision: "ab5c172",
-  git_commit: "ab5c172",
-  full_commit: "ab5c172441b45649ff4b40c9c66e6399b6ead3e5",
-  deployed_at: "2026-10-04T05:00:00.000Z",
-  council_bundle: "sha256-v0.2.12-ab5c172"
+  version: "0.2.15",
+  revision: "a8d146a",
+  git_commit: "a8d146a",
+  full_commit: "a8d146a834ada1514138ae3a767089cca0dd12b5cfcbe582c3efc66b27796782",
+  deployed_at: "2026-10-06T19:51:14.967Z",
+  council_bundle: "sha256-v0.2.15-a8d146a"
 };
 try {
   const manifestPath = path.resolve(process.cwd(), "build_manifest.json");
@@ -83,10 +83,10 @@ try {
 } catch (e) {
   console.warn("[Server] build_manifest.json resolution fallback:", e);
 }
-const ETHERSFLOW_RELEASE_VERSION = buildManifest.version || "0.2.12";
-const ETHERSFLOW_BUILD_REVISION = buildManifest.revision || "ab5c172";
-const ETHERSFLOW_GIT_COMMIT = buildManifest.git_commit || "ab5c172";
-const ETHERSFLOW_DEPLOYED_AT = buildManifest.deployed_at || "2026-10-04T05:00:00.000Z";
+const ETHERSFLOW_RELEASE_VERSION = buildManifest.version || "0.2.15";
+const ETHERSFLOW_BUILD_REVISION = buildManifest.revision || "a8d146a";
+const ETHERSFLOW_GIT_COMMIT = buildManifest.git_commit || "a8d146a";
+const ETHERSFLOW_DEPLOYED_AT = buildManifest.deployed_at || "2026-10-06T19:51:14.967Z";
 const ETHERSFLOW_COUNCIL_BUNDLE = buildManifest.council_bundle || `sha256-v${ETHERSFLOW_RELEASE_VERSION}-${ETHERSFLOW_BUILD_REVISION}`;
 
 const ESCALATION_DETECTOR_CODES = [
@@ -95,6 +95,8 @@ const ESCALATION_DETECTOR_CODES = [
   "BULK_PATIENT_RECORD_EXFILTRATION_HAZARD",
   "BULK_PATIENT_RECORD_EXFILTRATION",
   "UNAUTHORIZED_PHI_DISCLOSURE",
+  "SUBJECT_SCOPE_AUTHORIZATION_MISSING",
+  "SENSITIVE_DATA_SCOPE_UNVERIFIED",
   "DATA_MINIMIZATION_VIOLATION",
   "UNANCHORED_REGULATORY_CLAIM",
   "COMPLIANCE_ASSERTION_UNANCHORED",
@@ -269,7 +271,10 @@ function screenEscalationFunnel(
 
   // B. Benign Clinical Observation / Formulary / Shift Schedule:
   const hasExfilDestination = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|download\s+all|dump\s+all|remote\s+storage|secondary\s+server)\b/i.test(combined);
-  const hasBulkScope = /\b(?:all\s+patients?|all\s+medical|all\s+records|all\s+charts|entire\s+health|entire\s+records|entire\s+database|entire\s+treatment|complete\s+phi|full\s+clinical\s+histories|every\s+patient|across\s+department|oncology\s+database|cardiology\s+department|multi-patient|between\s+\d{4}\s+and\s+\d{4}|cohort|registry)\b/i.test(combined);
+  let hasBulkScope = /\b(?:all\s+patients?|all\s+medical|all\s+records|all\s+charts|entire\s+health|entire\s+records|entire\s+database\s+of\s+patients?|entire\s+patient\s+database|complete\s+phi|full\s+clinical\s+histories|every\s+patient|across\s+department|multi-patient\s+export|between\s+\d{4}\s+and\s+\d{4}|cohort\s+export|patient\s+registry\s+dump)\b/i.test(combined);
+  if (/\b(?:patient|record|chart|dossier|id|subject|member|subscriber|claimant)\s*#?[0-9a-z_-]+\b/i.test(combined) && !/\b(?:all\s+patients?|every\s+patient|entire\s+database\s+of\s+patients?|entire\s+patient\s+database|multi-patient\s+export)\b/i.test(combined)) {
+    hasBulkScope = false;
+  }
 
   const isSinglePatientLook = 
     /\b(?:patient\s*(?:chart|dossier|id|number|record|file|history)?\s*#?\s*[0-9a-z_-]+|single\s+patient|patient\s+chart|patient\s+dossier|patient\s+record|clinical\s+chart|named\s+(?:data\s+)?subject|therapy\s+notes?|oncology\s+chart)\b/i.test(combined) &&
@@ -279,7 +284,23 @@ function screenEscalationFunnel(
   const isFormulary = /\b(?:formulary|dosage\s+recommendations?|dosage\s+guidelines?|standard\s+dosage|standard\s+dose|amoxicillin|metformin|drug\s+reference|clinical\s+reference)\b/i.test(combined);
   const isShiftSchedule = /\b(?:icu\s+shift\s+schedule|shift\s+schedule|ward\s+round\s+summary|duty\s+roster|physician\s+schedule|rounding\s+schedule|on-call\s+schedule)\b/i.test(combined);
 
-  const isBenignClinical = !hasExfilDestination && !hasBulkScope && (isSinglePatientLook || isFormulary || isShiftSchedule);
+  const isUntrustedChannel = /\b(?:tool_output|tool_results|last_tool_output|embedded_instruction|untrusted_channel|untrusted_content|external_tool)\b/i.test(combined);
+
+  const hasScopeOrAuthorization = 
+    !isUntrustedChannel && (
+      /(?:scope_grant["']?\s*:\s*(?:["'](?:verified|approved|authorized|granted|active)["']|true|\{)|subject_scope_grant|subject_authorization|scope_authorization|authorization_grant|attending_physician_linkage["']?\s*:\s*true|consent_verified["']?\s*:\s*true|documented_consent["']?\s*:\s*true|patient_consent(?:\s+verified|\s+on\s+file)?|documented\s+consent(?:\s+verified)?|signed\s+off\s+by\s+dr\.?|approved\s+by\s+dr\.?|dpo[-_\s]approved\s+(?:scope|audit)|verified\s+(?:legal\s+)?audit\s+scope|dpo-approved\s+audit\s+scope|treating\s+physician\s+authorization)/i.test(combined)
+    );
+
+  const isRoutineBedsideObservation = 
+    (personaPreset === "clinical_safety" || personaPreset === "general_adversarial") &&
+    /\b(?:allergy\s+notes|current\s+(?:medication\s+)?(?:dosage\s+)?list|medication\s+(?:dosage\s+)?list|vital\s+signs?)\b/i.test(combined) &&
+    !/\b(?:therapy|psychotherapy|oncology|chemotherapy|diagnosis|dossier|history|claims?|billing)\b/i.test(combined);
+
+  const isBenignClinical = !hasExfilDestination && !hasBulkScope && (
+    isFormulary || 
+    isShiftSchedule || 
+    (isSinglePatientLook && (hasScopeOrAuthorization || isRoutineBedsideObservation))
+  );
 
   if (isBenignClinical) {
     return {
@@ -311,9 +332,9 @@ function screenEscalationFunnel(
 
   // 2.2 PROTECTED-SUBJECT DATA MOVING TO EXTERNAL DESTINATION OR BULK EXFILTRATION
   const hasProtectedDataSubject = /\b(?:patient|patients|clinical|medical|health|phi|ehr|emr|treatment|treatments|oncology|cardiology|hospital|prescriptions?|charts?|dossiers?|histories|discharge\s+notes)\b/i.test(combined);
-  const hasMovementAction = /\b(?:export|exporting|download|downloading|copy|copying|migrate|migrating|pull|pulling|archive|archiving|transfer|transferring|dump|dumping|extract|extracting|sync|syncing|mirror|mirroring|backup|backing\s+up|share|sharing|send|sending|offload|offloading|replicate|replicating|transmit|transmitting|upload|uploading|leak|move|moving)\b/i.test(combined);
+  const hasBulkMovementAction = /\b(?:export|exporting|download|downloading|dump|dumping|migrate|migrating|offload|offloading|mirror|mirroring|backup|backing\s+up|mass\s+transfer)\b/i.test(combined);
 
-  const isClinicalExfil = hasProtectedDataSubject && hasMovementAction && (hasExfilDestination || hasBulkScope);
+  const isClinicalExfil = hasProtectedDataSubject && (hasExfilDestination || (hasBulkScope && hasBulkMovementAction));
 
   if (isClinicalExfil) {
     return {
@@ -328,6 +349,30 @@ function screenEscalationFunnel(
         "ADVERSARIAL_DISSENT_DETECTED"
       ],
       explanation: "FLAGGED FOR HUMAN REVIEW: Protected health information (PHI) moving to an external destination or bulk multi-patient exfiltration violates HIPAA data minimization regulations (45 CFR § 164.502)."
+    };
+  }
+
+  // 2.2b UNAUTHORIZED SINGLE-SUBJECT SENSITIVE READ (NO SCOPE GRANT)
+  const isSensitiveSubjectRead = (
+    /\b(?:patient|subject|chart|therapy|psychotherapy|psychiatric|oncology|chemotherapy|clinical|medical|health|ehr|emr|treatment|prescription|dossier|history|claims?|billing|payroll|salary|ssn|bank\s+account|credit\s+card|pan)\b/i.test(combined) &&
+    /\b(?:view|read|lookup|look\s*up|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch|retrieve|access|examine|open|find)\b/i.test(combined) &&
+    !hasExfilDestination &&
+    !hasBulkScope &&
+    !isFormulary &&
+    !isShiftSchedule
+  );
+
+  if (isSensitiveSubjectRead && !hasScopeOrAuthorization) {
+    return {
+      isEscalation: true,
+      category: "clinical",
+      reasonCodes: [
+        "SUBJECT_SCOPE_AUTHORIZATION_MISSING",
+        "SENSITIVE_DATA_SCOPE_UNVERIFIED",
+        "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+        "ADVERSARIAL_DISSENT_DETECTED"
+      ],
+      explanation: "FLAGGED FOR HUMAN REVIEW: Action retrieves specific named data subject's sensitive-class records without kernel-resolvable subject authorization linkage."
     };
   }
 
@@ -4766,7 +4811,8 @@ async function startServer() {
   function validateContextEvidenceContent(
     agentAction: string = "",
     reasoningChain: string = "",
-    contextInput: any = null
+    contextInput: any = null,
+    personaPreset: string = "general_adversarial"
   ): ContextValidationOutcome {
     const actionLower = (agentAction || "").toLowerCase();
     const reasoningLower = (reasoningChain || "").toLowerCase();
@@ -5009,7 +5055,11 @@ async function startServer() {
     if (!scopeBounded && contextInput?.scope_bounded === undefined && contextInput?.scope === undefined) {
       scopeBounded = /\b(scope|routine_procurement|read-only|read only|staging environment only|temporary admin privileges.*for 24h)\b/i.test(actionAndReasoning);
     }
-    if (!dataClassificationPresent && contextInput?.data_classification_present === undefined && contextInput?.data_classification === undefined) {
+    const payloadDataClass = classifyPayloadDataClass(agentAction, contextInput, reasoningChain, personaPreset);
+    const isPayloadSensitiveOrClassified = payloadDataClass.isSensitive || payloadDataClass.classes.length > 0;
+    if (isPayloadSensitiveOrClassified) {
+      dataClassificationPresent = true;
+    } else if (!dataClassificationPresent && contextInput?.data_classification_present === undefined && contextInput?.data_classification === undefined) {
       dataClassificationPresent = /\b(data_classification|internal|confidential|restricted|public)\b/i.test(actionAndReasoning);
     }
 
@@ -5042,7 +5092,10 @@ async function startServer() {
     const ticketBasis: "client_attested" | "missing" = ticketPresent ? "client_attested" : "missing";
     const budgetLineBasis: "client_attested" | "missing" = budgetLinePresent ? "client_attested" : "missing";
     const scopeBasis: "client_attested" | "missing" = scopeBounded ? "client_attested" : "missing";
-    const dataClassificationBasis: "client_attested" | "missing" = dataClassificationPresent ? "client_attested" : "missing";
+    const dataClassificationBasis: "client_attested" | "grounded" | "missing" = 
+      dataClassificationPresent 
+        ? (isPayloadSensitiveOrClassified ? "grounded" : "client_attested") 
+        : "missing";
 
     const missingAnchors: string[] = [];
     if (!ticketPresent) missingAnchors.push("ticket");
@@ -5247,7 +5300,7 @@ async function startServer() {
     const agentActionLower = (agentAction || "").toLowerCase();
 
     // Context Content Validation (Round 28 Mandate: Validate context content substance, not mere presence)
-    const contextOutcome = validateContextEvidenceContent(agentAction, reasoningChain, contextInput);
+    const contextOutcome = validateContextEvidenceContent(agentAction, reasoningChain, contextInput, personaPreset);
     const policyConfig = loadFinopsPolicy();
     const contextWithPreset = typeof contextInput === "object" && contextInput !== null 
       ? { ...contextInput, persona_preset: personaPreset }
@@ -6947,15 +7000,15 @@ async function startServer() {
         verdict_summary = decision_explanation;
       } else {
         const preFallbackEscalation = screenEscalationFunnel(agentAction, reasoningChain, text, personaPreset);
-        if (preFallbackEscalation.isEscalation) {
-          verdict = preFallbackEscalation.category === "legal" ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
+        if (preFallbackEscalation.isEscalation || isUnauthorizedSensitiveDataRetrieval) {
+          verdict = (preFallbackEscalation.isEscalation && preFallbackEscalation.category === "legal") ? "REJECTED" : "FLAGGED_HUMAN_REVIEW";
           status = verdict;
           verified = false;
           action_eligible = false;
           policy_status = "FAIL";
-          evidence_status = preFallbackEscalation.category === "clinical" ? "CONFLICTING" : "MISSING";
+          evidence_status = (preFallbackEscalation.isEscalation && preFallbackEscalation.category === "clinical") ? "CONFLICTING" : "MISSING";
           reviewer_agreement_score = 0.28;
-          consensus_score = preFallbackEscalation.category === "clinical" ? 28.0 : 32.0;
+          consensus_score = (preFallbackEscalation.isEscalation && preFallbackEscalation.category === "clinical") ? 28.0 : 32.0;
           policy_compliance_score = 0.0;
           evidence_sufficiency_score = 0.1;
           contradiction_score = 0.92;
@@ -6963,8 +7016,17 @@ async function startServer() {
           human_review_required = true;
           approval_blocked = true;
           finality = "POLICY_FINAL_BLOCK";
-          reason_codes = [...preFallbackEscalation.reasonCodes];
-          decision_explanation = preFallbackEscalation.explanation;
+          reason_codes = preFallbackEscalation.isEscalation
+            ? [...preFallbackEscalation.reasonCodes]
+            : [
+                "SUBJECT_SCOPE_AUTHORIZATION_MISSING",
+                "SENSITIVE_DATA_SCOPE_UNVERIFIED",
+                "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+                ...(payloadClassification.classes.includes("HEALTH_CLINICAL_PHI") ? ["UNAUTHORIZED_PHI_DISCLOSURE"] : [])
+              ];
+          decision_explanation = preFallbackEscalation.isEscalation
+            ? preFallbackEscalation.explanation
+            : "FLAGGED FOR HUMAN REVIEW: Action retrieves sensitive-class data for a specific subject without kernel-resolvable subject authorization linkage.";
           verdict_summary = decision_explanation;
         } else {
           // Only actions with validated substantive evidence anchors that pass all deterministic gates may be approved
@@ -7049,7 +7111,7 @@ async function startServer() {
           }
           decision_explanation = `VERIFIED: Legal directive verified against statutory authority and jurisdictional citation records.`;
         } else if (personaPreset === "clinical_safety") {
-          if (isBulkPatientExport || hasPhiViolation || /\b(export|download|dump|transfer|extract|send|email)\s+(?:all\s+)?patient\s+records\b/i.test(text) || (text.includes("patient") && (text.includes("export") || text.includes("dump") || text.includes("database") || text.includes("exfil")))) {
+          if (isBulkPatientExport || hasPhiViolation || /\b(export|download|dump|transfer|extract|send|email)\s+(?:all\s+)?patient\s+records\b/i.test(text)) {
             verdict = "FLAGGED_HUMAN_REVIEW";
             status = "FLAGGED_HUMAN_REVIEW";
             verified = false;
@@ -7815,10 +7877,19 @@ async function startServer() {
       scope_evidence: rawScopeEvidence,
       subject_scope_grant: rawSubjectScopeGrant,
       subject_authorization: rawSubjectAuthorization,
+      scope_authorization: rawScopeAuthorization,
+      authorization_grant: rawAuthorizationGrant,
+      authorization: rawAuthorization,
+      grant: rawGrant,
+      subject_grant: rawSubjectGrant,
+      patient_grant: rawPatientGrant,
+      consent: rawConsent,
       subject_id: rawSubjectId,
       patient_id: rawPatientId,
       consent_verified: rawConsentVerified,
       scope_grant_verified: rawScopeGrantVerified,
+      dpo_approval: rawDpoApproval,
+      audit_scope: rawAuditScope,
       grounding_enabled = true,
       zero_retention = false,
       policy_id: rawPolicyId,
@@ -7827,7 +7898,7 @@ async function startServer() {
 
     const effectivePreset = rawPreset || rawPersona || rawPresetAlias;
 
-    // Build structured effectiveContext with explicit kernel-resolvable scope evidence (Addendum 21)
+    // Build structured effectiveContext with explicit kernel-resolvable scope evidence (Addendum 21 & 22)
     let effectiveContext: any = {};
     if (typeof context === "string") {
       effectiveContext = { text: context };
@@ -7845,6 +7916,33 @@ async function startServer() {
     }
     if (rawSubjectAuthorization !== undefined && effectiveContext.subject_authorization === undefined) {
       effectiveContext.subject_authorization = rawSubjectAuthorization;
+    }
+    if (rawScopeAuthorization !== undefined && effectiveContext.scope_authorization === undefined) {
+      effectiveContext.scope_authorization = rawScopeAuthorization;
+    }
+    if (rawAuthorizationGrant !== undefined && effectiveContext.authorization_grant === undefined) {
+      effectiveContext.authorization_grant = rawAuthorizationGrant;
+    }
+    if (rawAuthorization !== undefined && effectiveContext.authorization === undefined) {
+      effectiveContext.authorization = rawAuthorization;
+    }
+    if (rawGrant !== undefined && effectiveContext.grant === undefined) {
+      effectiveContext.grant = rawGrant;
+    }
+    if (rawSubjectGrant !== undefined && effectiveContext.subject_grant === undefined) {
+      effectiveContext.subject_grant = rawSubjectGrant;
+    }
+    if (rawPatientGrant !== undefined && effectiveContext.patient_grant === undefined) {
+      effectiveContext.patient_grant = rawPatientGrant;
+    }
+    if (rawConsent !== undefined && effectiveContext.consent === undefined) {
+      effectiveContext.consent = rawConsent;
+    }
+    if (rawDpoApproval !== undefined && effectiveContext.dpo_approval === undefined) {
+      effectiveContext.dpo_approval = rawDpoApproval;
+    }
+    if (rawAuditScope !== undefined && effectiveContext.audit_scope === undefined) {
+      effectiveContext.audit_scope = rawAuditScope;
     }
     if (rawSubjectId !== undefined && effectiveContext.subject_id === undefined) {
       effectiveContext.subject_id = rawSubjectId;
@@ -8831,6 +8929,9 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       }
     }
 
+    // Deduplicate reason codes (Property Ledger Invariant)
+    finalReasonCodes = Array.from(new Set(finalReasonCodes));
+
     // GROUNDING CHECK SYNCHRONIZATION: Grounding status reflects factual node contradictions & verified facts
     let groundingStatus: string;
     let groundingDetails: string | undefined = undefined;
@@ -9051,6 +9152,9 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         assigned_score: n.node_status === "ALIGNED" ? 95.0 : (n.node_status === "CONTRADICTION_EXPOSED" ? 12.0 : 48.0)
       }))
     };
+
+    // Deduplicate finalReasonCodes while preserving order
+    finalReasonCodes = Array.from(new Set(finalReasonCodes));
 
     // Build the Versioned Multi-Dimensional Decision Object Contract
     const responsePayload = {

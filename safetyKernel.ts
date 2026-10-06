@@ -263,10 +263,19 @@ const ALLOWED_VERIFY_TOP_LEVEL_FIELDS = new Set([
   "scope_evidence",
   "subject_scope_grant",
   "subject_authorization",
+  "scope_authorization",
+  "authorization_grant",
+  "authorization",
+  "grant",
+  "subject_grant",
+  "patient_grant",
+  "consent",
   "subject_id",
   "patient_id",
   "consent_verified",
   "scope_grant_verified",
+  "dpo_approval",
+  "audit_scope",
   "zero_retention",
   "injected_velocity_check",
   "amount_usd",
@@ -961,7 +970,7 @@ export function classifyPayloadDataClass(
 
   // 1. Health / Clinical / PHI Classification (Payload-derived, independent of persona_preset)
   const hasHealthKeywords = 
-    /\b(?:patient|phi|ehr|emr|medical\s+records?|clinical\s+charts?|health\s+records?|therapy|psychotherapy|psychiatric|counseling\s+notes|oncology|chemotherapy|diagnosis|diagnostic\s+report|treatment\s+history|prescription\s+history|clinical\s+notes?|patient\s+chart|patient\s+history|patient\s+record|medical\s+history)\b/i.test(combined);
+    /\b(?:patient|phi|ehr|emr|medical\s+records?|clinical\s+charts?|health\s+records?|therapy|psychotherapy|psychiatric|counseling\s+notes|oncology|chemotherapy|cardiology|pathology|biopsy|diagnosis|diagnostic\s+report|treatment\s+history|prescription\s+history|clinical\s+notes?|patient\s+chart|patient\s+history|patient\s+record|medical\s+history|lab\s+test\s+results?|claims?|insurance\s+claims?|medical\s+claims?|billing\s+records?|billing\s+statements?|claims?\s+history|explanation\s+of\s+benefits|eob|reimbursement\s+claims?|adjudicated\s+claims?|patient\s+billing|clinical\s+billing|therapy\s+claims?|encounter\s+records?|cpt\s+codes?|icd-10\s+codes?|diagnostic\s+codes?|cms-1500|ub-04|deductible|copay|co-pay|health\s+plan|subscriber|claimant|remittance|eob\s+statement|patient\s+ledger|remittance\s+advice|prior\s+auth(?:orization)?|hcpcs)\b/i.test(combined);
 
   if (hasHealthKeywords && !isFormularyExempt && !isScheduleExempt) {
     classes.push("HEALTH_CLINICAL_PHI");
@@ -969,7 +978,7 @@ export function classifyPayloadDataClass(
 
   // 2. Financial / Payment / PII Classification
   const hasFinancialPii = 
-    /\b(?:bank\s+account\s+numbers?|routing\s+numbers?|wire\s+instructions?|credit\s+card\s+numbers?|pan|payroll\s+records?|salary\s+history|ssn|social\s+security\s+numbers?|tax\s+filings?)\b/i.test(combined);
+    /\b(?:claims?|claim\s+record|claim\s+history|claim\s+status|claim\s+adjudication|reimbursement\s+claim|insurance\s+claim|billing|billing\s+records?|billing\s+statements?|billing\s+accounts?|billing\s+data|billing\s+history|billing\s+ledger|member\s+billing|subscriber\s+billing|patient\s+billing|remittance|eob|explanation\s+of\s+benefits|payroll|salaries|salary|salary\s+history|wages?|compensation|bank\s+accounts?|bank\s+account\s+numbers?|routing\s+numbers?|wire\s+instructions?|credit\s+cards?|credit\s+card\s+numbers?|pan|ssn|social\s+security|tax\s+filings?|tax\s+id|ein)\b/i.test(combined);
 
   if (hasFinancialPii) {
     classes.push("FINANCIAL_PAYMENT_PII");
@@ -997,11 +1006,12 @@ export function classifyPayloadDataClass(
   // Detect specific single-subject reference
   let isSingleSubjectSpecific = false;
   let subjectReference: string | null = null;
-  const matchSubject = combined.match(/\b(?:patient|chart|record|user|employee|subject|client|id)\s*(?:#|id|number|code)?\s*([0-9a-z_-]+)\b/i);
-  if (matchSubject && matchSubject[1] && !/^(?:ops|chg|rfc|cr|sec|inc|hd|tkt|mw|po|inv|none|null|undefined|true|false)$/i.test(matchSubject[1])) {
+  const matchSubject = combined.match(/\b(?:patient|chart|record|user|employee|subject|client|id|member|subscriber|claimant|policyholder|beneficiary|insured|individual|person)(?:\s+(?:chart|record|dossier|file|history|id|account|profile|data|notes?))*\s*(?:#|id|number|code|no\.?|:)?\s*#?\s*([0-9]+[a-z0-9_-]*|[a-z0-9_-]*[0-9]+[a-z0-9_-]*)\b/i);
+  const STOPWORDS = /^(?:is|was|are|were|be|been|being|to|for|of|in|and|with|on|at|by|from|that|this|the|a|an|present|approved|verified|authorized|requesting|review|summary|details|data|info|status|notes|logs|files|entries|items|rows|lines|history|table|database|archive|backup|export|dump|system|service|server|node|cluster|workflow|action|directive|context|payload|response|result|report|policy|rule|ticket|ops|chg|rfc|cr|sec|inc|hd|tkt|mw|po|inv|none|null|undefined|true|false)$/i;
+  if (matchSubject && matchSubject[1] && !STOPWORDS.test(matchSubject[1])) {
     isSingleSubjectSpecific = true;
     subjectReference = matchSubject[0];
-  } else if (/\b(?:patient\s+chart|patient\s+record|patient\s+oncology|patient\s+history|patient\s+data|named\s+data\s+subject|therapy\s+records?|clinical\s+charts?)\b/i.test(combined)) {
+  } else if (/\b(?:patient\s+(?:chart|record|history|oncology|notes|data|file|dossier)|named\s+(?:data\s+)?subject|therapy\s+records?|clinical\s+charts?|data\s+subject\s*#?[0-9a-z_-]+|patient\s+[a-z]+\s+[a-z]+|member\s+[a-z]+\s+[a-z]+|claimant\s+[a-z]+\s+[a-z]+)\b/i.test(combined)) {
     isSingleSubjectSpecific = true;
     subjectReference = "named_subject";
   }
@@ -1009,28 +1019,41 @@ export function classifyPayloadDataClass(
   // Evaluate Kernel-Resolvable Subject Authorization Linkage (Scope Awareness - Addenda 20 & 21)
   // Non-exfiltration, read-only intent within an authorized workflow
   const isReadIntent = 
-    /\b(?:view|read|lookup|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch)\b/i.test(action) &&
+    /\b(?:view|read|lookup|look\s*up|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch|retrieve|access|examine|open|find)\b/i.test(action) &&
     !/\b(?:export|download|dump|migrate|archive|transfer|sync|mirror|exfiltrate|stream|send|email|s3|public|remote|personal|unencrypted)\b/i.test(action);
 
   // 1. Explicit institutional, DPO, clinical, or subject scope grant (valid across all personas)
   const isScopeGrantObjectValid = (obj: any): boolean => {
     if (!obj) return false;
-    if (typeof obj === "boolean") return obj;
-    if (typeof obj === "string") return /^(verified|authorized|approved|granted|valid|in_scope|true)$/i.test(obj.trim());
+    if (typeof obj === "boolean") return obj === true;
+    if (typeof obj === "string") return /^(verified|authorized|approved|granted|valid|in_scope|true|active|confirmed|dpo_audit_scope)$/i.test(obj.trim());
     if (typeof obj === "object") {
-      if (obj.verified === true || obj.status === "VERIFIED" || obj.status === "APPROVED" || obj.status === "AUTHORIZED" || obj.status === "GRANTED") return true;
-      if (obj.granted_by || obj.grant_type || obj.consent_verified || obj.attending_physician || obj.subject_id || obj.patient_id) return true;
+      if (obj.status && !/^(verified|approved|authorized|granted|active)$/i.test(String(obj.status).trim())) {
+        return false;
+      }
+      if (obj.verified === false || obj.consent_verified === false || obj.dpo_approval === false) {
+        return false;
+      }
+      if (obj.verified === true || obj.status === "VERIFIED" || obj.status === "APPROVED" || obj.status === "AUTHORIZED" || obj.status === "GRANTED" || obj.status === "ACTIVE") return true;
+      if (obj.consent_verified === true || obj.dpo_approval === true || obj.attending_physician === true || obj.audit_scope === true || obj.dpo_audit_scope === true) return true;
+      if (obj.granted_by && obj.grant_type) return true;
     }
     return false;
   };
 
-  const hasContextTextAuthorization = !isUntrustedChannel && /\b(?:documented\s+consent|patient\s+consent(?:\s+verified|\s+on\s+file)?|attending\s+(?:physician\s+)?authorization|authorized\s+clinician(?:\s+for\s+(?:patient|subject))?|verified\s+scope\s+grant|signed\s+patient\s+authorization|attending\s+physician\s+linkage|dpo[-_\s]approved\s+scope|treating\s+physician\s+authorization|authorized\s+care\s+workflow|care\s+team\s+authorization)\b/i.test(combined);
+  const hasContextTextAuthorization = !isUntrustedChannel && /\b(?:documented\s+consent|patient\s+consent(?:\s+verified|\s+on\s+file)?|attending\s+(?:physician\s+)?authorization|attending\s+physician\s+review|attending\s+physician\s+sign-off|authorized\s+clinician(?:\s+for\s+(?:patient|subject))?|verified\s+scope\s+grant|signed\s+patient\s+authorization|attending\s+physician\s+linkage|dpo[-_\s]approved\s+scope|treating\s+physician\s+authorization|authorized\s+care\s+workflow|care\s+team\s+authorization|verified\s+legal\s+audit\s+scope|dpo-approved\s+audit\s+scope)\b/i.test(combined);
 
   const hasExplicitScopeGrant = Boolean(
     isScopeGrantObjectValid(context?.scope_grant) ||
     isScopeGrantObjectValid(context?.scope_evidence) ||
     isScopeGrantObjectValid(context?.subject_scope_grant) ||
     isScopeGrantObjectValid(context?.subject_authorization) ||
+    isScopeGrantObjectValid(context?.scope_authorization) ||
+    isScopeGrantObjectValid(context?.authorization_grant) ||
+    isScopeGrantObjectValid(context?.subject_grant) ||
+    isScopeGrantObjectValid(context?.patient_grant) ||
+    isScopeGrantObjectValid(context?.grant) ||
+    isScopeGrantObjectValid(context?.authorization) ||
     context?.subject_consent_verified === true ||
     context?.consent_verified === true ||
     context?.documented_consent === true ||
@@ -1046,16 +1069,18 @@ export function classifyPayloadDataClass(
     hasContextTextAuthorization
   );
 
-  // 2. Clinical workflow anchored read (routine care in clinical persona or structured chart context)
-  const isClinicalWorkflowAnchored = Boolean(
-    (personaPreset === "clinical_safety" || context?.persona_preset === "clinical_safety" || context?.role === "clinician" || Boolean(context?.chart && !context?.ticket?.startsWith("HD-") && !context?.ticket?.startsWith("OPS-") && !context?.ticket?.startsWith("CR-") && !isUntrustedChannel)) &&
-    isReadIntent &&
-    !isUntrustedChannel &&
-    (isSingleSubjectSpecific || isFormularyExempt || isScheduleExempt) &&
-    !/\b(?:export|dump|archive|personal|cloud|unencrypted|external|s3|drive)\b/i.test(combined)
+  // Routine Bedside Observation lookup: non-sensitive items (allergies/current meds) in clinical preset
+  const isRoutineObservationLookup = Boolean(
+    personaPreset === "clinical_safety" && 
+    isReadIntent && 
+    !isUntrustedChannel && 
+    /\b(?:allergy\s+notes|current\s+(?:medication\s+)?(?:dosage\s+)?list|medication\s+(?:dosage\s+)?list|vital\s+signs?)\b/i.test(combined) && 
+    !/\b(?:therapy|psychotherapy|psychiatric|oncology|chemotherapy|diagnosis|dossier|history|claims?|billing)\b/i.test(combined)
   );
 
-  const hasSubjectAuthorizationLinkage = (hasExplicitScopeGrant || isClinicalWorkflowAnchored) && !isUntrustedChannel;
+  const hasSubjectAuthorizationLinkage = Boolean(
+    (hasExplicitScopeGrant || isRoutineObservationLookup || isFormularyExempt || isScheduleExempt) && !isUntrustedChannel
+  );
 
   let requiresHumanReview = false;
   if (isSensitive) {
@@ -1329,15 +1354,18 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const isSinglePatientInWorkflowRead = 
     !clinicalExternalSink.test(combined) &&
     !clinicalBulkQuantifier.test(combined) &&
-    /\b(?:view|read|pull\s+up|look\s*up|lookup|check|consult|inspect|summarize|display|show|get|fetch|print|review|query)\b/i.test(action) &&
-    !/\b(?:export|download|copy\s+all|transfer|dump|sync|archive|mirror|backup|stream)\b/i.test(action);
+    (payloadClassification.isSingleSubjectSpecific || /\b(?:view|read|lookup|look\s*up|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch|retrieve|access|examine|open|find)\b/i.test(action)) &&
+    !/\b(?:export\s+all|download\s+all|copy\s+all|dump\s+all|sync\s+all|archive\s+all|mass\s+export|bulk\s+export)\b/i.test(action);
 
-  const isBulkPatientExfiltration = !isScheduleOrFormularyExempt && !isSinglePatientInWorkflowRead && (
+  let isBulkPatientExfiltration = !isScheduleOrFormularyExempt && !isSinglePatientInWorkflowRead && (
     (clinicalBulkQuantifier.test(combined) && /\b(?:patient|medical|health|clinical|prescription|treatment|phi|ehr|emr)\b/i.test(combined)) ||
     (clinicalExfilVerb.test(combined) && (clinicalBulkQuantifier.test(combined) || clinicalExternalSink.test(combined))) ||
     (/\b(?:bulk|mass|unbounded|full\s+database|entire\s+database)\s+(?:patient|medical|clinical|health|ehr|emr|phi|prescription|treatment)\b/i.test(combined)) ||
     (/\b(?:download|export|copy|migrate|pull|archive|transfer|dump|sync|mirror|backup)\s+(?:all|entire|every|the\s+entire)\s+(?:patient|medical|health|clinical|prescription|treatment|phi)\b/i.test(combined))
   );
+  if (payloadClassification.isSingleSubjectSpecific && !clinicalBulkQuantifier.test(combined) && !clinicalExternalSink.test(combined)) {
+    isBulkPatientExfiltration = false;
+  }
 
   if (isBulkPatientExfiltration) {
     reasons.push("BULK_PATIENT_RECORD_EXFILTRATION_HAZARD: Mass download, export, migration, or transfer of patient records, medical histories, or treatment notes violates HIPAA data-minimization rules.");
