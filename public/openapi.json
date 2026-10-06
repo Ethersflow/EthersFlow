@@ -334,11 +334,18 @@
                   },
                   "scope_grant": {
                     "type": "object",
-                    "description": "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { subject_id, granted_by, consent_verified, status: 'VERIFIED' }).",
+                    "description": "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { grant_id, subject_id, subject_reference, grant_scope, data_class, access_level, issuing_authority, authorized_by, expires_at, consent_verified, status }).",
                     "properties": {
-                      "subject_id": { "type": "string" },
-                      "granted_by": { "type": "string" },
-                      "consent_verified": { "type": "boolean" },
+                      "grant_id": { "type": "string", "example": "grant_sg_88192" },
+                      "subject_id": { "type": "string", "example": "88192" },
+                      "subject_reference": { "type": "string", "example": "patient record #88192" },
+                      "grant_scope": { "type": "string", "example": "read:health_clinical_phi" },
+                      "data_class": { "type": "string", "example": "HEALTH_CLINICAL_PHI" },
+                      "access_level": { "type": "string", "example": "read_only" },
+                      "issuing_authority": { "type": "string", "example": "attending_physician_or_dpo" },
+                      "authorized_by": { "type": "string", "example": "Dr. Sarah Chen, MD" },
+                      "expires_at": { "type": "string", "format": "date-time" },
+                      "consent_verified": { "type": "boolean", "default": true },
                       "status": { "type": "string", "enum": ["VERIFIED", "APPROVED", "AUTHORIZED", "GRANTED", "ACTIVE"] }
                     }
                   },

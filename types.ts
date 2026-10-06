@@ -55,6 +55,41 @@ export interface AnchorChecklist {
   missing_anchors: string[];
 }
 
+export interface ScopeGrant {
+  grant_id?: string;
+  id?: string;
+  subject_id?: string;
+  subject_reference?: string;
+  subject?: string;
+  patient_id?: string;
+  chart?: string;
+  grant_scope?: string;
+  scope?: string;
+  data_class?: string;
+  access_level?: string;
+  issuing_authority?: string;
+  authorized_by?: string;
+  granted_by?: string;
+  expires_at?: string;
+  expiry?: string;
+  consent_verified?: boolean;
+  dpo_approval?: boolean;
+  status?: 'VERIFIED' | 'APPROVED' | 'AUTHORIZED' | 'GRANTED' | 'ACTIVE';
+}
+
+export interface VerifyRequest {
+  agent_action: string;
+  reasoning_chain?: string;
+  agent_count?: number;
+  persona_preset?: PersonaPreset;
+  scope_grant?: ScopeGrant | string | boolean;
+  context?: any;
+  grounding_enabled?: boolean;
+  zero_retention?: boolean;
+  policy_id?: string;
+  idempotency_key?: string;
+}
+
 export interface Verdict {
   schema_version?: string;
   verification_schema_version?: number;

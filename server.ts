@@ -8092,7 +8092,7 @@ async function startServer() {
         error: "Invalid persona_preset parameter",
         message: `persona_preset '${effectivePreset}' is not supported. Supported presets: ${VALID_PERSONA_PRESETS.map(p => `'${p}'`).join(", ")}.`,
         error_code: "INVALID_PERSONA_PRESET",
-        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: \"clinical_safety\"|\"financial_compliance\"|\"legal_citation\"|\"cybersecurity_auditor\"|\"general_adversarial\" }",
+        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: \"clinical_safety\"|\"financial_compliance\"|\"legal_citation\"|\"cybersecurity_auditor\"|\"general_adversarial\", scope_grant?: object, context?: object }",
         request_id: requestId
       });
     }
@@ -8113,7 +8113,7 @@ async function startServer() {
         error: "Invalid domain parameter",
         message: `domain '${domain}' is not supported. Supported presets: ${VALID_PERSONA_PRESETS.map(p => `'${p}'`).join(", ")}.`,
         error_code: "INVALID_DOMAIN_PARAMETER",
-        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: \"clinical_safety\"|\"financial_compliance\"|\"legal_citation\"|\"cybersecurity_auditor\"|\"general_adversarial\" }",
+        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: \"clinical_safety\"|\"financial_compliance\"|\"legal_citation\"|\"cybersecurity_auditor\"|\"general_adversarial\", scope_grant?: object, context?: object }",
         request_id: requestId
       });
     }
@@ -8139,7 +8139,7 @@ async function startServer() {
           error_code: "INVALID_AGENT_COUNT",
           minimum: 2,
           maximum: 7,
-          usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: string }",
+          usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: string, scope_grant?: object, context?: object }",
           request_id: requestId
         });
       }
@@ -8162,7 +8162,7 @@ async function startServer() {
         error: "Missing agent_action parameter", 
         message: "The 'agent_action' field is required and cannot be empty.",
         error_code: "MISSING_AGENT_ACTION",
-        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: string }",
+        usage: "Provide { agent_action: string, reasoning_chain?: string, agent_count?: 2|3|4|5|6|7, persona_preset?: string, scope_grant?: object, context?: object }",
         request_id: requestId
       });
     }
