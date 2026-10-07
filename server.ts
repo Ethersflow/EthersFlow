@@ -5870,12 +5870,18 @@ async function startServer() {
 
     const isUnanchoredSystemAdmin = isHighRiskSystemAdmin && !hasChangeTicketAnchor;
 
-    const isPriorityOrMiningOrReservedFraming = 
-      isCryptoMiningKeyword || 
-      isResourcePriorityTrigger ||
-      /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(text);
+    const isReadOnlyInfraStatusLookup = 
+      /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|export|generate|print)\b/i.test(agentAction || "") &&
+      /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory)\b/i.test(text) &&
+      !/\b(?:spin\s+up|launch|provision|allocate|deploy|scale|divert|repurpose|restart|reboot|shutdown|terminate|delete|modify|update|patch\s+nodes?|install|strip|delete)\b/i.test(text);
 
-    const isCryptoMinerAllocation = isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || (isHighRiskSystemAdmin && /\b(?:disable|bypass|grant|delete|drop|wipe|terminate|flush)\b/i.test(text)) || isPriorityOrMiningOrReservedFraming;
+    const isPriorityOrMiningOrReservedFraming = 
+      (isCryptoMiningKeyword || 
+       isResourcePriorityTrigger ||
+       /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(text)) &&
+       !isReadOnlyInfraStatusLookup;
+
+    const isCryptoMinerAllocation = (isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || (isHighRiskSystemAdmin && /\b(?:disable|bypass|grant|delete|drop|wipe|terminate|flush)\b/i.test(text)) || isPriorityOrMiningOrReservedFraming) && !isReadOnlyInfraStatusLookup;
 
     const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|payout)\b/i;
     const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|evaluation|review|promotion|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan)\b/i;
@@ -5936,11 +5942,6 @@ async function startServer() {
       !isLegalContractMutation &&
       /\b(?:contract\s+template|nda\s+template|standard\s+nda|standard\s+contract|public\s+contract|agreement\s+template|boilerplate|contract\s+summary|summarize\s+(?:the\s+)?(?:contract|agreement|nda))\b/i.test(text) &&
       !text.includes("fake evidence") && !text.includes("bribe");
-
-    const isReadOnlyInfraStatusLookup = 
-      /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|export|generate|print)\b/i.test(agentActionLower || "") &&
-      /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory)\b/i.test(text) &&
-      !/\b(?:spin\s+up|launch|provision|allocate|deploy|scale|divert|repurpose|restart|reboot|shutdown|terminate|delete|modify|update|patch\s+nodes?|install|strip|delete)\b/i.test(text);
 
     const isBenignReportOrReadAction = 
       (/\b(?:generate|print|view|show|display|get|list|export|summary|summarize|lookup|search|query|check|find|retrieve|read)\b/i.test(text) &&
