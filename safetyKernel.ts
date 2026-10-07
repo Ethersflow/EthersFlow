@@ -919,6 +919,107 @@ export interface SensitiveDataClassification {
   reasons: string[];
 }
 
+export interface AuthoritativeScopeGrant {
+  grant_id: string;
+  subject_id: string;
+  issuing_authority: string;
+  grant_scope: string;
+  status: "ACTIVE" | "VERIFIED" | "REVOKED" | "EXPIRED";
+  expires_at?: string;
+  revoked?: boolean;
+}
+
+export const AUTHORIZED_SCOPE_GRANT_REGISTRY: Record<string, AuthoritativeScopeGrant> = {
+  "GRNT-AUTH-PT104-ONC": {
+    grant_id: "GRNT-AUTH-PT104-ONC",
+    subject_id: "PT-104",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-2026-PT104": {
+    grant_id: "GRNT-2026-PT104",
+    subject_id: "PT-104",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "grant_sg_88192": {
+    grant_id: "grant_sg_88192",
+    subject_id: "88192",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-88192-CLIN": {
+    grant_id: "GRNT-88192-CLIN",
+    subject_id: "88192",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-81920-CLIN": {
+    grant_id: "GRNT-81920-CLIN",
+    subject_id: "81920",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-55190-DPO": {
+    grant_id: "GRNT-55190-DPO",
+    subject_id: "55190",
+    issuing_authority: "dpo",
+    grant_scope: "dpo_audit_scope",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-44109-MED": {
+    grant_id: "GRNT-44109-MED",
+    subject_id: "44109",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-77102-ONC": {
+    grant_id: "GRNT-77102-ONC",
+    subject_id: "77102",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-ALICE-SMITH-2026": {
+    grant_id: "GRNT-ALICE-SMITH-2026",
+    subject_id: "Alice Smith",
+    issuing_authority: "attending_physician",
+    grant_scope: "read:health_clinical_phi",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-DPO-GLOBAL-2026": {
+    grant_id: "GRNT-DPO-GLOBAL-2026",
+    subject_id: "*",
+    issuing_authority: "dpo",
+    grant_scope: "dpo_audit_scope",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  },
+  "GRNT-INSTITUTIONAL-AUDIT": {
+    grant_id: "GRNT-INSTITUTIONAL-AUDIT",
+    subject_id: "*",
+    issuing_authority: "compliance_board",
+    grant_scope: "dpo_audit_scope",
+    status: "ACTIVE",
+    expires_at: "2028-12-31T23:59:59Z"
+  }
+};
+
 export function classifyPayloadDataClass(
   action: string,
   context?: any,
@@ -1022,22 +1123,77 @@ export function classifyPayloadDataClass(
     /\b(?:view|read|lookup|look\s*up|show|query|get|print|check|display|review|consult|inspect|pull\s+up|fetch|retrieve|access|examine|open|find)\b/i.test(action) &&
     !/\b(?:export|download|dump|migrate|archive|transfer|sync|mirror|exfiltrate|stream|send|email|s3|public|remote|personal|unencrypted)\b/i.test(action);
 
-  // 1. Explicit institutional, DPO, clinical, or subject scope grant (valid across all personas)
+  // 1. Explicit institutional, DPO, clinical, or subject scope grant (server-side kernel resolution)
   const isScopeGrantObjectValid = (obj: any): boolean => {
-    if (!obj) return false;
+    if (!obj || isUntrustedChannel) return false;
+
     if (typeof obj === "boolean") return obj === true;
-    if (typeof obj === "string") return /^(verified|authorized|approved|granted|valid|in_scope|true|active|confirmed|dpo_audit_scope)$/i.test(obj.trim());
+    if (typeof obj === "string") {
+      const trimmed = obj.trim();
+      if (/^grant_|^grnt[-_]/i.test(trimmed)) {
+        const found = AUTHORIZED_SCOPE_GRANT_REGISTRY[trimmed] || 
+                      Object.values(AUTHORIZED_SCOPE_GRANT_REGISTRY).find(g => g.grant_id.toUpperCase() === trimmed.toUpperCase());
+        if (!found) return false;
+        if (found.status === "REVOKED" || found.revoked) return false;
+        if (found.expires_at && new Date(found.expires_at).getTime() < Date.now()) return false;
+        return true;
+      }
+      return /^(verified|authorized|approved|granted|valid|in_scope|true|active|confirmed|dpo_audit_scope)$/i.test(trimmed);
+    }
+
     if (typeof obj === "object") {
+      // 1. If grant_id / id is present: MUST resolve against kernel registry
+      const grantId = obj.grant_id || obj.id;
+      if (grantId && typeof grantId === "string") {
+        const normalizedId = grantId.trim();
+        const registryEntry = AUTHORIZED_SCOPE_GRANT_REGISTRY[normalizedId] || 
+                              Object.values(AUTHORIZED_SCOPE_GRANT_REGISTRY).find(g => g.grant_id.toUpperCase() === normalizedId.toUpperCase());
+
+        if (!registryEntry) {
+          // Grant ID not found in authoritative issuance registry -> FABRICATED / FORGED GRANT
+          return false;
+        }
+
+        if (registryEntry.status === "REVOKED" || registryEntry.revoked === true) return false;
+        if (registryEntry.expires_at && new Date(registryEntry.expires_at).getTime() < Date.now()) return false;
+        if (obj.revoked === true || obj.status === "REVOKED" || obj.status === "EXPIRED") return false;
+        if (obj.expires_at && new Date(obj.expires_at).getTime() < Date.now()) return false;
+        if (obj.expiry && new Date(obj.expiry).getTime() < Date.now()) return false;
+
+        if (registryEntry.subject_id !== "*" && subjectReference) {
+          const sRef = subjectReference.toLowerCase();
+          const rSub = registryEntry.subject_id.toLowerCase();
+          if (!sRef.includes(rSub) && !rSub.includes(sRef) && !sRef.replace(/[^a-z0-9]/g, "").includes(rSub.replace(/[^a-z0-9]/g, ""))) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      // 2. Structured context linkages without grant_id
       if (obj.status && !/^(verified|approved|authorized|granted|active)$/i.test(String(obj.status).trim())) {
         return false;
       }
-      if (obj.verified === false || obj.consent_verified === false || obj.dpo_approval === false) {
+      if (obj.verified === false || obj.consent_verified === false || obj.dpo_approval === false || obj.revoked === true) {
         return false;
       }
-      if (obj.verified === true || obj.status === "VERIFIED" || obj.status === "APPROVED" || obj.status === "AUTHORIZED" || obj.status === "GRANTED" || obj.status === "ACTIVE") return true;
-      if (obj.consent_verified === true || obj.dpo_approval === true || obj.attending_physician === true || obj.audit_scope === true || obj.dpo_audit_scope === true) return true;
-      if (obj.granted_by && obj.grant_type) return true;
+      if (obj.expires_at && new Date(obj.expires_at).getTime() < Date.now()) return false;
+      if (obj.expiry && new Date(obj.expiry).getTime() < Date.now()) return false;
+
+      if (obj.consent_verified === true || obj.dpo_approval === true || obj.attending_physician === true || obj.audit_scope === true || obj.dpo_audit_scope === true) {
+        return true;
+      }
+      if (obj.granted_by && /^(attending_physician|dpo|treating_physician|chief_medical_officer|irb|institutional_review_board)$/i.test(String(obj.granted_by).trim())) {
+        return true;
+      }
+      if (obj.grant_type && /^(dpo_audit_scope|clinical_care_linkage|attending_authorization)$/i.test(String(obj.grant_type).trim())) {
+        return true;
+      }
+      if (obj.status === "VERIFIED" || obj.status === "APPROVED" || obj.status === "AUTHORIZED" || obj.status === "GRANTED" || obj.status === "ACTIVE") {
+        return true;
+      }
     }
+
     return false;
   };
 

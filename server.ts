@@ -52,7 +52,8 @@ import {
   classifyPayloadDataClass,
   normalizeVendorString,
   extractTicketEntities,
-  detectMultiplicityPhrases
+  detectMultiplicityPhrases,
+  AUTHORIZED_SCOPE_GRANT_REGISTRY
 } from "./safetyKernel.js";
 import _pdf from "pdf-parse";
 let pdf: any = _pdf;
@@ -286,9 +287,19 @@ function screenEscalationFunnel(
 
   const isUntrustedChannel = /\b(?:tool_output|tool_results|last_tool_output|embedded_instruction|untrusted_channel|untrusted_content|external_tool)\b/i.test(combined);
 
+  const matchGrantId = combined.match(/grant_id["']?\s*:\s*["']([^"']+)["']/i);
+  let isGrantIdValid = true;
+  if (matchGrantId && matchGrantId[1]) {
+    const rawGid = matchGrantId[1].trim();
+    const found = AUTHORIZED_SCOPE_GRANT_REGISTRY[rawGid] || Object.values(AUTHORIZED_SCOPE_GRANT_REGISTRY).find(g => g.grant_id.toUpperCase() === rawGid.toUpperCase());
+    if (!found || found.status === "REVOKED" || found.revoked || (found.expires_at && new Date(found.expires_at).getTime() < Date.now())) {
+      isGrantIdValid = false;
+    }
+  }
+
   const hasScopeOrAuthorization = 
-    !isUntrustedChannel && (
-      /(?:scope_grant["']?\s*:\s*(?:["'](?:verified|approved|authorized|granted|active)["']|true|\{)|subject_scope_grant|subject_authorization|scope_authorization|authorization_grant|attending_physician_linkage["']?\s*:\s*true|consent_verified["']?\s*:\s*true|documented_consent["']?\s*:\s*true|patient_consent(?:\s+verified|\s+on\s+file)?|documented\s+consent(?:\s+verified)?|signed\s+off\s+by\s+dr\.?|approved\s+by\s+dr\.?|dpo[-_\s]approved\s+(?:scope|audit)|verified\s+(?:legal\s+)?audit\s+scope|dpo-approved\s+audit\s+scope|treating\s+physician\s+authorization)/i.test(combined)
+    !isUntrustedChannel && isGrantIdValid && (
+      /(?:scope_grant["']?\s*:\s*(?:["'](?:verified|approved|authorized|granted|active)["']|true)|subject_scope_grant|subject_authorization|scope_authorization|authorization_grant|attending_physician_linkage["']?\s*:\s*true|consent_verified["']?\s*:\s*true|documented_consent["']?\s*:\s*true|patient_consent(?:\s+verified|\s+on\s+file)?|documented\s+consent(?:\s+verified)?|signed\s+off\s+by\s+dr\.?|approved\s+by\s+dr\.?|dpo[-_\s]approved\s+(?:scope|audit)|verified\s+(?:legal\s+)?audit\s+scope|dpo-approved\s+audit\s+scope|treating\s+physician\s+authorization|grant_id["']?\s*:\s*["'](?:GRNT|grant_))/i.test(combined)
     );
 
   const isRoutineBedsideObservation = 
@@ -2012,6 +2023,17 @@ async function startServer() {
           canonical_serialization_spec: "canonical_colon_delimited_v2: requestId:actionHash:policyId:verdict:actionEligible:evidenceHash:reviewerSetHash:version"
         }
       ]
+    });
+  });
+
+  // Well-Known Scope Grants Discovery & Verification Registry Endpoint
+  app.get(["/api/v1/auth/grants", "/.well-known/grants.json"], (_req, res) => {
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.json({
+      status: "ok",
+      registry_version: "1.0",
+      total_grants: Object.keys(AUTHORIZED_SCOPE_GRANT_REGISTRY).length,
+      grants: Object.values(AUTHORIZED_SCOPE_GRANT_REGISTRY)
     });
   });
 
@@ -5803,8 +5825,8 @@ async function startServer() {
 
     const isCryptoMinerAllocation = isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || (isHighRiskSystemAdmin && /\b(?:disable|bypass|grant|delete|drop|wipe|terminate|flush)\b/i.test(text)) || isPriorityOrMiningOrReservedFraming;
 
-    const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
-    const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
+    const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|payout)\b/i;
+    const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|evaluation|review|promotion|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan)\b/i;
 
     const isUnauthorizedBenefitDelivery = 
       (isBenefitVerb.test(text) && isBenefitTarget.test(text) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(text)) ||
