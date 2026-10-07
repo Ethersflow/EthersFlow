@@ -1,6 +1,6 @@
 # EthersFlow — Action Verification Layer (KYAA)
 
-EthersFlow is the action-verification layer for the agentic web (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
+EthersFlow MCP is the action-verification layer for the AI Agents(KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
 [![API Status](https://img.shields.io/badge/API-0.2.14-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
@@ -23,14 +23,14 @@ EthersFlow issues cryptographically signed, independently verifiable trust verdi
 +-------------------+      +-------------------+      +-------------------------+      +-------------------+
 | 1. IDENTITY (KYA) | ---> | 2. AUTHORIZATION  | ---> | 3. ACTION VERIFICATION  | ---> | 4. EXECUTION      |
 |                   |      |                   |      |    (KYAA)               |      |                   |
-| Proves: WHO       |      | Proves: MAY IT    |      | Proves: IS THIS ACTION  |      | Runs tool / API   |
-|                   |      |                   |      |         LEGITIMATE?     |      |                   |
+| Proves: WHO       |      | Proves: IS IT     |      | Proves: IS THIS ACTION  |      | Runs tool / API   |
+|                   |      |         ALLOWED?  |      |         LEGITIMATE?     |      |                   |
 | Sumsub, Entrust,  |      | Google AP2, FIDO, |      | EthersFlow (Ed25519     |      | Agent runtime     |
 | Persona           |      | OAuth mandates    |      | Signed Trust Verdict)   |      | rails             |
 +-------------------+      +-------------------+      +-------------------------+      +-------------------+
 ```
 
-Identity answers *who*. Authorization answers *may it*. EthersFlow answers: *is this specific action legitimate?*
+Identity answers *who*. Authorization answers *is it allowed*. EthersFlow answers: *is this specific action legitimate?*
 
 ```
    +-------------------------------------------------------------+
