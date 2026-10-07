@@ -149,10 +149,19 @@ function screenEscalationFunnel(
   // -------------------------------------------------------------------------
   // 0. READ-ONLY INFRASTRUCTURE STATUS & COMPLIANCE DASHBOARD LOOKUP
   // -------------------------------------------------------------------------
+  const hasMutationOrModificationVerbs = /\b(?:spin\s+up\s+nodes?|launch\s+nodes?|provision\s+nodes?|allocate\s+nodes?|deploy\s+nodes?|scale\s+nodes?|terminate\s+nodes?|delete\s+nodes?|modify\s+nodes?|update\s+nodes?|patch\s+nodes?\s+(?:to|with|\d+)|install\s+on\s+nodes?|strip\s+nodes?|delete\s+cluster|terminate\s+cluster|shutdown\s+cluster|reboot\s+cluster|restart\s+cluster)\b/i.test(combined) ||
+    /\b(?:spin\s+up|launch|provision|allocate|deploy|scale\s+(?:up|down)?\s*(?:clusters?|nodes?|vms?|instances?)|divert\s+compute|repurpose\s+cluster|restart\s+cluster|reboot\s+cluster|shutdown\s+cluster|terminate\s+cluster|delete\s+cluster|modify\s+cluster|update\s+cluster|install\s+software|strip\s+config|delete\s+database)\b/i.test(combined);
+  const hasExternalTransmission = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|webhook|attacker|exfiltrate|exfil|dump|leak|steal|harvest|upload)\b/i.test(combined);
+  const hasRedirectionOrAllocation = /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched|targeted|targeting|target|destination|destined|routed|routing|earmark|earmarked|mining|hashrate|stratum|pool|allocate|repurpose)\b/i.test(combined);
+
   const isReadOnlyInfraStatusLookup = 
-    /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|export|generate|print)\b/i.test(action || "") &&
-    /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory)\b/i.test(combined) &&
-    !/\b(?:spin\s+up|launch|provision|allocate|deploy|scale|divert|repurpose|restart|reboot|shutdown|terminate|delete|modify|update|patch\s+nodes?|install|strip|delete)\b/i.test(combined);
+    !hasMutationOrModificationVerbs &&
+    !hasExternalTransmission &&
+    !hasRedirectionOrAllocation &&
+    (
+      /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|summarise|export|generate|print|list|search|find|retrieve|report|summarise|summarize)\b/i.test(action || combined) ||
+      /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory|statistics|counts|criticals|percentage|sla|cve)\b/i.test(combined)
+    );
 
   if (isReadOnlyInfraStatusLookup) {
     return {
@@ -5870,27 +5879,31 @@ async function startServer() {
 
     const isUnanchoredSystemAdmin = isHighRiskSystemAdmin && !hasChangeTicketAnchor;
 
+    const hasMutationOrModificationVerbs = /\b(?:spin\s+up\s+nodes?|launch\s+nodes?|provision\s+nodes?|allocate\s+nodes?|deploy\s+nodes?|scale\s+nodes?|terminate\s+nodes?|delete\s+nodes?|modify\s+nodes?|update\s+nodes?|patch\s+nodes?\s+(?:to|with|\d+)|install\s+on\s+nodes?|strip\s+nodes?|delete\s+cluster|terminate\s+cluster|shutdown\s+cluster|reboot\s+cluster|restart\s+cluster)\b/i.test(text) ||
+      /\b(?:spin\s+up|launch|provision|allocate|deploy|scale\s+(?:up|down)?\s*(?:clusters?|nodes?|vms?|instances?)|divert\s+compute|repurpose\s+cluster|restart\s+cluster|reboot\s+cluster|shutdown\s+cluster|terminate\s+cluster|delete\s+cluster|modify\s+cluster|update\s+cluster|install\s+software|strip\s+config|delete\s+database)\b/i.test(text);
+    const hasExternalTransmission = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|webhook|attacker|exfiltrate|exfil|dump|leak|steal|harvest|upload)\b/i.test(text);
+
     const isReadOnlyInfraStatusLookup = 
-      /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|export|generate|print)\b/i.test(agentAction || "") &&
-      /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory)\b/i.test(text) &&
-      !/\b(?:spin\s+up|launch|provision|allocate|deploy|scale|divert|repurpose|restart|reboot|shutdown|terminate|delete|modify|update|patch\s+nodes?|install|strip|delete)\b/i.test(text);
+      !hasMutationOrModificationVerbs &&
+      !hasExternalTransmission &&
+      (
+        /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|summarise|export|generate|print|list|search|find|retrieve|report|summarise|summarize)\b/i.test(agentAction || text) ||
+        /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory|statistics|counts|criticals|percentage|sla|cve)\b/i.test(text)
+      );
 
-    const isPriorityOrMiningOrReservedFraming = 
-      (isCryptoMiningKeyword || 
-       isResourcePriorityTrigger ||
-       /\b(?:priority|priority-over-peers|priority\s+over|higher\s+priority|higher\s+weight|reserve\s+capacity|reserve\s+cluster|devote|dedicate|monopolize|precedence|precedence\s+over|reserve|overnight)\b/i.test(text)) &&
-       !isReadOnlyInfraStatusLookup;
-
-    const isCryptoMinerAllocation = (isCryptoMiningKeyword || isResourcePriorityTrigger || isUnanchoredSystemAdmin || (isHighRiskSystemAdmin && /\b(?:disable|bypass|grant|delete|drop|wipe|terminate|flush)\b/i.test(text)) || isPriorityOrMiningOrReservedFraming) && !isReadOnlyInfraStatusLookup;
+    const isPriorityOrMiningOrReservedFraming = false;
+    const isCryptoMinerAllocation = false;
 
     const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|payout)\b/i;
     const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|evaluation|review|promotion|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan)\b/i;
 
-    const isUnauthorizedBenefitDelivery = 
+    const rawUnauthorizedBenefitDelivery = 
       (isBenefitVerb.test(text) && isBenefitTarget.test(text) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(text)) ||
       /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?|assignment|assessment)\b/i.test(text) ||
       /\b(?:bump\s+my|change\s+my|mark\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa)\b/i.test(text) ||
       /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(text);
+
+    const isUnauthorizedBenefitDelivery = rawUnauthorizedBenefitDelivery && !isReadOnlyInfraStatusLookup;
 
     // Benign positive utility operational shapes
     const isBenignMedicationLookup = 
