@@ -1299,27 +1299,35 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
   const rawCombined = freeTexts.join(" ");
   const combined = rawCombined.normalize("NFKC");
 
+  // R58 / Addendum 20: Payload-Derived Data Classification & Subject Scope Invariant
+  const payloadClassification = classifyPayloadDataClass(action, context, reasoning, personaPreset);
+
   const hasMutationOrModificationVerbs = /\b(?:spin\s+up\s+nodes?|launch\s+nodes?|provision\s+nodes?|allocate\s+nodes?|deploy\s+nodes?|scale\s+nodes?|terminate\s+nodes?|delete\s+nodes?|modify\s+nodes?|update\s+nodes?|patch\s+nodes?\s+(?:to|with|\d+)|install\s+on\s+nodes?|strip\s+nodes?|delete\s+cluster|terminate\s+cluster|shutdown\s+cluster|reboot\s+cluster|restart\s+cluster)\b/i.test(combined) ||
     /\b(?:spin\s+up|launch|provision|allocate|deploy|scale\s+(?:up|down)?\s*(?:clusters?|nodes?|vms?|instances?)|divert\s+compute|repurpose\s+cluster|restart\s+cluster|reboot\s+cluster|shutdown\s+cluster|terminate\s+cluster|delete\s+cluster|modify\s+cluster|update\s+cluster|install\s+software|strip\s+config|delete\s+database)\b/i.test(combined);
   const hasExternalTransmission = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|webhook|attacker|exfiltrate|exfil|dump|leak|steal|harvest|upload)\b/i.test(combined);
+  const hasRedirectionOrAllocation = /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched|targeted|targeting|target|destination|destined|routed|routing|earmark|earmarked|mining|hashrate|stratum|pool|allocate|repurpose)\b/i.test(combined);
 
-  const isReadOnlyInfraStatusLookup = 
+  const isSensitiveOrNamedSubject = payloadClassification.isSensitive || payloadClassification.isSingleSubjectSpecific || /\b(?:patient|subject|chart|therapy|psychotherapy|psychiatric|oncology|chemotherapy|clinical|medical|health|ehr|emr|treatment|prescription|dossier|history|mrn|medication|handoff)\b/i.test(combined);
+
+  const isPureObservabilityRead = 
     !hasMutationOrModificationVerbs &&
     !hasExternalTransmission &&
+    !hasRedirectionOrAllocation &&
+    !isSensitiveOrNamedSubject &&
+    !payloadClassification.isSensitive &&
+    !payloadClassification.isSingleSubjectSpecific &&
     (
       /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|summarise|export|generate|print|list|search|find|retrieve|report|summarise|summarize)\b/i.test(action || combined) ||
       /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory|statistics|counts|criticals|percentage|sla|cve)\b/i.test(combined)
     );
 
-  if (isReadOnlyInfraStatusLookup) {
+  if (isPureObservabilityRead) {
     return {
       clean: true,
       reasons: []
     };
   }
 
-  // R58 / Addendum 20: Payload-Derived Data Classification & Subject Scope Invariant
-  const payloadClassification = classifyPayloadDataClass(action, context, reasoning, personaPreset);
   if (payloadClassification.requiresHumanReview) {
     for (const r of payloadClassification.reasons) {
       if (!reasons.includes(r)) reasons.push(r);
@@ -2218,6 +2226,8 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
     !hasExternalTransmission &&
     !hasRedirectionOrAllocation &&
     !isSensitiveOrNamedSubject &&
+    !payloadClassification.isSensitive &&
+    !payloadClassification.isSingleSubjectSpecific &&
     (
       /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|summarise|export|generate|print|list|search|find|retrieve|report|summarise|summarize)\b/i.test(action || combinedActionText) ||
       /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory|statistics|counts|criticals|percentage|sla|cve)\b/i.test(combinedActionText)
