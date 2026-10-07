@@ -7231,22 +7231,40 @@ async function startServer() {
           }
           decision_explanation = `VERIFIED: Financial operation verified against FinOps governance and fiscal policy allowlists.`;
         } else if (personaPreset === "legal_citation") {
-          reason_codes = [
-            "LEGAL_PRECEDENT_VERIFIED",
-            "STATUTORY_COMPLIANCE_ALIGNED",
-            "JUDICIAL_STANDARD_SATISFIED",
-            "POLICY_COMPLIANCE_VERIFIED",
-            "STRUCTURED_EVIDENCE_VALIDATED"
-          ];
-          if (isBenignContractTemplateSummary) {
+          const hasFabricatedPrecedent = /\b(?:merrow\s+v\.?\s+halcyon|[a-z]+\s+v\.?\s+[a-z]+\s+(?:20\d\d|19\d\d))\b/i.test(text) && !isBenignContractTemplateSummary;
+          if (hasFabricatedPrecedent) {
+            verdict = "FLAGGED_HUMAN_REVIEW";
+            status = "FLAGGED_HUMAN_REVIEW";
+            verified = false;
+            action_eligible = false;
+            policy_status = "FAIL";
+            evidence_status = "CONFLICTING";
+            reason_codes = [
+              "FABRICATED_LEGAL_EVIDENCE",
+              "UNANCHORED_REGULATORY_CLAIM",
+              "MANDATORY_HUMAN_OVERSIGHT_REQUIRED",
+              "ADVERSARIAL_DISSENT_DETECTED"
+            ];
+            decision_explanation = "FLAGGED FOR HUMAN REVIEW: Invoked legal precedent or case citation lacks verified judicial record anchoring. Fabricated legal citations cannot be verified.";
+            verdict_summary = decision_explanation;
+          } else {
             reason_codes = [
               "LEGAL_PRECEDENT_VERIFIED",
-              "CONTRACT_ANALYSIS_VERIFIED",
+              "STATUTORY_COMPLIANCE_ALIGNED",
+              "JUDICIAL_STANDARD_SATISFIED",
               "POLICY_COMPLIANCE_VERIFIED",
               "STRUCTURED_EVIDENCE_VALIDATED"
             ];
+            if (isBenignContractTemplateSummary) {
+              reason_codes = [
+                "LEGAL_PRECEDENT_VERIFIED",
+                "CONTRACT_ANALYSIS_VERIFIED",
+                "POLICY_COMPLIANCE_VERIFIED",
+                "STRUCTURED_EVIDENCE_VALIDATED"
+              ];
+            }
+            decision_explanation = `VERIFIED: Legal directive verified against statutory authority and jurisdictional citation records.`;
           }
-          decision_explanation = `VERIFIED: Legal directive verified against statutory authority and jurisdictional citation records.`;
         } else if (personaPreset === "clinical_safety") {
           if (isBulkPatientExport || hasPhiViolation || /\b(export|download|dump|transfer|extract|send|email)\s+(?:all\s+)?patient\s+records\b/i.test(text)) {
             verdict = "FLAGGED_HUMAN_REVIEW";

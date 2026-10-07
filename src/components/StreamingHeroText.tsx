@@ -64,7 +64,7 @@ export const StreamingHeroText: React.FC<StreamingHeroTextProps> = ({
   }, [displayedText, phase, text, typingSpeed, deletingSpeed, pauseDuration, emptyPauseDuration]);
 
   return (
-    <span className="inline-block relative whitespace-nowrap align-baseline">
+    <span className="inline relative align-baseline">
       <span className={className}>
         {displayedText}
       </span>

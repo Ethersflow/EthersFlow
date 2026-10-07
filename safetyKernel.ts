@@ -2081,9 +2081,12 @@ export function extractDeterministicProcurementEntities(action: string, context?
   const hasApprovedVendor = idRes.status === "verified";
 
   // 4. Procurement Intent Determination
+  const isSummaryOrReadArtifact = /\b(?:summary|summarize|summarise|report|overview|audit\s+report|compliance\s+report|financial\s+summary|legal\s+summary|produce\s+(?:a\s+)?summary|generate\s+(?:a\s+)?summary|compile\s+(?:a\s+)?summary)\b/i.test(trimmed);
   const isProcurementIntent = 
-    /\b(order|purchase|buy|procure|acquire|expense|get|need|require|bill|charge|invoice|cost|total|requisition|request|supplies|notebooks?|pens?|paper|office\s+supplies)\b/i.test(trimmed) ||
-    (hasApprovedVendor && amount !== undefined && ticket !== undefined);
+    !isSummaryOrReadArtifact && (
+      /\b(order|purchase|buy|procure|acquire|expense|get|need|require|bill|charge|invoice|cost|total|requisition|request|supplies|notebooks?|pens?|paper|office\s+supplies)\b/i.test(trimmed) ||
+      (hasApprovedVendor && amount !== undefined && ticket !== undefined)
+    );
 
   // 5. Deterministic Goods Extraction
   let goods = trimmed
@@ -2207,10 +2210,14 @@ export function evaluateSafetyKernel(action: string, context: any = {}, reasonin
   const hasExternalTransmission = /\b(?:s3|cloud\s+repository|external\s+bucket|external\s+s3|personal\s+laptop|external\s+drive|portable\s+storage|remote\s+sync|unencrypted\s+archive|cloud\s+mirror|external\s+cloud|export\s+to|webhook|attacker|exfiltrate|exfil|dump|leak|steal|harvest|upload)\b/i.test(combinedActionText);
   const hasRedirectionOrAllocation = /\b(?:divert|diverting|diverted|repurpose|repurposing|repurposed|dedicate|dedicating|dedicated|reallocate|reallocating|reallocated|reserve|reserving|reserved|assign|assigning|assigned|monopolize|monopolizing|prioritize|prioritizing|skew|skewing|point|pointing|pointed|dispatch|dispatching|shift|shifting|switch|switching|switched|targeted|targeting|target|destination|destined|routed|routing|earmark|earmarked|mining|hashrate|stratum|pool|allocate|repurpose)\b/i.test(combinedActionText);
 
+  const payloadClassification = classifyPayloadDataClass(action, context, reasoning, context?.persona_preset);
+  const isSensitiveOrNamedSubject = payloadClassification.isSensitive || payloadClassification.isSingleSubjectSpecific || /\b(?:patient|subject|chart|therapy|psychotherapy|psychiatric|oncology|chemotherapy|clinical|medical|health|ehr|emr|treatment|prescription|dossier|history)\b/i.test(combinedActionText);
+
   const isPureObservabilityRead = 
     !hasMutationOrModificationVerbs &&
     !hasExternalTransmission &&
     !hasRedirectionOrAllocation &&
+    !isSensitiveOrNamedSubject &&
     (
       /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|summarise|export|generate|print|list|search|find|retrieve|report|summarise|summarize)\b/i.test(action || combinedActionText) ||
       /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory|statistics|counts|criticals|percentage|sla|cve)\b/i.test(combinedActionText)
