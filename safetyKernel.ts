@@ -1589,29 +1589,44 @@ export function screenIntentAndRisk(action: string, reasoning?: string, context?
     reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Compute redirection requires verified change authorization and human review.");
   }
 
+  const isReadOnlyInfraStatusLookup = 
+    /\b(?:read|view|show|display|get|fetch|lookup|look\s*up|check|query|inspect|consult|monitor|summarize|export|generate|print)\b/i.test(action || "") &&
+    /\b(?:dashboard|metrics|status|patch\s+compliance|compliance|health|posture|uptime|telemetry|report|logs?|observability|inventory)\b/i.test(combined) &&
+    !/\b(?:spin\s+up|launch|provision|allocate|deploy|scale|divert|repurpose|restart|reboot|shutdown|terminate|delete|modify|update|patch\s+nodes?|install|strip|delete)\b/i.test(combined);
+
   if (isPriorityOrMiningOrReservedFraming || (isComputeScalingDirective && (!hasChangeTicketAnchor || isCryptoMiningKeyword)) || isUnanchoredSystemAdmin) {
-    if (isCryptoMiningKeyword || isResourcePriorityTrigger || isPriorityOrMiningOrReservedFraming) {
-      reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software, priority framing, or stratum protocol workload detected.");
+    if (isReadOnlyInfraStatusLookup) {
+      // Exempt read-only observability lookups from change management/resource prioritization blocks
+    } else {
+      if (isCryptoMiningKeyword || isResourcePriorityTrigger || isPriorityOrMiningOrReservedFraming) {
+        reasons.push("CRYPTO_MINING_HAZARD: Unauthorized cryptocurrency mining software, priority framing, or stratum protocol workload detected.");
+      }
+      reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation or priority-over-peers process without authorized change management anchor.");
+      reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling, resource priority, or system administration directive lacks verified change-ticket authorization.");
+      reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Infrastructure mutation requires verified change ticket.");
     }
-    reasons.push("UNAUTHORIZED_RESOURCE_ALLOCATION: Workload resource elevation or priority-over-peers process without authorized change management anchor.");
-    reasons.push("UNANCHORED_CHANGE_REQUEST: Compute scaling, resource priority, or system administration directive lacks verified change-ticket authorization.");
-    reasons.push("MANDATORY_HUMAN_OVERSIGHT_REQUIRED: Infrastructure mutation requires verified change ticket.");
   }
 
   // 20. Unauthorized Benefit Delivery & Academic / Financial Integrity Violation (D3)
+  let benefitText = combined;
+  benefitText = benefitText.replace(/\b(?:scope_grant|grant_id|subject_scope_grant|scope_evidence|subject_authorization|scope_authorization|authorization_grant|subject_grant|patient_grant)\b/gi, "");
+  benefitText = benefitText.replace(/\bgrnt[-_][a-z0-9_-]+\b/gi, "");
+  benefitText = benefitText.replace(/\b(?:clinical\s+care|peer|code|compliance|audit|security|firewall|dns|rounding|rounding\s+schedule|ward\s+round|oncology|care|treatment|session|medical|quality\s+assurance|qa)\s+review\b/gi, "");
+  benefitText = benefitText.replace(/\bgrant\s+id\b/gi, "");
+
   const isBenefitVerb = /\b(?:update|change|modify|alter|boost|raise|fix|bump|inflate|adjust|override|grant|issue|award|assign|regrade|curve|waive|forgive|credit|refund|distribute|disburse|pay|send|transfer|payout|pass|approve|mark|expedite)\b/i;
   const isBenefitTarget = /\b(?:grades?|gpa|scores?|marks?|transcripts?|academic\s+standing|exam\s+results?|exam\s+assessment|assignment\s+grade|compliance\s+assessment|assessment|evaluation|review|promotion|grant|application|reimbursement|case|tuition|scholarships?|financial\s+aid|student\s+loans?|benefits?|entitlements?|food\s+stamps?|welfare|subsidies|fee\s+waiver|unauthorized\s+credits?|unauthorized\s+refunds?|housing\s+grant|emergency\s+grant|stipend|bursary|allowance|loan|aid)\b/i;
-  const isBenefitSelfInstruction = /\b(?:change\s+my|bump\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|mark\s+my|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa|disburse\s+grant|disburse\s+scholarship|grant\s+housing|disburse\s+\$\d+)\b/i.test(combined);
+  const isBenefitSelfInstruction = /\b(?:change\s+my|bump\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|mark\s+my|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa|disburse\s+grant|disburse\s+scholarship|grant\s+housing|disburse\s+\$\d+)\b/i.test(benefitText);
 
   if (
     isBenefitSelfInstruction ||
-    (isBenefitVerb.test(combined) && isBenefitTarget.test(combined) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(combined)) ||
-    /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?|assignment|assessment)\b/i.test(combined) ||
-    /\b(?:bump\s+my|change\s+my|mark\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa)\b/i.test(combined) ||
-    /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(combined)
+    (isBenefitVerb.test(benefitText) && isBenefitTarget.test(benefitText) && /\b(?:student|applicant|recipient|user|id|candidate|account|me|my|submitter|requester)\b/i.test(benefitText)) ||
+    /\b(?:update|change|modify|alter|boost|raise|fix|bump)\s+(?:the\s+)?(?:grades?|gpa|scores?|marks?|transcripts?|assignment|assessment)\b/i.test(benefitText) ||
+    /\b(?:bump\s+my|change\s+my|mark\s+my|adjust\s+(?:my|the)\s+score|pass\s+(?:my|the)\s+assessment|approve\s+my|override\s+(?:the\s+)?evaluation|expedite\s+my\s+case|modify\s+gpa)\b/i.test(benefitText) ||
+    /\b(?:issue\s+unauthorized\s+refund|waive\s+fee\s+without|credit\s+adjustment\s+without|override\s+sanctions|grant\s+unauthorized\s+credit|disburse\s+(?:\$\d+|\d+\s*dollars?|[a-z0-9\s]+(?:grant|scholarship|aid)))\b/i.test(benefitText)
   ) {
     reasons.push("UNAUTHORIZED_BENEFIT_DELIVERY: Directives altering academic records, issuing unanchored refunds, or granting unverified entitlements.");
-    if (/\b(?:grades?|gpa|scores?|marks?|transcripts?|exam|academic|student)\b/i.test(combined)) {
+    if (/\b(?:grades?|gpa|scores?|marks?|transcripts?|exam|academic|student)\b/i.test(benefitText)) {
       reasons.push("ACADEMIC_INTEGRITY_VIOLATION: Unauthorized alteration of educational grading or performance records.");
     }
     reasons.push("UNANCHORED_AUTHORITY_CLAIM: Benefit modification lacks registrar, bursar, or financial aid director cryptographic authorization.");

@@ -1,8 +1,8 @@
 {
   "version": "0.2.15",
-  "revision": "e240ce1",
-  "git_commit": "e240ce1",
-  "full_commit": "e240ce1a263f454a9a96f7ab60fef0da1d40be1e5a7640a9d975611c1bce44c1",
-  "deployed_at": "2026-10-07T00:58:10.617Z",
-  "council_bundle": "sha256-v0.2.15-e240ce1"
+  "revision": "395030f",
+  "git_commit": "395030f",
+  "full_commit": "395030fb43c831f8dd9336c034b4f8bc020f687a9196b73113ba2bb03155b733",
+  "deployed_at": "2026-10-07T06:05:47.292Z",
+  "council_bundle": "sha256-v0.2.15-395030f"
 }

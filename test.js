@@ -1,0 +1,1 @@
+const rawGid = 'GRNT-2026-999999'; const registry = { 'GRNT-AUTH-PT104-ONC': { grant_id: 'GRNT-AUTH-PT104-ONC' } }; const found = registry[rawGid] || Object.values(registry).find(g => g.grant_id.toUpperCase() === rawGid.toUpperCase()); console.log('Found:', !!found);
