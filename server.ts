@@ -2512,6 +2512,18 @@ async function startServer() {
 
     // If scope hint is present:
     if (candidateHint) {
+      const isGrantId = /^grnt[-_]/i.test(candidateHint) || candidateHint.toUpperCase().includes("GRNT");
+      if (isGrantId) {
+        const derivedPreset = directPreset && (VALID_PERSONA_PRESETS as readonly string[]).includes(normalize(directPreset))
+          ? normalize(directPreset)
+          : (context?.persona_preset || context?.preset || "clinical_safety");
+        return {
+          personaPreset: derivedPreset,
+          detectedScopeHint: candidateHint,
+          isScopeHintApplied: true,
+          scopeHintStatus: "HONORED"
+        };
+      }
       const normalizedHint = normalize(candidateHint);
       if ((VALID_PERSONA_PRESETS as readonly string[]).includes(normalizedHint)) {
         return {

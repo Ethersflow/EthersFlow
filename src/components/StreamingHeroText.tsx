@@ -63,10 +63,17 @@ export const StreamingHeroText: React.FC<StreamingHeroTextProps> = ({
     return () => clearTimeout(timer);
   }, [displayedText, phase, text, typingSpeed, deletingSpeed, pauseDuration, emptyPauseDuration]);
 
+  const lastSpaceIndex = displayedText.lastIndexOf(' ');
+  const leadingText = lastSpaceIndex !== -1 ? displayedText.slice(0, lastSpaceIndex + 1) : '';
+  const lastWord = lastSpaceIndex !== -1 ? displayedText.slice(lastSpaceIndex + 1) : displayedText;
+
   return (
     <span className="inline relative align-baseline">
       <span className={className}>
-        {displayedText}
+        {leadingText}
+        <span className={lastWord ? "block sm:inline" : ""}>
+          {lastWord}
+        </span>
       </span>
       {/* Streaming Agent Cursor */}
       <span
