@@ -1,8 +1,8 @@
 # EthersFlow — Action Verification Layer (KYAA)
 
-EthersFlow MCP is the action-verification layer for the AI Agents(KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
+EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
-[![API Status](https://img.shields.io/badge/API-0.2.14-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.2.15-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
