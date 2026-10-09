@@ -1925,7 +1925,7 @@ async function startServer() {
       fac_pipeline: "active",
       context_binding: true,
       attestation_enabled: true,
-      attestation_key_id: process.env.ETHERSFLOW_ATTESTATION_KEY_ID || "ef_attest_v3",
+      attestation_key_id: process.env.ETHERSFLOW_ATTESTATION_KEY_ID || "ef_attest_v4",
       active_consensus_models: activeConsensusModels,
       active_providers: configuredProviders,
       groq: isGroqConfigured,
@@ -2095,6 +2095,11 @@ async function startServer() {
     ed25519PrivateKey = key;
   }
   ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+  const ed25519SpkiDer = ed25519PublicKey.export({ type: "spki", format: "der" });
+  const ed25519RawPub = ed25519SpkiDer.subarray(ed25519SpkiDer.length - 32);
+  const ed25519XHex = ed25519RawPub.toString("hex");
+  const ed25519XBase64 = ed25519RawPub.toString("base64url");
+  const ed25519Pem = ed25519PublicKey.export({ type: "spki", format: "pem" }).toString();
 
   // R4 Requirement 1: PUBLISH THE RECEIPT SIGNING PUBLIC KEY
   // Endpoint: /api/v1/receipts/public-key (and .well-known paths). Used by 5-line verification snippets.
