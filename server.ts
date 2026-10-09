@@ -2052,42 +2052,49 @@ async function startServer() {
   let ed25519PublicKey: crypto.KeyObject;
 
   const localKeyPath = path.resolve(process.cwd(), ".data/attestation_key.json");
-  if (process.env.ETHERSFLOW_ATTESTATION_SEED) {
-    const seed = Buffer.from(process.env.ETHERSFLOW_ATTESTATION_SEED, "hex");
-    const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-    ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, seed]), format: "der", type: "pkcs8" });
-    ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
-  } else if (fs.existsSync(localKeyPath)) {
-    try {
-      const saved = JSON.parse(fs.readFileSync(localKeyPath, "utf-8"));
-      const seed = Buffer.from(saved.seed_hex, "hex");
-      const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-      ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, seed]), format: "der", type: "pkcs8" });
-      ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
-    } catch (e) {
-      const randomSeed = crypto.randomBytes(32);
-      const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-      ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, randomSeed]), format: "der", type: "pkcs8" });
-      ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
-    }
-  } else {
+  const DER_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
+
+  function createSafeKey(seed: Buffer) {
+    if (seed.length !== 32) throw new Error("Invalid seed length");
+    return crypto.createPrivateKey({ key: Buffer.concat([DER_PREFIX, seed]), format: "der", type: "pkcs8" });
+  }
+
+  function generateNewKey() {
     const randomSeed = crypto.randomBytes(32);
-    const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-    ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, randomSeed]), format: "der", type: "pkcs8" });
-    ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
-    try {
+    const key = createSafeKey(randomSeed);
+    return { key, seed: randomSeed };
+  }
+
+  try {
+    let seed: Buffer | null = null;
+    
+    if (process.env.ETHERSFLOW_ATTESTATION_SEED) {
+      seed = Buffer.from(process.env.ETHERSFLOW_ATTESTATION_SEED, "hex");
+    } else if (fs.existsSync(localKeyPath)) {
+      try {
+        const saved = JSON.parse(fs.readFileSync(localKeyPath, "utf-8"));
+        seed = Buffer.from(saved.seed_hex, "hex");
+      } catch (e) {
+        console.error("Failed to parse local attestation key, generating new one.");
+      }
+    }
+
+    if (seed && seed.length === 32) {
+      ed25519PrivateKey = createSafeKey(seed);
+    } else {
+      const { key, seed: newSeed } = generateNewKey();
+      ed25519PrivateKey = key;
       if (!fs.existsSync(path.dirname(localKeyPath))) {
         fs.mkdirSync(path.dirname(localKeyPath), { recursive: true });
       }
-      fs.writeFileSync(localKeyPath, JSON.stringify({ seed_hex: randomSeed.toString("hex"), created_at: new Date().toISOString() }, null, 2));
-    } catch (e) {}
+      fs.writeFileSync(localKeyPath, JSON.stringify({ seed_hex: newSeed.toString("hex"), created_at: new Date().toISOString() }, null, 2));
+    }
+  } catch (e) {
+    console.error("Critical error initializing attestation key, falling back to emergency key:", e);
+    const { key } = generateNewKey();
+    ed25519PrivateKey = key;
   }
-
-  const ed25519SpkiDer = ed25519PublicKey.export({ type: "spki", format: "der" });
-  const ed25519RawPub = ed25519SpkiDer.subarray(-32);
-  const ed25519XBase64 = ed25519RawPub.toString("base64url");
-  const ed25519XHex = "0x" + ed25519RawPub.toString("hex");
-  const ed25519Pem = ed25519PublicKey.export({ type: "spki", format: "pem" }).toString();
+  ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
 
   // R4 Requirement 1: PUBLISH THE RECEIPT SIGNING PUBLIC KEY
   // Endpoint: /api/v1/receipts/public-key (and .well-known paths). Used by 5-line verification snippets.
