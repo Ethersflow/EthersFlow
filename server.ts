@@ -2012,18 +2012,26 @@ async function startServer() {
   // B2B & ENTERPRISE ADVERSARIAL CONSENSUS API PROXY & TENANT VAULT
   // =========================================================================
 
-  // Cryptographic Model Provenance & Attestation Engine
-  // Deterministic seed ensures stable public key identity across container lifecycles while allowing override via env
-  const ATTESTATION_SECRET = process.env.ETHERSFLOW_ATTESTATION_SECRET || "ethersflow_sovereign_ed25519_root_attestation_secret_v2_2026";
-  const ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID || "ef_attest_v3";
+  // Cryptographic Model Provenance & Attestation Engine (A1-A3 Remediation)
+  // Generating fresh Ed25519 keypair from CSPRNG entropy; key_id: ef_attest_v4
+  const ATTESTATION_KEY_ID = process.env.ETHERSFLOW_ATTESTATION_KEY_ID || "ef_attest_v4";
   const GROQ_SIGNER_KEY_ID = process.env.GROQ_SIGNER_KEY_ID || "groq_attest_v1";
 
-  // Derive Ed25519 keypair deterministically from ATTESTATION_SECRET
-  const ed25519Seed = crypto.createHash("sha256").update(ATTESTATION_SECRET).digest();
-  const ed25519Prefix = Buffer.from("302e020100300506032b657004220420", "hex");
-  const ed25519Pkcs8Der = Buffer.concat([ed25519Prefix, ed25519Seed]);
-  const ed25519PrivateKey = crypto.createPrivateKey({ key: ed25519Pkcs8Der, format: "der", type: "pkcs8" });
-  const ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+  // Fail-closed signing material initialization: CSPRNG keypair generation unless explicit private key seed provided in env
+  let ed25519PrivateKey: crypto.KeyObject;
+  let ed25519PublicKey: crypto.KeyObject;
+
+  if (process.env.ETHERSFLOW_ATTESTATION_SEED) {
+    const seed = Buffer.from(process.env.ETHERSFLOW_ATTESTATION_SEED, "hex");
+    const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
+    ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, seed]), format: "der", type: "pkcs8" });
+    ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+  } else {
+    const keyPair = crypto.generateKeyPairSync("ed25519");
+    ed25519PrivateKey = keyPair.privateKey;
+    ed25519PublicKey = keyPair.publicKey;
+  }
+
   const ed25519SpkiDer = ed25519PublicKey.export({ type: "spki", format: "der" });
   const ed25519RawPub = ed25519SpkiDer.subarray(-32);
   const ed25519XBase64 = ed25519RawPub.toString("base64url");
@@ -2043,7 +2051,7 @@ async function startServer() {
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.json({
-      key_id: "ef_attest_v3",
+      key_id: "ef_attest_v4",
       algorithm: "Ed25519-EdDSA",
       crv: "Ed25519",
       kty: "OKP",
@@ -2053,9 +2061,11 @@ async function startServer() {
       public_key_base64url: ed25519XBase64,
       public_key_spki_der_hex: ed25519SpkiDer.toString("hex"),
       public_key_pem: ed25519Pem,
-      attestation_version: "3.0",
+      attestation_version: "4.0",
       status: "active",
-      canonical_serialization_spec: "canonical_delimited_v3: v3:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
+      trust_epoch_started: ETHERSFLOW_DEPLOYED_AT,
+      serving_revision: ETHERSFLOW_BUILD_REVISION,
+      canonical_serialization_spec: "canonical_delimited_v4: v4:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
       verification_snippet_node: `// 5-line Node.js receipt verification\nimport crypto from "crypto";\nconst { public_key_pem } = await fetch("https://www.ethersflow.com/api/v1/receipts/public-key").then(r => r.json());\nconst { canonical_payload, signature } = receipt.attestation;\nconst isVerified = crypto.verify(null, Buffer.from(canonical_payload), public_key_pem, Buffer.from(signature, "hex"));\nconsole.log("Decision Receipt Cryptographically Verified:", isVerified);`,
       verification_snippet_python: `# 5-line Python receipt verification\nimport requests, cryptography.hazmat.primitives.serialization as s\nkey = requests.get("https://www.ethersflow.com/api/v1/receipts/public-key").json()["public_key_pem"]\npub = s.load_pem_public_key(key.encode())\npub.verify(bytes.fromhex(receipt["attestation"]["signature"]), receipt["attestation"]["canonical_payload"].encode())\nprint("Decision Receipt Cryptographically Verified: True")`
     });
@@ -2072,16 +2082,18 @@ async function startServer() {
     "/.well-known/receipt-signing-key.json"
   ], handleReceiptPublicKey);
 
-  // Well-Known Attestation Public Key Discovery Endpoint (Keyed by key_id: ef_attest_v3, with v2 and v1 backward compatibility)
+  // Well-Known Attestation Public Key Discovery Endpoint (Keyed by key_id: ef_attest_v4, with v3/v2 deprecated historical status)
   app.get(["/api/v1/auth/attestation-keys", "/api/v1/keys/attestation", "/.well-known/ethersflow-attestation.json", "/.well-known/attestation.json"], (req, res) => {
     res.setHeader("Cache-Control", "public, max-age=3600");
     return res.json({
-      attestation_version: "3.0",
-      key_id: "ef_attest_v3",
+      attestation_version: "4.0",
+      key_id: "ef_attest_v4",
+      trust_epoch_started: ETHERSFLOW_DEPLOYED_AT,
+      serving_revision: ETHERSFLOW_BUILD_REVISION,
       keys: [
         {
-          key_id: "ef_attest_v3",
-          attestation_version: "3.0",
+          key_id: "ef_attest_v4",
+          attestation_version: "4.0",
           algorithm: "Ed25519-EdDSA",
           crv: "Ed25519",
           kty: "OKP",
@@ -2089,9 +2101,20 @@ async function startServer() {
           public_key_hex: ed25519XHex,
           public_key_base64url: ed25519XBase64,
           spki_der_hex: ed25519SpkiDer.toString("hex"),
-          version: "3.0",
+          version: "4.0",
           status: "active",
-          canonical_serialization_spec: "canonical_colon_delimited_v3: requestId:actionHash:policyId:verdict:actionEligible:consensusScore:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version"
+          canonical_serialization_spec: "canonical_colon_delimited_v4: requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version"
+        },
+        {
+          key_id: "ef_attest_v3",
+          attestation_version: "3.0",
+          algorithm: "Ed25519-EdDSA",
+          crv: "Ed25519",
+          kty: "OKP",
+          use: "sig",
+          version: "3.0",
+          status: "deprecated_historical",
+          compromise_note: "publicly derivable from historical repository content; trust v4+ only"
         },
         {
           key_id: "ef_attest_v2",
@@ -2100,12 +2123,9 @@ async function startServer() {
           crv: "Ed25519",
           kty: "OKP",
           use: "sig",
-          public_key_hex: ed25519XHex,
-          public_key_base64url: ed25519XBase64,
-          spki_der_hex: ed25519SpkiDer.toString("hex"),
           version: "2.0",
-          status: "deprecated_compatible",
-          canonical_serialization_spec: "canonical_colon_delimited_v2: requestId:actionHash:policyId:verdict:actionEligible:evidenceHash:reviewerSetHash:version"
+          status: "deprecated_historical",
+          compromise_note: "publicly derivable from historical repository content; trust v4+ only"
         }
       ]
     });
@@ -3831,6 +3851,7 @@ async function startServer() {
     }
 
     return JSON.stringify({
+      build_revision: ETHERSFLOW_BUILD_REVISION,
       tenant: normTenant,
       action: normAction,
       reasoning: normReasoning,
@@ -5521,7 +5542,13 @@ async function startServer() {
         anchor_checklist: contextOutcome.anchor_checklist,
         anchor_basis: contextOutcome.anchor_basis,
         anchor_bases: contextOutcome.anchor_bases,
-        template_result: kernelOutcome.templateResult
+        template_result: kernelOutcome.templateResult,
+        fast_path_ineligibility_reasons: Array.from(new Set([
+          ...(funnelScreen.category === "clinical" ? ["SENSITIVE_CLASS_DISQUALIFIED: Action targets sensitive clinical/PHI/subject records without verifiable subject scope grant linkage."] : []),
+          ...(funnelScreen.category === "cyber" ? ["COMPUTE_REDIRECTION_DISQUALIFIED: Destination repointing, capacity redirection, or priority skew detected."] : []),
+          ...(funnelScreen.category === "legal" ? ["LEGAL_CONTRACT_MUTATION_DISQUALIFIED: Legal clause modification or redline requires formal attorney review."] : []),
+          `ESCALATION_FUNNEL_TRIGGERED: ${funnelScreen.explanation}`
+        ]))
       };
     }
 
@@ -8047,8 +8074,8 @@ async function startServer() {
     const normEvidenceStatus = String(evidence_status).trim().toUpperCase();
     const normGroundingStatus = String(grounding_status).trim().toUpperCase();
 
-    // Canonical payload format v3 (exact match to production ef_attest_v3)
-    const attestationPayload = `v3:${requestId}:${normalizedActionHash}:${policy_id}:${verdict}:${normActionEligible}:${normConsensus}:${normReviewerAgreement}:${normRisk}:${normEvidenceStatus}:${normGroundingStatus}:${normReasonCodes}:${normApprovalBlocked}:${attestationTimestamp}:ef_attest_v3`;
+    // Canonical payload format v4 (exact match to production ef_attest_v4)
+    const attestationPayload = `v4:${requestId}:${normalizedActionHash}:${policy_id}:${verdict}:${normActionEligible}:${normConsensus}:${normReviewerAgreement}:${normRisk}:${normEvidenceStatus}:${normGroundingStatus}:${normReasonCodes}:${normApprovalBlocked}:${attestationTimestamp}:ef_attest_v4`;
     const decisionSignature = crypto.sign(null, Buffer.from(attestationPayload), ed25519PrivateKey).toString("hex");
 
     const bindingExpiresAtMs = Date.now() + 300 * 1000;
@@ -8122,8 +8149,8 @@ async function startServer() {
       ],
       attestation: {
         status: "VERIFIED_ED25519_SIG",
-        key_id: "ef_attest_v3",
-        version: "3.0",
+        key_id: "ef_attest_v4",
+        version: "4.0",
         algorithm: "Ed25519-EdDSA",
         public_key_base64url: ed25519XBase64,
         public_key_hex: ed25519XHex,
@@ -8131,7 +8158,7 @@ async function startServer() {
         payload_hash: crypto.createHash("sha256").update(attestationPayload).digest("hex"),
         signature: decisionSignature,
         signature_format: "ed25519_raw_hex",
-        canonical_serialization_spec: "canonical_delimited_v3: v3:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
+        canonical_serialization_spec: "canonical_delimited_v4: v4:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
         bound_fields: {
           request_id: requestId,
           consensus_score: Number(normConsensus),
@@ -9341,8 +9368,8 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
     const normEvidenceStatus = String(finalEvidenceStatus || "SUFFICIENT").trim().toUpperCase();
     const normGroundingStatus = String(groundingStatus || "VERIFIED_HYBRID_FACTS").trim().toUpperCase();
 
-    // ef_attest_v3 binds ALL verdict fields (consensus, risk, evidence_status, grounding_status, reason_codes, approval_blocked, request_id, timestamp)
-    const attestationPayload = `v3:${requestId}:${normalizedActionHash}:${policy_id}:${finalVerdict}:${normActionEligible}:${normConsensus}:${normReviewerAgreement}:${normRisk}:${normEvidenceStatus}:${normGroundingStatus}:${normReasonCodes}:${normApprovalBlocked}:${attestationTimestamp}:ef_attest_v3`;
+    // ef_attest_v4 binds ALL verdict fields (consensus, risk, evidence_status, grounding_status, reason_codes, approval_blocked, request_id, timestamp)
+    const attestationPayload = `v4:${requestId}:${normalizedActionHash}:${policy_id}:${finalVerdict}:${normActionEligible}:${normConsensus}:${normReviewerAgreement}:${normRisk}:${normEvidenceStatus}:${normGroundingStatus}:${normReasonCodes}:${normApprovalBlocked}:${attestationTimestamp}:ef_attest_v4`;
     let decisionSignature = "";
     try {
       decisionSignature = crypto.sign(null, Buffer.from(attestationPayload), ed25519PrivateKey).toString("hex");
@@ -9637,8 +9664,8 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       },
       attestation: {
         status: "VERIFIED_ED25519_SIG",
-        key_id: "ef_attest_v3",
-        version: "3.0",
+        key_id: "ef_attest_v4",
+        version: "4.0",
         algorithm: "Ed25519-EdDSA",
         public_key_base64url: ed25519XBase64,
         public_key_hex: ed25519XHex,
@@ -9646,7 +9673,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
         payload_hash: crypto.createHash("sha256").update(attestationPayload).digest("hex"),
         signature: decisionSignature,
         signature_format: "ed25519_raw_hex",
-        canonical_serialization_spec: "canonical_delimited_v3: v3:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
+        canonical_serialization_spec: "canonical_delimited_v4: v4:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version",
         bound_fields: {
           request_id: requestId,
           consensus_score: Number(normConsensus),
@@ -10255,14 +10282,6 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
           kty: "OKP",
           crv: "Ed25519",
           kid: ATTESTATION_KEY_ID,
-          use: "sig",
-          alg: "EdDSA",
-          x: ed25519XBase64
-        },
-        {
-          kty: "OKP",
-          crv: "Ed25519",
-          kid: "ef_attest_v1",
           use: "sig",
           alg: "EdDSA",
           x: ed25519XBase64
