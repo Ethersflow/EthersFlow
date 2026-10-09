@@ -3105,9 +3105,12 @@ async function startServer() {
     }
 
     // 2. Environment master or sandbox token if configured
-    const envMasterKey = process.env.ETHERSFLOW_API_KEY || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_SANDBOX_KEY || process.env.ETHERSFLOW_DEMO_KEY || process.env.ETHERSFLOW_MASTER_KEY;
-    if (envMasterKey && cleanToken === envMasterKey.trim()) {
-      return { valid: true, keyDoc: { id: "env_key", name: "Environment API Key", status: "active", zeroRetention: false } };
+    const envMasterKey = process.env.ETHERSFLOW_API_KEY || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_SANDBOX_KEY || process.env.ETHERSFLOW_DEMO_KEY || process.env.ETHERSFLOW_MASTER_KEY || process.env.ETHERSFLOW_ALLOWED_KEYS;
+    if (envMasterKey) {
+      const allowedKeysList = envMasterKey.split(/[\s,]+/).map(k => k.trim()).filter(Boolean);
+      if (allowedKeysList.includes(cleanToken)) {
+        return { valid: true, keyDoc: { id: "env_key", name: "Environment API Key", status: "active", zeroRetention: false } };
+      }
     }
 
     // 3. Volatile in-memory lookup for tenant keys created via /api/v1/keys/create
