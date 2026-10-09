@@ -60,7 +60,7 @@ export const DevelopersPage: React.FC<DevelopersPageProps> = ({ onClose, setView
   const codeSnippets = {
     ts: `// EthersFlow Agent Action Verification (Node.js / TypeScript)
 const API_URL = "https://www.ethersflow.com/api/v1/verify";
-const API_KEY = process.env.ETHERSFLOW_API_KEY || "YOUR_API_KEY";
+const API_KEY = process.env.ETHERSFLOW_API_KEY ?? "YOUR_API_KEY";
 
 async function verifyAgentAction() {
   const response = await fetch(API_URL, {
@@ -129,7 +129,7 @@ for node in data.get("adversarial_debate", []):
 // Anthropic SDK Drop-in Proxy: Point client to EthersFlow Adversarial Gateway
 const anthropic = new Anthropic({
   baseURL: 'https://www.ethersflow.com',
-  apiKey: process.env.ETHERSFLOW_API_KEY || 'YOUR_API_KEY',
+  apiKey: process.env.ETHERSFLOW_API_KEY ?? 'YOUR_API_KEY',
   defaultHeaders: {
     'X-EthersFlow-Persona-Preset': 'financial_compliance',
     'X-EthersFlow-Review-Set': '["financial_compliance", "general_adversarial", "cybersecurity_auditor"]',

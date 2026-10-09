@@ -8,14 +8,21 @@ function main() {
   let fullCommit = "";
   let shortCommit = "";
 
-  try {
-    fullCommit = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
-    shortCommit = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
-    if (fullCommit && shortCommit) {
-      isGitAvailable = true;
+  const envCommit = (process.env.GITHUB_SHA || process.env.BUILD_REVISION || process.env.COMMIT_SHA || process.env.GIT_COMMIT || "").trim();
+  if (envCommit) {
+    fullCommit = envCommit;
+    shortCommit = envCommit.slice(0, 7);
+    isGitAvailable = true;
+  } else {
+    try {
+      fullCommit = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
+      shortCommit = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+      if (fullCommit && shortCommit) {
+        isGitAvailable = true;
+      }
+    } catch (e) {
+      isGitAvailable = false;
     }
-  } catch (e) {
-    isGitAvailable = false;
   }
 
   const deployedAt = new Date().toISOString();
@@ -23,9 +30,11 @@ function main() {
   if (!isGitAvailable) {
     const serverPath = path.resolve(process.cwd(), "server.ts");
     const kernelPath = path.resolve(process.cwd(), "safetyKernel.ts");
+    const pkgPath = path.resolve(process.cwd(), "package.json");
     const serverBuf = fs.existsSync(serverPath) ? fs.readFileSync(serverPath, "utf-8") : "server";
     const kernelBuf = fs.existsSync(kernelPath) ? fs.readFileSync(kernelPath, "utf-8") : "kernel";
-    const seed = serverBuf.slice(0, 1000) + kernelBuf.slice(0, 1000) + deployedAt;
+    const pkgBuf = fs.existsSync(pkgPath) ? fs.readFileSync(pkgPath, "utf-8") : "pkg";
+    const seed = serverBuf + kernelBuf + pkgBuf;
     const computedHash = crypto.createHash("sha256").update(seed).digest("hex");
     fullCommit = computedHash;
     shortCommit = computedHash.slice(0, 7);

@@ -20,6 +20,7 @@ const getResend = () => {
 
 import express from "express";
 import path from "path";
+import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import Stripe from "stripe";
 import cors from "cors";
@@ -84,6 +85,27 @@ try {
 } catch (e) {
   console.warn("[Server] build_manifest.json resolution fallback:", e);
 }
+
+const envCommitSha = (process.env.GITHUB_SHA || process.env.BUILD_REVISION || process.env.COMMIT_SHA || process.env.GIT_COMMIT || "").trim();
+if (envCommitSha) {
+  const shortSha = envCommitSha.slice(0, 7);
+  buildManifest.revision = shortSha;
+  buildManifest.git_commit = shortSha;
+  buildManifest.full_commit = envCommitSha;
+  buildManifest.council_bundle = `sha256-v${buildManifest.version || "0.2.15"}-${shortSha}`;
+} else if (!buildManifest.revision || buildManifest.revision === "a8d146a") {
+  try {
+    const gitSha = execSync("git rev-parse --short HEAD", { encoding: "utf-8" }).trim();
+    const gitFull = execSync("git rev-parse HEAD", { encoding: "utf-8" }).trim();
+    if (gitSha && gitFull) {
+      buildManifest.revision = gitSha;
+      buildManifest.git_commit = gitSha;
+      buildManifest.full_commit = gitFull;
+      buildManifest.council_bundle = `sha256-v${buildManifest.version || "0.2.15"}-${gitSha}`;
+    }
+  } catch (e) {}
+}
+
 const ETHERSFLOW_RELEASE_VERSION = buildManifest.version || "0.2.15";
 const ETHERSFLOW_BUILD_REVISION = buildManifest.revision || "a8d146a";
 const ETHERSFLOW_GIT_COMMIT = buildManifest.git_commit || "a8d146a";
@@ -402,11 +424,11 @@ function screenEscalationFunnel(
     };
   }
 
-  // C. Benign Legal Review of Public NDA / Contract Templates:
+  // C. Benign Legal Review of Public NDA / Contract Templates / Corporate Filings & Retention Policies:
   const hasSpoliation = /\b(?:destroy|purge|delete|truncate|erase|wipe|clear|spoliation|alter\s+contract|modify\s+contract|post-execution|foreign\s+official|bribe|consulting\s+fee|suppress\s+whistleblower)\b/i.test(combined);
   const isBenignLegalReview = !hasSpoliation && !isLegalContractMutation &&
-    /\b(?:summarize|review|check|read|analyze|inspect|study)\b/i.test(combined) &&
-    /\b(?:nda|contract\s+template|clauses?|standard\s+contract|public\s+nda|indemnity|confidentiality|non-solicitation)\b/i.test(combined);
+    /\b(?:summarize|review|check|read|analyze|inspect|study|compile)\b/i.test(combined) &&
+    /\b(?:nda|contract\s+template|clauses?|standard\s+contract|public\s+nda|indemnity|confidentiality|non-solicitation|records?\s+retention|retention\s+policies|legal\s+filings|legal\s+records|corporate\s+filings|corporate\s+legal|legal\s+policies|filings|policies)\b/i.test(combined);
 
   if (isBenignLegalReview) {
     return {
@@ -620,7 +642,8 @@ const getGeminiAIClient = () => {
 let stripeClient: Stripe | null = null;
 let cachedStripeKey: string | null = null;
 const getStripeClient = () => {
-  const rawKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder";
+  const rawKey = process.env.STRIPE_SECRET_KEY;
+  if (!rawKey) return null;
   
   // Remove wrapping single/double quotes and whitespace that could interfere with Stripe authentication
   let key = rawKey.trim();
@@ -1496,14 +1519,21 @@ async function startServer() {
   // Stripe Webhook needs raw body
   app.post("/api/stripe-webhook", express.raw({ type: "application/json" }), async (req, res) => {
     const sig = req.headers["stripe-signature"] as string;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
     const stripe = getStripeClient();
+
+    if (!stripe || !webhookSecret) {
+      securityLog("WARNING", "Stripe Webhook verification failed: stripe client or STRIPE_WEBHOOK_SECRET missing");
+      return res.status(400).send("Webhook Error: STRIPE_SECRET_KEY or STRIPE_WEBHOOK_SECRET is not configured");
+    }
+
     let event;
 
     try {
       event = stripe.webhooks.constructEvent(
         req.body,
         sig,
-        process.env.STRIPE_WEBHOOK_SECRET || ""
+        webhookSecret
       );
       securityLog("INFO", "Stripe Webhook signature verified successfully", { eventType: event.type, eventId: event.id });
     } catch (err: any) {
@@ -2021,15 +2051,36 @@ async function startServer() {
   let ed25519PrivateKey: crypto.KeyObject;
   let ed25519PublicKey: crypto.KeyObject;
 
+  const localKeyPath = path.resolve(process.cwd(), ".data/attestation_key.json");
   if (process.env.ETHERSFLOW_ATTESTATION_SEED) {
     const seed = Buffer.from(process.env.ETHERSFLOW_ATTESTATION_SEED, "hex");
     const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
     ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, seed]), format: "der", type: "pkcs8" });
     ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+  } else if (fs.existsSync(localKeyPath)) {
+    try {
+      const saved = JSON.parse(fs.readFileSync(localKeyPath, "utf-8"));
+      const seed = Buffer.from(saved.seed_hex, "hex");
+      const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
+      ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, seed]), format: "der", type: "pkcs8" });
+      ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+    } catch (e) {
+      const randomSeed = crypto.randomBytes(32);
+      const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
+      ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, randomSeed]), format: "der", type: "pkcs8" });
+      ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+    }
   } else {
-    const keyPair = crypto.generateKeyPairSync("ed25519");
-    ed25519PrivateKey = keyPair.privateKey;
-    ed25519PublicKey = keyPair.publicKey;
+    const randomSeed = crypto.randomBytes(32);
+    const prefix = Buffer.from("302e020100300506032b657004220420", "hex");
+    ed25519PrivateKey = crypto.createPrivateKey({ key: Buffer.concat([prefix, randomSeed]), format: "der", type: "pkcs8" });
+    ed25519PublicKey = crypto.createPublicKey(ed25519PrivateKey);
+    try {
+      if (!fs.existsSync(path.dirname(localKeyPath))) {
+        fs.mkdirSync(path.dirname(localKeyPath), { recursive: true });
+      }
+      fs.writeFileSync(localKeyPath, JSON.stringify({ seed_hex: randomSeed.toString("hex"), created_at: new Date().toISOString() }, null, 2));
+    } catch (e) {}
   }
 
   const ed25519SpkiDer = ed25519PublicKey.export({ type: "spki", format: "der" });
@@ -2292,6 +2343,7 @@ async function startServer() {
       role,
       perspective: cleanPerspective,
       node_status: nodeStatus,
+      perspective_verdict: nodeStatus === "ALIGNED" ? "APPROVED" : (nodeStatus === "FLAGGED_HUMAN_REVIEW" ? "FLAGGED_HUMAN_REVIEW" : "REJECTED"),
       model_id: modelId,
       provider,
       model_version: modelVersion,
@@ -6109,12 +6161,12 @@ async function startServer() {
 
     const isBenignContractTemplateSummary = 
       !isLegalContractMutation &&
-      /\b(?:contract\s+template|nda\s+template|standard\s+nda|standard\s+contract|public\s+contract|agreement\s+template|boilerplate|contract\s+summary|summarize\s+(?:the\s+)?(?:contract|agreement|nda))\b/i.test(text) &&
+      /\b(?:contract\s+template|nda\s+template|standard\s+nda|standard\s+contract|public\s+contract|agreement\s+template|boilerplate|contract\s+summary|summarize\s+(?:the\s+)?(?:contract|agreement|nda)|records?\s+retention|retention\s+policies|legal\s+filings|corporate\s+legal\s+filings|legal\s+records|corporate\s+filings)\b/i.test(text) &&
       !text.includes("fake evidence") && !text.includes("bribe");
 
     const isBenignReportOrReadAction = 
-      (/\b(?:generate|print|view|show|display|get|list|export|summary|summarize|lookup|search|query|check|find|retrieve|read|tally)\b/i.test(text) &&
-       /\b(?:report|dashboard|metrics|uptime|status|performance|summary|reference|guidelines|schedule|shift|patch\s+compliance|compliance|posture|health|cve|advisory\s+severity|advisory)\b/i.test(text) || isReadOnlyInfraStatusLookup) &&
+      (/\b(?:generate|print|view|show|display|get|list|export|summary|summarize|lookup|search|query|check|find|retrieve|read|tally|compile)\b/i.test(text) &&
+       /\b(?:report|dashboard|metrics|uptime|status|performance|summary|reference|guidelines|schedule|shift|patch\s+compliance|compliance|posture|health|cve|advisory\s+severity|advisory|records?\s+retention|retention\s+policies|legal\s+filings|legal\s+records|corporate\s+filings|policies)\b/i.test(text) || isReadOnlyInfraStatusLookup) &&
       !isMutationAction &&
       !isLegalContractMutation &&
       !isFinancialOrProcurement &&
@@ -7793,7 +7845,7 @@ async function startServer() {
       anchor_basis: contextOutcome.anchor_basis,
       anchor_bases: contextOutcome.anchor_bases,
       fast_path_ineligibility_reasons: isFastPathEligible ? [] : (fastPathIneligibilityReasons.length > 0 ? fastPathIneligibilityReasons : ["POLICY_NON_CONFORMING: Action routed to multi-model adversarial consensus evaluation under current policy."]),
-      vote_labels: isMicroExpenseFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : nodePerspectives.map((p: any) => p.perspective_verdict || "APPROVED")
+      vote_labels: isMicroExpenseFastPath ? ["POLICY_FAST_PATH_APPROVAL"] : nodePerspectives.map((p: any) => p.perspective_verdict || (p.node_status === "ALIGNED" ? "APPROVED" : p.node_status === "FLAGGED_HUMAN_REVIEW" ? "FLAGGED_HUMAN_REVIEW" : "REJECTED"))
     };
   }
 
@@ -9604,7 +9656,7 @@ ${structuredProcurement.additionalTickets && structuredProcurement.additionalTic
       fast_path_ineligibility_reasons: isPolicyFastPath ? [] : (evalResult.fast_path_ineligibility_reasons || []),
       vote_labels: isPolicyFastPath 
         ? ["POLICY_FAST_PATH_APPROVAL"] 
-        : (evalResult.vote_labels || finalDebate?.map((d: any) => d.verdict || "APPROVED") || ["APPROVED", "APPROVED", "APPROVED"]),
+        : (evalResult.vote_labels || finalDebate?.map((d: any) => d.perspective_verdict || (d.node_status === "ALIGNED" ? "APPROVED" : d.node_status === "FLAGGED_HUMAN_REVIEW" ? "FLAGGED_HUMAN_REVIEW" : "REJECTED")) || ["APPROVED", "APPROVED", "APPROVED"]),
       replayed: false,
       c2_replayed: false,
       replay_index: 0,
@@ -13769,7 +13821,11 @@ CRITICAL EXTRACTION DIRECTIVE (MANDATORY):
   // --- GO-TO-MARKET (GTM) PIPELINE ENDPOINTS ---
   app.post("/api/gtm/verify-passcode", express.json(), (req, res) => {
     const { passcode } = req.body;
-    const adminPasscode = process.env.GTM_ADMIN_PASSCODE || "ethersflow-gtm-2026";
+    const adminPasscode = process.env.GTM_ADMIN_PASSCODE;
+    
+    if (!adminPasscode) {
+      return res.status(500).json({ error: "GTM Admin Passcode is not configured", message: "Server environment variable GTM_ADMIN_PASSCODE is required." });
+    }
     
     if (passcode === adminPasscode) {
       return res.status(200).json({ success: true, message: "Passcode verified successfully." });

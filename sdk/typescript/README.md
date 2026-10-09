@@ -13,7 +13,7 @@ npm install @ethersflow/sdk
 ```typescript
 import { EthersFlow } from '@ethersflow/sdk';
 
-const ef = new EthersFlow(process.env.ETHERSFLOW_API_KEY || 'your_api_key');
+const ef = new EthersFlow(process.env.ETHERSFLOW_API_KEY!);
 
 const result = await ef.verify({
   agentAction: 'Transfer 5000 USDC to 0x71C... for auditing services',

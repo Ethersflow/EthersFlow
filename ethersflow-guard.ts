@@ -248,7 +248,10 @@ export async function guardToolCall(
   // 2. Deny-by-default initialization: if gate not provided, check env or fail
   let gate = options.gate;
   if (!gate) {
-    const apiKey = process.env.ETHERSFLOW_API_KEY || 'ef_live_demo';
+    const apiKey = process.env.ETHERSFLOW_API_KEY;
+    if (!apiKey) {
+      throw new Error("EthersflowGate initialization failed: ETHERSFLOW_API_KEY environment variable is missing");
+    }
     gate = new EthersflowGate({ apiKey });
   }
 
