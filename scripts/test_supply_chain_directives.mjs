@@ -1,7 +1,7 @@
 // EthersFlow BUG 10 Test Suite: Supply Chain Directives & Council Hazard Enforcement
 import http from "http";
 
-const API_KEY = "ef_live_prod_founder_3bfe83cb3410525b2acac4fee46a019cef53a9cecd797978";
+const API_KEY = "ef_live_demo_key";
 
 function post(path, body, headers = {}) {
   return new Promise((resolve, reject) => {

@@ -71,19 +71,19 @@ export const StreamingHeroText: React.FC<StreamingHeroTextProps> = ({
     <span className="inline relative align-baseline">
       <span className={className}>
         {leadingText}
-        <span className={lastWord ? "block sm:inline" : ""}>
+        <span className={lastWord ? "block sm:inline whitespace-nowrap" : "whitespace-nowrap"}>
           {lastWord}
+          {/* Streaming Agent Cursor positioned with the last word so it wraps together */}
+          <span
+            aria-hidden="true"
+            className={`inline-block ml-0.5 w-[3px] h-[0.85em] align-middle rounded-full bg-gradient-to-b from-indigo-500 to-violet-600 shadow-[0_0_8px_rgba(99,102,241,0.6)] ${
+              phase === 'paused_full' || phase === 'paused_empty'
+                ? 'animate-pulse'
+                : 'opacity-100'
+            }`}
+          />
         </span>
       </span>
-      {/* Streaming Agent Cursor */}
-      <span
-        aria-hidden="true"
-        className={`inline-block ml-0.5 w-[3px] h-[0.85em] align-middle rounded-full bg-gradient-to-b from-indigo-500 to-violet-600 shadow-[0_0_8px_rgba(99,102,241,0.6)] ${
-          phase === 'paused_full' || phase === 'paused_empty'
-            ? 'animate-pulse'
-            : 'opacity-100'
-        }`}
-      />
     </span>
   );
 };
