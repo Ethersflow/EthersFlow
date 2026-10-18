@@ -1,0 +1,58 @@
+# ==============================================================================
+# STRICT REPO BOUNDARY: IGNORE ALL FILES AND DIRECTORIES BY DEFAULT
+# ==============================================================================
+/*
+
+# ==============================================================================
+# ALLOWLIST: ONLY PUBLIC MCP SERVER, SDKs, CLIENT VERIFIERS, AND METADATA
+# ==============================================================================
+!/.gitignore
+!/LICENSE
+!/README.md
+!/efverify.py
+!/ethersflow_gate.py
+!/server.json
+!/smithery.yaml
+
+# Workflows
+!/.github
+!/.github/workflows
+!/.github/workflows/publish.yml
+!/.github/workflows/repo-scope-guard.yml
+
+# Public specifications & schemas only
+!/public
+/public/*
+!/public/mcp_manifest.json
+!/public/openapi.json
+
+# MCP Server
+!/mcp-server
+!/mcp-server/**
+/mcp-server/node_modules
+/mcp-server/.env
+/mcp-server/.env.*
+
+# Python & TypeScript SDKs
+!/sdk
+!/sdk/**
+/sdk/**/node_modules
+/sdk/**/dist
+/sdk/**/__pycache__
+/sdk/**/*.pyc
+
+# Postman collection & environment
+!/postman
+!/postman/**
+
+# Explicit safeguard against any sensitive or proprietary files
+.env
+.env.*
+*.pem
+*.key
+*.secret
+node_modules/
+dist/
+build/
+*.log
+.DS_Store

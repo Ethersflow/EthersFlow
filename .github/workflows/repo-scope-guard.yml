@@ -1,0 +1,47 @@
+name: Strict Repo Scope Guard
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+jobs:
+  verify-no-proprietary-leak:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify Forbidden Proprietary Files
+        run: |
+          FORBIDDEN_FILES=(
+            "server.ts"
+            "safetyKernel.ts"
+            "ethersflowGate.ts"
+            "ethersflow-guard.ts"
+            "types.ts"
+            "assurance.tsx"
+            "calibration-run.mjs"
+            "validate-policy.mjs"
+            "repro_cyber_overblock.mjs"
+            "finops_default_v1.json"
+            "policy-v1.schema.json"
+            "firestore.rules"
+          )
+          for f in "${FORBIDDEN_FILES[@]}"; do
+            if [ -f "$f" ]; then
+              echo "CRITICAL VIOLATION: Proprietary file '$f' found in repository!"
+              exit 1
+            fi
+          done
+          echo "PASS: Zero proprietary backend files detected."
+
+      - name: Verify No Evidence or Calibration Artifacts
+        run: |
+          LEAKED_EVIDENCE=$(find . -name "*_evidence.json" -o -name "battery_results.txt" -o -name "addendum*.json")
+          if [ -n "$LEAKED_EVIDENCE" ]; then
+            echo "CRITICAL VIOLATION: Internal audit artifacts detected:"
+            echo "$LEAKED_EVIDENCE"
+            exit 1
+          fi
+          echo "PASS: Zero evidence or test battery dumps detected."
