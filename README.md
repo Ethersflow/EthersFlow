@@ -1,4 +1,4 @@
-# EthersFlow — Action Verification Layer (KYAA)
+# EthersFlow — Agent Action Verification Layer (KYAA)
 
 EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
