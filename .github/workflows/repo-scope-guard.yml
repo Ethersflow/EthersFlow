@@ -1,47 +1,87 @@
-name: Strict Repo Scope Guard
+name: Repo Scope Guard
 
 on:
   push:
-    branches: [ "main", "master" ]
   pull_request:
-    branches: [ "main", "master" ]
+
+permissions:
+  contents: read
 
 jobs:
-  verify-no-proprietary-leak:
+  scope-guard:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Verify Forbidden Proprietary Files
+      - name: Enforce allowlist
         run: |
-          FORBIDDEN_FILES=(
-            "server.ts"
-            "safetyKernel.ts"
-            "ethersflowGate.ts"
-            "ethersflow-guard.ts"
-            "types.ts"
-            "assurance.tsx"
-            "calibration-run.mjs"
-            "validate-policy.mjs"
-            "repro_cyber_overblock.mjs"
-            "finops_default_v1.json"
-            "policy-v1.schema.json"
-            "firestore.rules"
-          )
-          for f in "${FORBIDDEN_FILES[@]}"; do
-            if [ -f "$f" ]; then
-              echo "CRITICAL VIOLATION: Proprietary file '$f' found in repository!"
-              exit 1
-            fi
-          done
-          echo "PASS: Zero proprietary backend files detected."
-
-      - name: Verify No Evidence or Calibration Artifacts
-        run: |
-          LEAKED_EVIDENCE=$(find . -name "*_evidence.json" -o -name "battery_results.txt" -o -name "addendum*.json")
-          if [ -n "$LEAKED_EVIDENCE" ]; then
-            echo "CRITICAL VIOLATION: Internal audit artifacts detected:"
-            echo "$LEAKED_EVIDENCE"
+          cat > "$RUNNER_TEMP/allow.txt" <<'LIST'
+          .github/workflows/publish.yml
+          .github/workflows/repo-scope-guard.yml
+          .env.example
+          .gitignore
+          LICENSE
+          README.md
+          efverify.py
+          llms-install.md
+          server.json
+          smithery.yaml
+          mcp-server/.env.example
+          mcp-server/README.md
+          mcp-server/index.js
+          mcp-server/llms-install.md
+          mcp-server/manifest.json
+          mcp-server/package.json
+          mcp-server/server.json
+          postman/ethersflow.postman_collection.json
+          postman/ethersflow.postman_environment.json
+          public/EthersFlow Logo - Edited.png
+          public/ethersflow-logo-400.png
+          public/mcp_manifest.json
+          public/openapi.json
+          sdk/python/README.md
+          sdk/python/ethersflow/__init__.py
+          sdk/python/ethersflow/client.py
+          sdk/python/pyproject.toml
+          sdk/typescript/README.md
+          sdk/typescript/package.json
+          sdk/typescript/src/index.ts
+          sdk/typescript/tsconfig.json
+          LIST
+          git ls-files > "$RUNNER_TEMP/tracked.txt"
+          bad=$(grep -vxFf "$RUNNER_TEMP/allow.txt" "$RUNNER_TEMP/tracked.txt" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Files outside the allowlist are tracked:"
+            echo "$bad"
             exit 1
           fi
-          echo "PASS: Zero evidence or test battery dumps detected."
+
+      - name: Scan for secret patterns
+        run: |
+          set -u
+          self=".github/workflows/repo-scope-guard.yml"
+          files=$(git ls-files | grep -vxF "$self" | grep -vxF .gitignore | grep -vE '\.png$' || true)
+          fail=0
+          check() {
+            if echo "$files" | tr '\n' '\0' | xargs -0 -r grep -InE -e "$1" ; then
+              echo "::error::Forbidden pattern matched: $2"
+              fail=1
+            fi
+          }
+          check 'seed_hex' 'seed_hex'
+          check 'sk_live_|whsec_|ghp_|gho_|github_pat_' 'service token prefix'
+          check 'AKIA[0-9A-Z]{16}' 'AWS key'
+          check 'AIza[0-9A-Za-z_-]{30,}' 'Google API key'
+          check 'ef_live_[0-9a-f]{16,}' 'live API key literal'
+          check 'GRNT-2026-' 'grant registry'
+          check '(postgres|postgresql|mysql)://[^/[:space:]:@]+:[^@[:space:]]+@|mongodb\+srv://[^/[:space:]:@]+:[^@[:space:]]+@' 'credentialed database URL'
+          # PEM private keys: BEGIN and PRIVATE KEY on the same line
+          check '-----BEGIN[A-Z ]*PRIVATE KEY' 'private key block'
+          for f in $files; do
+            if grep -Iq -e '-----BEGIN' "$f" && grep -Iq -e 'PRIVATE KEY' "$f"; then
+              echo "::error file=$f::contains BEGIN and PRIVATE KEY markers"
+              fail=1
+            fi
+          done
+          exit $fail
+

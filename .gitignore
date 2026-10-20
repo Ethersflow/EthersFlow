@@ -7,10 +7,11 @@
 # ALLOWLIST: ONLY PUBLIC MCP SERVER, SDKs, CLIENT VERIFIERS, AND METADATA
 # ==============================================================================
 !/.gitignore
+!/.env.example
 !/LICENSE
 !/README.md
 !/efverify.py
-!/ethersflow_gate.py
+!/llms-install.md
 !/server.json
 !/smithery.yaml
 
@@ -20,9 +21,11 @@
 !/.github/workflows/publish.yml
 !/.github/workflows/repo-scope-guard.yml
 
-# Public specifications & schemas only
+# Public specifications & assets
 !/public
 /public/*
+!/public/EthersFlow Logo - Edited.png
+!/public/ethersflow-logo-400.png
 !/public/mcp_manifest.json
 !/public/openapi.json
 
@@ -32,6 +35,7 @@
 /mcp-server/node_modules
 /mcp-server/.env
 /mcp-server/.env.*
+!/mcp-server/.env.example
 
 # Python & TypeScript SDKs
 !/sdk
@@ -47,7 +51,6 @@
 
 # Explicit safeguard against any sensitive or proprietary files
 .env
-.env.*
 *.pem
 *.key
 *.secret

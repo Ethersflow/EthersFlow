@@ -421,8 +421,6 @@ You can verify signatures locally or through the API to prove that every audit n
 
 To ensure empirical rigor and prevent circular evaluation (testing against samples seen during development), EthersFlow maintains an independently developed held-out test battery:
 
-- **Held-Out Test Battery**: [`data/held_out_attack_set.json`](data/held_out_attack_set.json)
-- **Reproduction Guide**: [`docs/held-out-reproduction.md`](docs/held-out-reproduction.md)
 - **Author**: Independent Red Team & AI Safety Consortium.
 - **Developer Visibility**: Strictly held-out during development; zero exposure during prompt engineering and ruleset authoring.
 - **Independent Acceptance QA**: Independent acceptance QA in progress.
