@@ -59,3 +59,12 @@ dist/
 build/
 *.log
 .DS_Store
+
+# Credential and internal evidence artifacts
+.data/
+*.seed
+*.seed_hex
+attestation_key.json
+addendum*_evidence.json
+battery_results.txt
+consecutive_builds_evidence.json
