@@ -15,7 +15,7 @@ EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know You
 
 KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your Agent's Action) verifies what it's actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
 
-EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with per-model, signed, independently verifiable evidence. Enforcement without evidence is a WAF; evidence without enforcement is an audit log. EthersFlow is the checkpoint that does both.
+EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with signed, independently verifiable evidence. Enforcement without proof is a black box; proof without enforcement is just an audit log after the damage is done. EthersFlow is the checkpoint that does both.
 
 ### The Agent Governance Stack
 
@@ -79,9 +79,9 @@ EthersFlow operates a dual-lane execution engine balancing rapid determinism wit
 | **Idempotent Replay** | **3.2 ms** | **4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
 | **Adversarial Consensus** | **1.7 s** | **2.0 s** | Live multi-model debate across heterogeneous frontier models (Gemini 3.7 Flash + GPT-OSS-120B) with cryptographic node attestations (R74 measured, provider-timestamped). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 
-> **Velocity Capping & Preconditions**: Operational tickets (e.g. `FAC-101`) have an automated allowance of **5 fast-path approvals per 24 hours** ($500 cap). **The velocity cap counts attempts (stateful)**, requiring a proper 5-purchase precondition on a fresh ticket for verification. When this threshold is reached, subsequent requests automatically fall back to the live multi-model consensus lane to prevent micro-expense structuring attacks. Full empirical data is published in [`docs/calibration-benchmark.md`](docs/calibration-benchmark.md).
-
-> **Launch Architecture Principle**: "The deterministic fast path plus signed receipt is the provable core; consensus is escalation telemetry whose semantic detection is confirmed (3/3 on kernel-invisible attacks) but conditionally reachable — under measurement, published."
+> **Structuring Defense & Automatic Escalation**: To prevent autonomous agents from splitting large operations into multiple micro-transactions to bypass policy controls, requests that exceed safety thresholds or exhibit anomalous frequency automatically escalate from the deterministic Fast Path to the multi-model Consensus lane for thorough deliberation.
+>
+> **Policy-Driven Thresholds**: Fast-path ceilings (e.g. low-risk micro-expenses <$100), approved vendors, and ticket anchor requirements (e.g. Jira, ServiceNow, Ops tickets) are enforced via policy profiles (such as `finops_default_v1`), ensuring deterministic speed for routine actions and multi-model defense for high-stakes edge cases.
 
 ---
 
