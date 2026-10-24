@@ -125,7 +125,7 @@ EthersFlow provides a **hybrid enforcement and advisory architecture**:
 1. **Deterministic Enforcement Gates (Fail-Closed by Default)**:
    - High-risk operations, prompt injections, and grounding contradictions receive an unconditional `REJECTED` or `FLAGGED_HUMAN_REVIEW` verdict with `approval_blocked: true`.
    - Gate wrappers like `cloudflareVerifyGate` in `@ethersflow/sdk` or execution bindings (`POST /api/v1/binding/confirm`) strictly halt agent execution unless an active, cryptographically signed approval receipt exists.
-   - If an internal gateway error occurs, EthersFlow **fails closed** by default (`verdict: REJECTED`, `status: 500/503`) unless `fail_mode: "fail-open"` is explicitly opted into by the caller.
+   - **Strict Fail-Closed Guarantee**: If an internal gateway error, network partition, or upstream timeout occurs, EthersFlow **always fails closed** (returning `verdict: "REJECTED"`, `approval_blocked: true`, status 502/503). The gateway never approves without cryptographic verification.
 
 2. **Advisory Multi-Model Consensus**:
    - For subjective or borderline decisions, the gateway provides rich multidimensional telemetry: `consensus_score`, `risk_index`, and signed individual perspectives across heterogeneous models.
