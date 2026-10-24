@@ -15,7 +15,7 @@ EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know You
 
 KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your Agent's Action) verifies what it's actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
 
-EthersFlow issues cryptographically signed, independently verifiable trust verdicts for AI agent actions before execution, providing dual-control verification and cryptographic audit trails.
+EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with per-model, signed, independently verifiable evidence. Enforcement without evidence is a WAF; evidence without enforcement is an audit log. EthersFlow is the checkpoint that does both.
 
 ### The Agent Governance Stack
 
@@ -71,13 +71,13 @@ Identity answers *who*. Authorization answers *is it allowed*. EthersFlow answer
 
 ## Latency Profile & Performance Benchmarks
 
-EthersFlow operates a dual-lane execution engine balancing rapid determinism (~20-30x speedup) with multi-model adversarial deliberation:
+EthersFlow operates a dual-lane execution engine balancing rapid determinism with multi-model adversarial deliberation:
 
 | Execution Lane | p50 Latency | p95 Latency | Mechanism | Guarantee & Finality |
 | :--- | :--- | :--- | :--- | :--- |
-| **Policy Fast Path** | **0.45 s** | **2.4 s** | Deterministic safety kernel & catalog matcher (<$100, allowlisted vendor, operational ticket, pre-fast-path intent screen). | `POLICY_FAST_PATH_APPROVAL` |
+| **Policy Fast Path** | **126 ms** | **210 ms** | Deterministic safety kernel & catalog matcher (<$100, allowlisted vendor, operational ticket, pre-fast-path intent screen). Kernel nodes evaluate in ~4 ms. | `POLICY_FAST_PATH_APPROVAL` |
 | **Idempotent Replay** | **3.2 ms** | **4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
-| **Adversarial Consensus** | **11.2 s** | **28.6 s** | Live multi-model debate across heterogeneous frontier models (Qwen, Llama, Gemini) with cryptographic node attestations. | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+| **Adversarial Consensus** | **1.7 s** | **2.0 s** | Live multi-model debate across heterogeneous frontier models (Gemini 3.7 Flash + GPT-OSS-120B) with cryptographic node attestations (R74 measured, provider-timestamped). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 
 > **Velocity Capping & Preconditions**: Operational tickets (e.g. `FAC-101`) have an automated allowance of **5 fast-path approvals per 24 hours** ($500 cap). **The velocity cap counts attempts (stateful)**, requiring a proper 5-purchase precondition on a fresh ticket for verification. When this threshold is reached, subsequent requests automatically fall back to the live multi-model consensus lane to prevent micro-expense structuring attacks. Full empirical data is published in [`docs/calibration-benchmark.md`](docs/calibration-benchmark.md).
 
@@ -87,29 +87,24 @@ EthersFlow operates a dual-lane execution engine balancing rapid determinism (~2
 
 ## Retention Architecture & Audit Logging
 
-EthersFlow unifies audit compliance with data privacy through a **receipt-persist + payload-discard** model:
+EthersFlow unifies audit compliance with strict data privacy through a **receipt-persist + payload-discard** model:
 
-- **Default Behavior (Receipt-Only Persistence)**:
-  By default, EthersFlow persists the **receipt artifact only** (verdict, normalized hashes, Ed25519 cryptographic signature, reason codes, request ID — NO raw action text). The raw action payload is discarded from storage immediately after signing.
-  When querying the receipt vault (`GET /api/v1/receipts/{request_id}`), the cryptographic receipt confirms `payload_retained: false` and `retention.policy: "receipt_only_payload_discarded"`. The action text cannot be retrieved, ensuring sensitive prompts cannot leak from storage.
+- **Default Behavior: Ephemeral Zero Retention (`zero_retention: true`)**:
+  By default, EthersFlow operates in strict ephemeral zero-retention mode (`durability: "none_zero_retention"`, `storage_engine: "zero_retention_ephemeral"`, `receipt_only_payload_discarded: true`, `retention_receipt_url: null`). The prompt, reasoning chain, and raw action payload are discarded from memory immediately after cryptographic signing and receipt delivery. No action text is stored anywhere.
 
-- **Explicit Opt-In Audit Retention (`zero_retention: false`)**:
-  If full action payload retention is strictly required for compliance audit logs, clients must explicitly opt in per call:
+- **Opt-In Durable Audit Vault (`retention_mode: "durable"` or `zero_retention: false`)**:
+  When durable audit logging is explicitly requested for enterprise compliance, callers pass `retention_mode: "durable"` or `zero_retention: false`:
   ```json
   {
     "agent_action": "Order $42 notebooks from Staples under ticket FAC-902",
     "zero_retention": false
   }
   ```
-  This creates an audit record logged in the receipt (`retention.policy: "full_payload_retained"`), allowing authorized operators to retrieve the full action payload via `GET /api/v1/receipts/{request_id}`.
+  This persists the cryptographic receipt to the durable audit vault (`durability: "durable_audit_log"`, `storage_engine: "firestore_durable"`, `retention_receipt_url: "/api/v1/receipts/{request_id}"`).
 
-- **Ephemeral Zero Retention & Cryptographic Binding (`zero_retention: true` / default)**:
-  For confidentiality and data boundary compliance:
-  - Raw action payloads and reasoning chains are discarded immediately following cryptographic signing and receipt generation.
-  - In `receipt_only` mode, the receipt vault persists the verification artifact only (verdict, reason codes, SHA-256 action hash, and Ed25519 signatures); action text is scrubbed from stored explanation and summary fields (`[PAYLOAD_DISCARDED]`).
-  - All PII (credit cards, names, emails, credentials) is scrubbed via synthetic redactors.
-  - No payload text is retained in storage (`durability: "none_zero_retention"`), with cryptographic Ed25519 receipts bound to the payload via `agent_action_sha256` and verifiable against public JWKS keys.
-
+- **Cryptographic Action Hash Binding (Zero Payload Leakage)**:
+  **Strict Privacy Invariant**: In both ephemeral and durable modes, EthersFlow binds ONLY the SHA-256 action hash (`action_hash: sha256(agent_action)`). Raw prompt and action text are **never persisted to the database vault**. An auditor can verify the Ed25519 signature on the decision without exposing sensitive business prompts to storage breaches.
+  Authorized audit teams can retrieve or delete receipts using `GET /api/v1/receipts/{verdict_id}` and `DELETE /api/v1/receipts/{verdict_id}`.
 ---
 
 ## Canonical Policy IDs
@@ -224,8 +219,8 @@ npm start
 ## Fast-Path Diagnostics & Anchor Remediation (Naive-Phrasing UX)
 
 EthersFlow evaluates requests across two primary execution lanes:
-1. **`FAST_PATH` (<1s, ~470ms server)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) anchored by verified operational artifacts.
-2. **`CONSENSUS` (~11–14s)**: Multi-model adversarial cross-examination across independent LLM nodes.
+1. **`FAST_PATH` (<200ms, ~126ms gateway, ~4ms kernel nodes)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) or read-only internal telemetry anchored by verified operational artifacts.
+2. **`CONSENSUS` (~1.7–2.0s)**: Multi-model adversarial cross-examination across independent live frontier models.
 
 When an autonomous agent submits a benign action with naive or unstructured phrasing (e.g., omitting operational tickets or vendor anchors), EthersFlow routes the request to the `CONSENSUS` lane, issuing a `FLAGGED_HUMAN_REVIEW` verdict with a detailed `fast_path_ineligibility_reasons` diagnostic array.
 
@@ -285,11 +280,182 @@ POST /api/v1/verify
   "fast_path_ineligibility_reasons": [],
   "consensus_score": 96.8,
   "risk_index": 1.5,
-  "latency_ms": 472,
+  "latency_ms": 126,
   "attestation": {
     "status": "VERIFIED_ED25519_SIG",
-    "key_id": "ef_attest_v3"
+    "key_id": "ef_attest_v5",
+    "version": "4.0"
   }
+}
+```
+
+---
+
+## What You Get Back: Anatomy of a Verdict Receipt
+
+Every EthersFlow verification call returns a cryptographically signed verdict receipt binding decision semantics, granular scores, and multi-model consensus telemetry to an immutable action hash:
+
+### 1. Three Calibrated Scores & Derivation Math
+
+EthersFlow derives three orthogonal dimensions of action integrity rather than a single opaque score:
+
+1. **`consensus_score` (0.0 to 100.0)**:
+   The supermajority-weighted approval confidence across active council nodes and deterministic safety rules:
+   $$\text{consensus\_score} = \sum_{i=1}^{N} w_i \cdot s_i$$
+   where $s_i$ is the individual score assigned by each node (0 to 100) and $w_i$ is the normalized node weight. In `FAST_PATH` mode, deterministic safety rule bands set this directly (e.g., 96.8 for verified read-only observability).
+
+2. **`reviewer_agreement` (0.000 to 1.000)**:
+   Inter-rater concordance across heterogeneous models. An agreement of `1.000` indicates unanimous consensus across all participating frontier models and deterministic rule screens. Values below `0.700` indicate divergence triggering human-in-the-loop review.
+
+3. **`risk_index` (0.0 to 10.0)**:
+   Composite threat metric reflecting action blast radius, mutation velocity, destination surface, and authority claims. Actions with `risk_index >= 7.0` trip high-assurance circuit breakers (`approval_blocked: true`).
+
+```json
+"score_attribution": {
+  "score_type": "hybrid_kernel_and_live_council",
+  "rule_band": "SAFE_EXECUTION",
+  "rule_id": "READ_ONLY_OBSERVABILITY_VERIFIED",
+  "calibrated_score": 96.8,
+  "risk_index": 2.0,
+  "node_level_scores": [
+    {
+      "role": "Zero-Trust Security Architect",
+      "node_status": "APPROVED",
+      "assigned_score": 97.0
+    },
+    {
+      "role": "IAM & Privilege Escalation Auditor",
+      "node_status": "APPROVED",
+      "assigned_score": 96.5
+    }
+  ]
+}
+```
+
+### 2. Transparent Provider Request IDs (Auditable on Inference Dashboards)
+
+Every adversarial debate perspective includes raw upstream provider request IDs (`provider_request_id`):
+- `gen-...` for Google Gemini 3.7 Flash
+- `chatcmpl-...` for OpenAI/Groq GPT-OSS-120B
+
+Security and audit teams can take any `provider_request_id` directly to Google Cloud Console or Groq/OpenRouter logs to verify the raw prompt, timestamp, and inference origin without trusting EthersFlow's intermediate gateway.
+
+### 3. Dual Ed25519 Cryptographic Attestations (Canonical v4 Format)
+
+Every receipt contains a root attestation and per-node signatures generated under the active key (`ef_attest_v5`). The signed payload binds all critical decision fields into an immutable, colon-delimited string:
+
+```text
+v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus_score>:<reviewer_agreement>:<risk_index>:<evidence_status>:<grounding_status>:<reason_codes>:<approval_blocked>:<timestamp>:<version>
+```
+
+**Privacy Guarantee**: The canonical string binds `action_hash` (`sha256(agent_action)`), never the raw action text. An external auditor can verify cryptographic authenticity without exposing sensitive operational payloads.
+
+### 4. Lane Honesty: Fast-Path vs. Consensus
+
+| Property | FAST_PATH Lane | CONSENSUS Lane |
+| :--- | :--- | :--- |
+| **Target Latency** | ~126 ms total (nodes ~4 ms) | 1.7 s – 2.0 s (R74 measured) |
+| **Inference Source** | Deterministic Safety Kernel (`policy-kernel-fast-path-v4` @ `ethersflow_kernel`) | Heterogeneous Frontier Council (Gemini 3.7 Flash + GPT-OSS-120B) |
+| **Model Invocations** | Zero live LLM calls. Deterministic catalog & rule matching. | Live multi-model parallel debate & adversarial cross-examination. |
+| **Receipt Structure** | Dual kernel-attested signatures under `ef_attest_v5`. | Independent per-model Ed25519 signatures with live provider request IDs. |
+
+### 5. Control Surface Reference
+
+| Output Field | Type | Values | Meaning & Enforcement Directive |
+| :--- | :--- | :--- | :--- |
+| `verdict` | string | `APPROVED`, `FLAGGED_HUMAN_REVIEW`, `REJECTED` | High-level gateway decision. |
+| `action_eligible` | boolean | `true`, `false` | Execution flag. Agent runners **must halt** immediately if `false`. |
+| `approval_blocked` | boolean | `true`, `false` | Tripwire circuit-breaker flag. `true` on prompt injections, credential theft, and wire transfers exceeding bounds. |
+| `lane` | string | `FAST_PATH`, `CONSENSUS` | Indicates whether decision was deterministic or council-deliberated. |
+| `idempotency_key` | string / null | User UUID | Deduplication key reference. Sub-millisecond replay on repeat calls. |
+
+### 6. Annotated Real Rejection Receipt (Credential Exfiltration Trap)
+
+```json
+{
+  "verification_schema_version": 3,
+  "request_id": "req_8f12a9c401be9d72",
+  "verdict_id": "req_8f12a9c401be9d72",
+  "trace_id": "trace_a992bc01ef",
+  "verdict": "REJECTED",
+  "status": "REJECTED",
+  "verified": false,
+  "action_eligible": false,
+  "approval_blocked": true,
+  "lane": "CONSENSUS",
+  "consensus_score": 5.2,
+  "risk_index": 9.8,
+  "reviewer_agreement": 1.000,
+  "policy_id": "cybersecurity_auditor_v1",
+  "policy_fast_path": false,
+  "reason_codes": [
+    "CREDENTIAL_EXFILTRATION_ATTEMPT",
+    "PRIVILEGE_ESCALATION_ATTEMPT",
+    "CRITICAL_SECURITY_HAZARD",
+    "EXECUTION_DENIED"
+  ],
+  "score_attribution": {
+    "score_type": "hybrid_kernel_and_live_council",
+    "rule_band": "CRITICAL_BLOCK",
+    "rule_id": "CRITICAL_SECURITY_HAZARD",
+    "calibrated_score": 5.2,
+    "risk_index": 9.8,
+    "node_level_scores": [
+      {
+        "role": "Zero-Trust Security Architect",
+        "node_status": "REJECTED",
+        "assigned_score": 5.0
+      },
+      {
+        "role": "IAM & Privilege Escalation Auditor",
+        "node_status": "REJECTED",
+        "assigned_score": 5.4
+      }
+    ]
+  },
+  "adversarial_debate": [
+    {
+      "role": "Zero-Trust Security Architect",
+      "model_id": "google/gemini-3.7-flash",
+      "provider": "google",
+      "provider_request_id": "gen-a99182bf9012c",
+      "node_status": "REJECTED",
+      "perspective": "REJECTED: Action attempts to read and transmit master IAM secrets to external endpoint. Unconditional block.",
+      "latency_ms": 1780,
+      "attestation_status": "VERIFIED_ED25519_SIG"
+    },
+    {
+      "role": "IAM & Privilege Escalation Auditor",
+      "model_id": "openai/gpt-oss-120b",
+      "provider": "groq",
+      "provider_request_id": "chatcmpl-9201fba41",
+      "node_status": "REJECTED",
+      "perspective": "REJECTED: Violation of least-privilege boundary. Exfiltration pattern detected in proposed action arguments.",
+      "latency_ms": 1820,
+      "attestation_status": "VERIFIED_ED25519_SIG"
+    }
+  ],
+  "attestation": {
+    "status": "VERIFIED_ED25519_SIG",
+    "key_id": "ef_attest_v5",
+    "version": "4.0",
+    "algorithm": "Ed25519-EdDSA",
+    "canonical_payload": "v4:req_8f12a9c401be9d72:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855:cybersecurity_auditor_v1:REJECTED:false:5.2:1.000:9.8:VERIFIED:VERIFIED:CREDENTIAL_EXFILTRATION_ATTEMPT,PRIVILEGE_ESCALATION_ATTEMPT,CRITICAL_SECURITY_HAZARD,EXECUTION_DENIED:true:2026-10-24T00:41:54.000Z:ef_attest_v5",
+    "signature": "38a1e94cf2...",
+    "canonical_serialization_spec": "canonical_delimited_v4: v4:requestId:actionHash:policyId:verdict:actionEligible:consensusScore:reviewerAgreement:riskIndex:evidenceStatus:groundingStatus:reasonCodes:approvalBlocked:timestamp:version"
+  },
+  "retention": {
+    "mode": "ephemeral",
+    "policy": "receipt_only_payload_discarded",
+    "durability": "none_zero_retention",
+    "payload_retained": false,
+    "action_hash_bound": true,
+    "action_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "storage_engine": "zero_retention_ephemeral",
+  "storage_durability": "none_zero_retention",
+  "zero_data_retention": true,
+  "latency_ms": 1845
 }
 ```
 
@@ -311,7 +477,7 @@ To prevent duplicate financial disbursements, API calls, or ticket mutations acr
 - **Chained Replay (Subsequent Invocations)**: Instantly returns the cached decision receipt in **~12ms** (`replayed: true`, `c2_replayed: true`).
 - **Chained Replay Index**: Each replayed call increments `replay_index` (`1, 2, ...`), creates a distinct audit transaction ID, while preserving the reference to `original_request_id` and the immutable `action_hash`.
 ```bash
-# First Call (Fresh Verification ~470ms Fast-Path or ~14s Consensus)
+# First Call (Fresh Verification ~126ms Fast-Path or ~1.7–2.0s Consensus)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
@@ -345,18 +511,18 @@ EthersFlow strictly distinguishes between raw unparsed action payloads and deriv
 
 ## Status & Known Limitations
 
-- **Ed25519-Signed Audit Trail**: Every audit node output is signed using Ed25519-EdDSA. Signatures can be verified independently against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
+- **Ed25519-Signed Audit Trail**: Every audit node output and overall verdict is signed using Ed25519-EdDSA (`ef_attest_v5`). Signatures can be verified independently offline against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
 - **Probabilistic, Not Deterministic**: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` <-> `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
-- **Live Model Engine**: Powered by heterogeneous inference nodes across independent providers (Llama 3.3 70B Instruct via Groq, Qwen 3.6 27B / Qwen 3.8 27B, and Gemini 3.7 Flash) with active pipeline routing and automated failover. Multi-provider custom BYOK model routing is under continuous expansion.
+- **Live Model Engine**: Powered by heterogeneous inference nodes across independent providers: **Gemini 3.7 Flash** (Google) and **GPT-OSS-120B** (Groq/OpenRouter), confirmed via live provider request IDs (`gen-...` and `chatcmpl-...`). Additional architectures (Llama 3.3 70B, Qwen 3.6/3.8 27B) are on the Bring-Your-Own-Key (BYOK) roadmap.
 - **Gateway Architecture & Repository Evolution**: The core Federated Adversarial Consensus backend operates as a secure API service with default receipt-only persistence and payload discard (verdicts, reason codes, action hashes, and Ed25519 signatures retained; raw action payloads discarded immediately after signing). Currently, this repository hosts the gateway service alongside developer toolkits and SDKs; backend engine code will be segregated into a dedicated repository in Phase C.
 
 ---
 
 ## Key Features
 
-- **Multi-Model Consensus**: Eliminates single-model bias by forcing heterogeneous models into adversarial debate.
-- **Ed25519 Attestation**: Every debate node output is signed with an Ed25519 cryptographic key. Public key set available at `/.well-known/jwks.json`.
-- **Retention Architecture & Payload Discard**: By default, EthersFlow persists only the cryptographic receipt artifact (verdict, normalized hashes, Ed25519 signature, reason codes, request ID) while discarding raw action payloads after signing. Full payload audit retention is strictly opt-in per call (`zero_retention: false`), and action payloads are never used for model training.
+- **Multi-Model Consensus**: Reduces single-model bias by forcing heterogeneous frontier models into adversarial cross-examination.
+- **Ed25519 Attestation**: Every debate node output and decision receipt is signed with an Ed25519 cryptographic key (`ef_attest_v5`). Public key set available at `/.well-known/jwks.json`.
+- **Retention Architecture & Payload Discard**: By default, EthersFlow operates in strict ephemeral mode, discarding raw action payloads immediately after signing while persisting only the cryptographic receipt artifact (verdict, normalized hashes, Ed25519 signature, reason codes, request ID). Full payload audit retention is strictly opt-in per call (`zero_retention: false`), and action payloads are never used for model training.
 - **OpenAI & Anthropic Drop-In Proxies**: Use `/v1/chat/completions` or `/v1/messages` as a drop-in replacement for existing agent pipelines.
 - **Specialized Personas**:
   - `financial_compliance` (FINRA/SEC, wire limits, KYC, sanctions)
@@ -407,13 +573,25 @@ export default {
 
 ## Security & Ed25519 Attestation
 
-EthersFlow publishes its public key set in JSON Web Key Set (JWKS) format:
+EthersFlow publishes its public key set in standard JSON Web Key Set (JWKS) format:
 
-- **JWKS Endpoint**: `GET /.well-known/jwks.json`
+- **JWKS Endpoint**: `GET /.well-known/jwks.json` (RFC 8037 OKP profile, `Cache-Control: public, max-age=3600`)
 - **Attestation Manifest**: `GET /.well-known/attestation.json`
+- **Public Key Endpoint**: `GET /api/v1/receipts/public-key`
 - **Verification Endpoint**: `POST /api/v1/verify-attestation`
 
-You can verify signatures locally or through the API to prove that every audit node's perspective originated directly from the EthersFlow signing authority.
+### Independent Offline Verification (Zero-Trust)
+You can verify signatures completely offline without contacting EthersFlow servers:
+```bash
+# Run full local verification test suite
+python efverify.py demo
+
+# Verify a saved verdict receipt JSON locally offline
+python efverify.py verify-file receipt.json
+
+# Print the complete offline byte recipe for auditors
+python efverify.py recipe
+```
 
 ---
 
