@@ -25,7 +25,7 @@ import urllib.error
 from typing import Dict, Any, Optional, Tuple, List
 
 DEFAULT_BASE_URL = os.getenv("ETHERSFLOW_BASE_URL", "http://localhost:3000" if os.path.exists("server.mjs") else "https://www.ethersflow.com")
-DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", os.getenv("ETHERSFLOW_TOKEN", "ef_live_default_sovereign_gate_key"))
+DEFAULT_API_KEY = os.getenv("ETHERSFLOW_API_KEY", os.getenv("ETHERSFLOW_TOKEN", (os.getenv("ETHERSFLOW_ALLOWED_KEYS") or "").split(",")[0].strip()))
 
 # ============================================================================
 # RFC 8032 PURE-PYTHON ED25519 VERIFICATION (Zero-Dependency Cryptography)
