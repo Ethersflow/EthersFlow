@@ -24,6 +24,8 @@ jobs:
           README.md
           efverify.py
           llms-install.md
+          package.json
+          scripts/auth_smoke_test.mjs
           server.json
           smithery.yaml
           mcp-server/.env.example
