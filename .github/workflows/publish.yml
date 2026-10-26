@@ -6,9 +6,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Release version to publish (e.g. 0.1.0)'
+        description: 'Release version to publish (e.g. 0.3.0)'
         required: false
-        default: '0.1.0'
+        default: '0.3.0'
 
 permissions:
   contents: read

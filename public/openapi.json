@@ -3,7 +3,7 @@
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
     "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",

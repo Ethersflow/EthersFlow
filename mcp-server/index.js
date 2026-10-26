@@ -28,7 +28,7 @@ const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.
 const server = new Server(
   {
     name: "EthersFlow",
-    version: "0.2.9",
+    version: "0.3.0",
   },
   {
     capabilities: {
@@ -154,7 +154,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${ETHERSFLOW_API_KEY}`,
-        "User-Agent": "EthersFlow-MCP-Server/0.2.9",
+        "User-Agent": "EthersFlow-MCP-Server/0.3.0",
       },
       body: JSON.stringify({
         agent_action: actionText,

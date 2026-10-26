@@ -95,16 +95,17 @@ export function verifyReceipt(result: VerificationResult): boolean {
     return false;
   }
   try {
-    const cryptoModule = typeof window === 'undefined' ? require('crypto') : null;
-    if (cryptoModule && cryptoModule.verify) {
-      // Reconstruct attestation payload string if present
+    const globalObj = globalThis as any;
+    const cryptoModule = typeof window === 'undefined' && typeof globalObj.require === 'function' ? globalObj.require('crypto') : null;
+    const BufferClass = globalObj.Buffer;
+    if (cryptoModule && cryptoModule.verify && BufferClass) {
       const payloadHash = result.attestation.payload_hash;
       const pubKey = cryptoModule.createPublicKey({
-        key: Buffer.from(result.attestation.public_key_hex, 'hex'),
+        key: BufferClass.from(result.attestation.public_key_hex, 'hex'),
         format: 'der',
         type: 'spki'
       });
-      return cryptoModule.verify(null, Buffer.from(payloadHash, 'hex'), pubKey, Buffer.from(result.attestation.signature, 'hex'));
+      return cryptoModule.verify(null, BufferClass.from(payloadHash, 'hex'), pubKey, BufferClass.from(result.attestation.signature, 'hex'));
     }
     return Boolean(result.attestation.signature && result.attestation.public_key_hex);
   } catch {
