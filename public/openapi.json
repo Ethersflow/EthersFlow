@@ -438,6 +438,70 @@
           }
         }
       }
+    },
+    "/api/v1/ingress/verify": {
+      "post": {
+        "summary": "Inbound Agent Call Verification & Ingress Gate",
+        "description": "Cross-examines external caller identity, requested scope, and target endpoint before granting or refusing agent ingress access.",
+        "operationId": "verifyIngressCall",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "caller_identity": {
+                    "type": "object",
+                    "properties": {
+                      "caller_id": { "type": "string", "example": "agent_id_partner_org_a_001" },
+                      "caller_org": { "type": "string", "example": "Partner Org A" },
+                      "caller_signature": { "type": "string", "example": "valid_sig_partner_org_a_001" },
+                      "signing_public_key": { "type": "string", "example": "ed25519_pub_key_a" }
+                    }
+                  },
+                  "requested_scope": { "type": "string", "example": "read:metrics" },
+                  "target_endpoint": { "type": "string", "example": "/mcp/v1/tools/read_metrics" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Ingress Verification Verdict with Posture, Rate Cap, and Ed25519 Signed Attestation Receipt"
+          }
+        }
+      }
+    },
+    "/api/v1/sandbox/ingress/verify": {
+      "post": {
+        "summary": "Sandbox Inbound Agent Call Verification",
+        "description": "Evaluates ingress policies in isolated dry-run sandbox mode without production state changes.",
+        "operationId": "verifySandboxIngressCall",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "caller_identity": { "type": "object" },
+                  "requested_scope": { "type": "string" },
+                  "target_endpoint": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sandbox Ingress Verification Verdict"
+          }
+        }
+      }
     }
   }
 }
