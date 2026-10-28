@@ -7,7 +7,6 @@
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
-import { splash } from "./boot_splash.js";
 
 // Parse CLI args (e.g. --api-key=xyz or --base-url=http://...)
 const args = process.argv.slice(2);
@@ -213,15 +212,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function main() {
-  splash.start();
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("EthersFlow MCP Server running on stdio.");
-  splash.live();
 }
 
 main().catch((error) => {
-  splash.fail(error);
   console.error("Fatal error starting EthersFlow MCP Server:", error);
   process.exit(1);
 });
