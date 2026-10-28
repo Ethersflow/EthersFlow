@@ -30,9 +30,11 @@ jobs:
           smithery.yaml
           mcp-server/.env.example
           mcp-server/README.md
+          mcp-server/boot_splash.js
           mcp-server/index.js
           mcp-server/llms-install.md
           mcp-server/manifest.json
+          mcp-server/package-lock.json
           mcp-server/package.json
           mcp-server/server.json
           postman/ethersflow.postman_collection.json
