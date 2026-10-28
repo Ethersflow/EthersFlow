@@ -6,7 +6,7 @@
   "type": "module",
   "main": "index.js",
   "bin": { "ethersflow-mcp": "index.js" },
-  "files": ["index.js", "README.md", "server.json", "manifest.json"],
+  "files": ["index.js", "boot_splash.js", "README.md", "server.json", "manifest.json"],
   "scripts": {
     "start": "node index.js",
     "lint": "node --check index.js",

@@ -214,6 +214,8 @@ npm install
 npm start
 ```
 
+When you launch the server from a terminal you'll see the EthersFlow boot splash — the vortex emblem with orbiting nodes — resolving to RUNNING · STDIO when the council is seated. It renders on stderr only and auto-disables when stderr isn't a terminal (or with EF_NO_SPLASH=1).
+
 ---
 
 ## Fast-Path Diagnostics & Anchor Remediation (Naive-Phrasing UX)
