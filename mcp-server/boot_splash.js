@@ -1,7 +1,7 @@
 /**
  * @ethersflow/mcp-server — Boot Splash Renderer (stderr-only, TTY-gated)
  *
- * Renders an ANSI animated vortex emblem with orbiting nodes on startup.
+ * Renders a universal half-block ANSI animated vortex emblem with orbiting nodes on startup.
  * Non-negotiable rule: Outputs exclusively to process.stderr.
  * Zero external dependencies. Pure Node built-ins.
  */
@@ -61,17 +61,6 @@ function shouldRender() {
   return Boolean(process.stderr && process.stderr.isTTY);
 }
 
-// Legacy Windows console detection & ASCII fallback mode
-const legacyGlyphMode =
-  process.platform === 'win32' &&
-  !process.env.WT_SESSION &&
-  !process.env.TERM_PROGRAM &&
-  process.env.EF_SPLASH_ASCII !== '0';
-
-const isAsciiMode =
-  process.env.EF_SPLASH_ASCII === '1' ||
-  (legacyGlyphMode && process.env.EF_SPLASH_ASCII !== '0');
-
 // Brand palette
 const COLOR_PURPLE = [79, 57, 246];      // Electric Purple (79,57,246)
 const COLOR_VIOLET = [129, 140, 248];    // Soft Violet
@@ -81,32 +70,43 @@ const COLOR_GREEN = [34, 197, 94];       // RUNNING Green
 const COLOR_RED = [239, 68, 68];         // Error Red
 const COLOR_GRAY = [148, 163, 184];      // Dim Slate Gray
 
-// Vortex emblem templates (10 rows x 43 cols)
-const VORTEX_TEMPLATE = [
-  "          ⢀⣀⣤⣤⣴⣶⣶⣶⣦⣤⣤⣀⡀          ",
-  "       ⢀⣴⣿⠿⠛⠉⠉⠉⠉⠉⠉⠉⠛⠿⣿⣦⣀       ",
-  "     ⢀⣾⣿⠏    ⢀⣀⣤⣤⣀⡀    ⠹⣿⣷⡀     ",
-  "    ⢠⣿⡿⠁   ⢀⣴⣿⣿⣿⣿⣿⣿⣦⡀   ⠈⢿⣿⡄    ",
-  "    ⣿⣿⠁    ⣾⣿⠟⠉  ⠉⠻⣿⣷    ⠈⣿⣿    ",
-  "    ⣿⣿     ⢿⣿⣄   ⣀⣠⣿⡿     ⣿⣿    ",
-  "    ⠸⣿⣧    ⠈⠻⣿⣿⣿⣿⣿⠟⠁    ⢀⣼⣿⠇    ",
-  "     ⠹⣿⣷⣄    <ctrl42>⠉⠛⠛⠉⠁    ⣠⣾⣿⠏     ",
-  "       ⠙⢿⣿⣷⣦⣤⣤⣀⣀⣀⣤⣤⣴⣾⣿⠿⠋       ",
-  "          ⠉⠉⠉⠛⠛⠿⠿⠿⠿⠛⠛⠉⠉⠉          "
+// Universal Half-Block Vortex Pixel Map (20 pixel rows x 33 cols)
+const VORTEX_PIXEL_ROWS = [
+  "           #############         ", // y = 0
+  "        #####################    ", // y = 1
+  "      ######             ######  ", // y = 2
+  "     #####    #########    ##### ", // y = 3
+  "    ####    #############   #### ", // y = 4
+  "   ####    #####     #####   ####", // y = 5
+  "   ###    ####         ####  ####", // y = 6
+  "   ###   ####    ###    ###  ####", // y = 7
+  "   ###   ###    #####   ###  ####", // y = 8
+  "  ####   ###   ######   ###  ####", // y = 9
+  "  ####   ###   #####   ####  ### ", // y = 10
+  "  ####   ####    ##   #####  ### ", // y = 11
+  "   ####   #####     ######  #### ", // y = 12
+  "   ####    ###############  #### ", // y = 13
+  "    #####    ###########   ##### ", // y = 14
+  "     ######              ######  ", // y = 15
+  "       ######################    ", // y = 16
+  "         #################       ", // y = 17
+  "            ###########          ", // y = 18
+  "                                 "  // y = 19
 ];
 
-const VORTEX_TEMPLATE_ASCII = [
-  "          ,#####################,          ",
-  "       ,###%%%:::::::::::::%%%%## ###,     ",
-  "     ,##%::.          .::%%%%%::.  ##%,    ",
-  "    ,##%.       .,:%#####%:,.      .%##,   ",
-  "    ##%.      ,:%##%:.  .:%##%:.     .##,  ",
-  "    ##%.     .%##%.       .%##%.     .##,  ",
-  "    ,##%.     :%##%:,   .,###%:.     %##,  ",
-  "     :##%,.     .:*###*%:,.       .,%##:   ",
-  "       :###%:,.....  ...,,,:%#####:        ",
-  "          ':#####################:         "
-];
+// Pack 20 pixel rows into 10 half-block character rows
+const VORTEX_HALF_BLOCKS = Array.from({ length: 10 }, (_, r) => {
+  const topRow = VORTEX_PIXEL_ROWS[2 * r] || '';
+  const botRow = VORTEX_PIXEL_ROWS[2 * r + 1] || '';
+  return Array.from({ length: 33 }, (_, c) => {
+    const t = topRow[c] === '#';
+    const b = botRow[c] === '#';
+    if (t && b) return '█';
+    if (t && !b) return '▀';
+    if (!t && b) return '▄';
+    return ' ';
+  }).join('');
+});
 
 // State variables
 let currentState = 'idle'; // 'idle' | 'boot' | 'live' | 'fail'
@@ -140,19 +140,18 @@ function renderFrame() {
   const termRows = Math.max(12, process.stderr.rows || 24);
   const time = frameCount * 0.083; // Seconds at ~12 fps
 
-  const template = isAsciiMode ? VORTEX_TEMPLATE_ASCII : VORTEX_TEMPLATE;
   const gridRows = 10;
-  const gridCols = template[0].length;
+  const gridCols = 33;
   const grid = Array.from({ length: gridRows }, (_, r) => {
     return Array.from({ length: gridCols }, (_, c) => {
-      const ch = template[r]?.[c] || ' ';
+      const ch = VORTEX_HALF_BLOCKS[r]?.[c] || ' ';
       return { ch, r, c, isNode: false, color: null };
     });
   });
 
-  const cx = (gridCols - 1) / 2.0;
+  const cx = 16.0;
   const cy = 4.5;
-  const baseRx = (gridCols - 1) * 0.35;
+  const baseRx = 11.5;
   const baseRy = 4.1;
 
   // Render orbiting nodes
@@ -172,19 +171,12 @@ function renderFrame() {
 
     const nodeColor = NODE_COLORS[k % NODE_COLORS.length];
 
-    const points = isAsciiMode
-      ? [
-          { offset: 0.0, glyph: (k % 2 === 0 ? '@' : 'O'), alpha: 1.0, isHead: true },
-          { offset: -0.20, glyph: ':', alpha: 0.75, isHead: false },
-          { offset: -0.40, glyph: '.', alpha: 0.50, isHead: false },
-          { offset: -0.60, glyph: '.', alpha: 0.25, isHead: false }
-        ]
-      : [
-          { offset: 0.0, glyph: (k % 2 === 0 ? '●' : '◆'), alpha: 1.0, isHead: true },
-          { offset: -0.20, glyph: '•', alpha: 0.75, isHead: false },
-          { offset: -0.40, glyph: '·', alpha: 0.50, isHead: false },
-          { offset: -0.60, glyph: '.', alpha: 0.25, isHead: false }
-        ];
+    const points = [
+      { offset: 0.0, glyph: (k % 2 === 0 ? '●' : '◆'), alpha: 1.0, isHead: true },
+      { offset: -0.20, glyph: '•', alpha: 0.75, isHead: false },
+      { offset: -0.40, glyph: '·', alpha: 0.50, isHead: false },
+      { offset: -0.60, glyph: '.', alpha: 0.25, isHead: false }
+    ];
 
     for (const pt of points) {
       const ptAngle = angle + pt.offset;
@@ -215,12 +207,21 @@ function renderFrame() {
       if (cell.ch === ' ') return ' ';
       const dx = (cell.c - cx) * 0.5;
       const dy = cell.r - cy;
+      const dist = Math.sqrt(dx * dx + dy * dy);
       const angle = Math.atan2(dy, dx);
       const normAngle = (angle + Math.PI) / (2 * Math.PI);
 
-      const r = Math.round(COLOR_PURPLE[0] + normAngle * (COLOR_PINK[0] - COLOR_PURPLE[0]));
-      const g = Math.round(COLOR_PURPLE[1] + normAngle * (COLOR_PINK[1] - COLOR_PURPLE[1]));
-      const b = Math.round(COLOR_PURPLE[2] + normAngle * (COLOR_PINK[2] - COLOR_PURPLE[2]));
+      let r = Math.round(COLOR_PURPLE[0] + normAngle * (COLOR_PINK[0] - COLOR_PURPLE[0]));
+      let g = Math.round(COLOR_PURPLE[1] + normAngle * (COLOR_PINK[1] - COLOR_PURPLE[1]));
+      let b = Math.round(COLOR_PURPLE[2] + normAngle * (COLOR_PINK[2] - COLOR_PURPLE[2]));
+
+      // Depth shading: innermost spiral pixels blend ~30% toward dark [30, 20, 90]
+      if (dist < 2.5) {
+        r = Math.round(r * 0.7 + 30 * 0.3);
+        g = Math.round(g * 0.7 + 20 * 0.3);
+        b = Math.round(b * 0.7 + 90 * 0.3);
+      }
+
       return rgb(r, g, b, cell.ch);
     }).join('');
   });
@@ -232,35 +233,27 @@ function renderFrame() {
   ];
 
   if (currentState === 'boot') {
-    const divider = isAsciiMode ? ' . ' : '  ·  ';
-    const pillBox = isAsciiMode ? '[ KYAA * ADVERSARIAL COUNCIL ]' : '╭─ KYAA · ADVERSARIAL COUNCIL ─╮';
-
     lines.push(
       bold('Booting EthersFlow MCP...'),
-      `${rgb(COLOR_GRAY[0], COLOR_GRAY[1], COLOR_GRAY[2], `cloning${divider}installing${divider}`)}${rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], 'launching')}`,
-      rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], pillBox)
+      `${rgb(COLOR_GRAY[0], COLOR_GRAY[1], COLOR_GRAY[2], 'cloning  ·  installing  ·  ')}${rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], 'launching')}`,
+      rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], '╭─ KYAA · ADVERSARIAL COUNCIL ─╮')
     );
   } else if (currentState === 'live') {
-    const dotChar = isAsciiMode ? 'O' : '⊙';
+    const dotChar = '⊙';
     const dotStr = rgb(COLOR_GREEN[0], COLOR_GREEN[1], COLOR_GREEN[2], dotChar);
-    const dotDivider = isAsciiMode ? ' . ' : ' · ';
-    const labelStr = rgb(COLOR_GREEN[0], COLOR_GREEN[1], COLOR_GREEN[2], `RUNNING${dotDivider}STDIO`);
+    const labelStr = rgb(COLOR_GREEN[0], COLOR_GREEN[1], COLOR_GREEN[2], 'RUNNING · STDIO');
     const badgeStr = rgb(COLOR_GREEN[0], COLOR_GREEN[1], COLOR_GREEN[2], '(') + ` ${dotStr} ${labelStr} ` + rgb(COLOR_GREEN[0], COLOR_GREEN[1], COLOR_GREEN[2], ')');
-
-    const subtitleDivider = isAsciiMode ? ' . ' : '  ·  ';
-    const footerDivider = isAsciiMode ? ' . ' : ' · ';
 
     lines.push(
       bold('EthersFlow MCP Server'),
       badgeStr,
-      rgb(COLOR_GRAY[0], COLOR_GRAY[1], COLOR_GRAY[2], `council seated${subtitleDivider}verdicts signed`),
-      rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], `Ed25519${footerDivider}ef_attest`)
+      rgb(COLOR_GRAY[0], COLOR_GRAY[1], COLOR_GRAY[2], 'council seated  ·  verdicts signed'),
+      rgb(COLOR_VIOLET[0], COLOR_VIOLET[1], COLOR_VIOLET[2], 'Ed25519 · ef_attest')
     );
   } else if (currentState === 'fail') {
-    const failBadge = isAsciiMode ? '[ X BOOT ERROR ]' : '[ ✕ BOOT ERROR ]';
     const errMsg = lastError ? (lastError.message || String(lastError)) : 'Unknown startup error';
     lines.push(
-      rgb(COLOR_RED[0], COLOR_RED[1], COLOR_RED[2], bold(failBadge)),
+      rgb(COLOR_RED[0], COLOR_RED[1], COLOR_RED[2], bold('[ ✕ BOOT ERROR ]')),
       rgb(COLOR_RED[0], COLOR_RED[1], COLOR_RED[2], errMsg)
     );
   }
