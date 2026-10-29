@@ -15,7 +15,7 @@ EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know You
 
 KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your Agent's Action) verifies what it's actually doing — one signed action at a time. Identity gets your agent through the door. Verification decides what leaves with it.
 
-EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with signed, independently verifiable evidence. Enforcement without proof is a black box; proof without enforcement is just an audit log after the damage is done. EthersFlow is the checkpoint that does both.
+EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with signed, independently verifiable evidence. Calls from unverified identities are refused by default; read-only probes get a rate-capped look, and every decision — including every refusal — is a signed receipt. Enforcement without proof is a black box; proof without enforcement is just an audit log after the damage is done. EthersFlow is the checkpoint that does both.
 
 ### The Agent Governance Stack
 
