@@ -1,6 +1,6 @@
 {
   "name": "@ethersflow/sdk",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "EthersFlow TypeScript SDK & Cloudflare Worker helpers for Multi-Model Adversarial Consensus",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -27,6 +27,7 @@ jobs:
           package.json
           scripts/auth_smoke_test.mjs
           server.json
+          server.mjs
           smithery.yaml
           mcp-server/.env.example
           mcp-server/README.md
