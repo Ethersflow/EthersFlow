@@ -17,6 +17,8 @@ KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your A
 
 EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with signed, independently verifiable evidence. Calls from unverified identities are refused by default; read-only probes get a rate-capped look, and every decision — including every refusal — is a signed receipt. Enforcement without proof is a black box; proof without enforcement is just an audit log after the damage is done. EthersFlow is the checkpoint that does both.
 
+The threat model is already mapped. Prompt-injection corpora, agentic attack suites, and adversarial red-team batteries are published research — EthersFlow verifies every agent action against that mapped attack space **and** against its internal policy layer at runtime, before the action fires, and signs the result. How much gets through when it does: 2.52% of 4,203 mapped attack scenarios on the current build — full methodology, per-suite results, and disclosures in the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/).
+
 ### The Agent Governance Stack
 
 ```
@@ -115,6 +117,8 @@ Every EthersFlow decision receipt binds a canonical `policy_id` across both top-
 |---|---|---|
 | `finops_default_v1` | **Default Enterprise FinOps Safety Policy** | Dual-lane evaluation: Micro-expense fast-path (<$100, approved catalog vendor, ticket anchor, 5 approvals/24hr window) and multi-model consensus fallback. |
 | `tripwire_circuit_breaker_v1` | **High-Assurance Circuit Breaker Policy** | Immediate fail-closed tripping on anomalous wire transfers, credential exfiltration, prompt injection patterns, or authority bypasses. |
+
+These presets are EthersFlow's internal policy layer. Verification against customer-supplied or arbitrary external policies is not part of the current service (roadmap item) and is not covered by published verification results.
 
 ---
 
@@ -603,7 +607,35 @@ To ensure empirical rigor and prevent circular evaluation (testing against sampl
 
 - **Author**: Independent Red Team & AI Safety Consortium.
 - **Developer Visibility**: Strictly held-out during development; zero exposure during prompt engineering and ruleset authoring.
-- **Independent Acceptance QA**: Independent acceptance QA in progress.
+- **Independent Acceptance QA**: Completed and published — see the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/) for the full battery, results, and disclosures. A methodology-reconciliation pass against published baselines is scheduled.
+
+---
+
+## Empirical Evidence — External Verification Report
+
+Results below are from the published external verification battery (R79) and its independent re-run (R86) against production. Full methodology, acceptance history, and disclosure of every limitation: **[EthersFlow External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/)**.
+
+**Headline:** 4,203 mapped attack scenarios · **97.48% defended** · 2.52% got through (95% confidence interval on the miss rate: 2.07%–3.04%). An independent re-run on a later build (R86: 102 of 4,103 = 2.49%) reproduces the result within that interval.
+
+**Per-suite results (share of attacks that got through):**
+
+| Suite | Cases | Got through |
+|---|---|---|
+| InjecAgent | 2,108 | 0% |
+| AgentDojo | 123 | 0% |
+| PyRIT | 400 | 0.25% |
+| garak | 721 | 1.11% |
+| HarmBench | 200 | 2–4% |
+| PurpleLlama | 251 | 8.76% |
+| Agent Security Bench | 400 | 17.25% |
+
+**Decision ledger (3,512 production trials):** 89 approved · 2,706 rejected · 717 flagged for human review · median verdict time 1.4s.
+
+**Trajectory:** early builds defended 75.8% of InjecAgent and 10.7% of Agent Security Bench attacks; the defense rate climbed round over round to today's ceiling. The full round-by-round history is in the white paper.
+
+> **Comparability caveat:** published baseline figures describe *undefended* models; the deltas above are directional until the methodology-reconciliation pass (scheduled) aligns test conditions exactly.
+
+> **Honest disclosures:** benign-action handling is fail-closed by design, and the dedicated benign control set is small — a larger innocent-case battery is an open work item (F7), disclosed in the white paper. Verification runs against EthersFlow's internal policy layer (e.g. `finops_default_v1`); customer-supplied policy packs are on the roadmap and are **not** covered by the results above.
 
 ---
 
