@@ -282,9 +282,25 @@
     "/api/v1/verify": {
       "post": {
         "summary": "Verify Autonomous Agent Proposed Action",
-        "description": "Gates an agent decision (e.g., execute_trade, send_email, approve_claim) with multi-model adversarial cross-examination across 2-7 audit nodes.",
+        "description": "Gates an agent decision (e.g., execute_trade, send_email, approve_claim) using deterministic policy pre-screening and heterogeneous multi-model adversarial cross-examination. Supports caller-scoped 24h verdict idempotency (Option B) and echoes contractual request_id, trace_id, idempotency_key, client_reference_id, and latency_ms across every response.",
         "operationId": "verifyAgentAction",
         "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": false,
+            "description": "Optional caller-supplied idempotency key (or pass idempotency_key in JSON body). Echoed in every response and deduplicates verdict issuance per (caller_key, idempotency_key) for 24 hours.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-Correlation-Id",
+            "in": "header",
+            "required": false,
+            "description": "Optional caller correlation reference (or pass client_reference_id / correlation_id in JSON body) echoed back as client_reference_id for human-in-the-loop audit linkage.",
+            "schema": { "type": "string" }
+          }
+        ],
         "requestBody": {
           "required": true,
           "content": {
@@ -301,12 +317,24 @@
                     "type": "string",
                     "example": "Invoice PO-8841 matched vendor payment record; approval threshold under $500k auto-limit."
                   },
+                  "idempotency_key": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional client idempotency key. Echoed verbatim at top level and deduplicates verdict issuance per caller key for 24 hours (replays return replayed: true and original_request_id; reusing the same key with a different payload returns 409 IDEMPOTENCY_KEY_CONFLICT). Downstream mutation idempotency remains the mutation caller's responsibility.",
+                    "example": "idem_pay_20261113_0042"
+                  },
+                  "client_reference_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "Optional workflow or ticket correlation ID (alias: correlation_id) echoed top-level to simplify audit linkage across async human-in-the-loop branches.",
+                    "example": "n8n_exec_98412"
+                  },
                   "agent_count": {
                     "type": "integer",
-                    "minimum": 2,
-                    "maximum": 7,
-                    "default": 3,
-                    "example": 5
+                    "minimum": 1,
+                    "maximum": 5,
+                    "default": 2,
+                    "example": 3
                   },
                   "persona_preset": {
                     "type": "string",
@@ -317,7 +345,7 @@
                       "cybersecurity_auditor",
                       "general_adversarial"
                     ],
-                    "default": "general_adversarial",
+                    "default": "financial_compliance",
                     "example": "financial_compliance"
                   },
                   "grounding_enabled": {
@@ -336,7 +364,7 @@
                     "type": "object",
                     "description": "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { grant_id, subject_id, subject_reference, grant_scope, data_class, access_level, issuing_authority, authorized_by, expires_at, consent_verified, status }).",
                     "properties": {
-                      "grant_id": { "type": "string", "example": "grant_sg_000000" },
+                      "grant_id": { "type": "string", "example": "grant_ef_clinical_verified_001" },
                       "subject_id": { "type": "string", "example": "000000" },
                       "subject_reference": { "type": "string", "example": "example subject record #000000" },
                       "grant_scope": { "type": "string", "example": "read:health_clinical_phi" },
@@ -368,20 +396,65 @@
         },
         "responses": {
           "200": {
-            "description": "Verification Verdict & Adversarial Transcript",
+            "description": "Verification Verdict & Cryptographic Attestation Receipt",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
+                  "required": ["request_id", "verdict_id", "trace_id", "verdict", "status", "verified", "action_eligible", "latency_ms", "timestamp"],
                   "properties": {
+                    "request_id": {
+                      "type": "string",
+                      "description": "Contractual top-level verification request identifier (bound inside Ed25519 attestation).",
+                      "example": "req_efdaddb2b0f2c241"
+                    },
+                    "verdict_id": {
+                      "type": "string",
+                      "description": "Alias of request_id for downstream ledger linkage.",
+                      "example": "req_efdaddb2b0f2c241"
+                    },
+                    "trace_id": {
+                      "type": "string",
+                      "description": "Contractual distributed trace identifier.",
+                      "example": "trace_15eace2e942a89f427832d71"
+                    },
+                    "idempotency_key": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Echoed caller idempotency_key (or Idempotency-Key header); null when omitted.",
+                      "example": "idem_pay_20261113_0042"
+                    },
+                    "client_reference_id": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Echoed caller correlation reference if supplied.",
+                      "example": "n8n_exec_98412"
+                    },
+                    "replayed": {
+                      "type": "boolean",
+                      "description": "True when served from the 24h caller-scoped idempotency cache."
+                    },
+                    "original_request_id": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "Present on replayed responses; equals request_id of the original verdict."
+                    },
+                    "verdict": {
+                      "type": "string",
+                      "enum": ["APPROVED", "FLAGGED_HUMAN_REVIEW", "REJECTED"]
+                    },
                     "status": {
                       "type": "string",
                       "enum": ["APPROVED", "FLAGGED_HUMAN_REVIEW", "REJECTED"]
                     },
                     "verified": { "type": "boolean" },
+                    "action_eligible": { "type": "boolean" },
+                    "lane": { "type": "string", "enum": ["FAST_PATH", "CONSENSUS"] },
+                    "policy_fast_path": { "type": "boolean" },
                     "consensus_score": { "type": "number", "example": 94.5 },
                     "risk_index": { "type": "number", "example": 5.5 },
-                    "verdict_summary": { "type": "string" },
+                    "reviewer_agreement": { "type": "number", "example": 0.995 },
+                    "reason_codes": { "type": "array", "items": { "type": "string" } },
                     "agent_action": { "type": "string" },
                     "agent_count": { "type": "integer" },
                     "persona_preset": { "type": "string" },
@@ -396,13 +469,80 @@
                         }
                       }
                     },
-                    "latency_ms": { "type": "integer" },
+                    "attestation": { "type": "object" },
+                    "receipt_v2": { "type": "object" },
+                    "latency_ms": {
+                      "type": "integer",
+                      "description": "Server-side gateway evaluation duration in milliseconds."
+                    },
                     "timestamp": { "type": "string", "format": "date-time" }
                   }
                 }
               }
             }
+          },
+          "400": {
+            "description": "Malformed Request or Schema Validation Error (caller key authenticated; e.g. INVALID_PERSONA_PRESET, INVALID_AGENT_COUNT, MISSING_AGENT_ACTION)"
+          },
+          "401": {
+            "description": "Authentication Failed (MISSING_AUTHORIZATION, MALFORMED_AUTHORIZATION_HEADER, REVOKED_API_KEY, ROTATED_API_KEY, or INVALID_API_KEY)"
+          },
+          "403": {
+            "description": "Key Scope Mismatch (e.g. MIS_SCOPED_API_KEY when sandbox demo token is sent to live /api/v1/verify)"
+          },
+          "409": {
+            "description": "Idempotency Conflict (IDEMPOTENCY_KEY_CONFLICT when the same idempotency_key is reused for different request parameters)"
+          },
+          "502": {
+            "description": "Upstream Council Providers Unreachable (fail-closed GATEWAY_UPSTREAM_UNREACHABLE)"
           }
+        }
+      }
+    },
+    "/api/v1/sandbox/verify": {
+      "post": {
+        "summary": "Sandbox Agent Action Verification (Demo Key Accepted)",
+        "description": "Identical verification contract to /api/v1/verify, accepting either live Bearer tokens or public sandbox token ef_sandbox_demo_show_hn.",
+        "operationId": "verifyAgentActionSandbox",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Sandbox verification verdict receipt with contractual request_id, trace_id, idempotency_key, and latency_ms." },
+          "400": { "description": "Schema validation error." },
+          "401": { "description": "Authentication failed." }
+        }
+      }
+    },
+    "/api/v1/keys/create": {
+      "post": {
+        "summary": "Issue Live API Key (Account-Gated)",
+        "description": "Provisions a new active ef_live_... Bearer key bound to an authenticated EthersFlow account.",
+        "operationId": "createApiKey",
+        "responses": {
+          "200": { "description": "Issued API key object." },
+          "401": { "description": "Account authentication required." }
+        }
+      }
+    },
+    "/api/v1/keys/rotate": {
+      "post": {
+        "summary": "Rotate Live API Key (Account-Gated)",
+        "description": "Issues a successor ef_live_... key and marks the previous key rotated (or retains overlap when revoke_previous: false for zero-downtime cutover).",
+        "operationId": "rotateApiKey",
+        "responses": {
+          "200": { "description": "Successor key issued." },
+          "401": { "description": "Account authentication required." },
+          "404": { "description": "Target key not found." }
+        }
+      }
+    },
+    "/api/v1/keys/revoke": {
+      "post": {
+        "summary": "Revoke Live API Key (Account-Gated)",
+        "description": "Immediately revokes an active key; subsequent verify calls with that token fail closed with 401 REVOKED_API_KEY.",
+        "operationId": "revokeApiKey",
+        "responses": {
+          "200": { "description": "Key revoked." },
+          "401": { "description": "Account authentication required." }
         }
       }
     },
