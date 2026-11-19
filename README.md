@@ -182,15 +182,21 @@ python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract 
 
 ### 3. Model Context Protocol (MCP) Server
 
-#### Option A: Via NPX (Recommended)
+#### Instant Zero-Signup Demo (`--demo`)
 ```bash
-npx -y @ethersflow/mcp-server --api-key=YOUR_API_KEY
+# Auto-mints an ephemeral 24h ef_sandbox_ key and connects via stdio:
+npx -y @ethersflow/mcp-server --demo
+```
+
+#### Option A: Via NPX (With Sandbox or Live Key from [`ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html))
+```bash
+npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
 ```
 
 #### Option B: Remote HTTP / SSE Gateway (Zero Local Dependencies)
-Connect your MCP client directly to EthersFlow's production endpoint with connection-level authentication:
+Connect your MCP client directly to EthersFlow's production endpoint with connection-level authentication (mint a key at https://www.ethersflow.com/api-keys.html):
 - **Endpoint**: `https://www.ethersflow.com/api/mcp`
-- **Connection Header**: `Authorization: Bearer YOUR_API_KEY`
+- **Connection Header**: `Authorization: Bearer get_key_at_ethersflow.com/api-keys.html`
 - **RFC 9728 / OAuth Resource Metadata**: In accordance with RFC 9728, unauthenticated requests return HTTP 401 with `WWW-Authenticate: Bearer realm="ethersflow-gateway", resource_metadata="/.well-known/oauth-protected-resource"`. Tool calls without authorization cleanly emit structured JSON-RPC `-32000` (`MISSING_AUTHORIZATION`) errors with preserved request IDs.
 - **Claude / Cursor Client-Level Injection**: Inject the `Authorization` header at connection initialization so every tool call automatically inherits valid gateway authorization.
 
@@ -202,7 +208,7 @@ Connect your MCP client directly to EthersFlow's production endpoint with connec
       "command": "npx",
       "args": ["-y", "@ethersflow/mcp-server"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
       }
     }
@@ -483,16 +489,17 @@ To prevent duplicate financial disbursements, API calls, or ticket mutations acr
 - **Chained Replay (Subsequent Invocations)**: Instantly returns the cached decision receipt in **~12ms** (`replayed: true`, `c2_replayed: true`).
 - **Chained Replay Index**: Each replayed call increments `replay_index` (`1, 2, ...`), creates a distinct audit transaction ID, while preserving the reference to `original_request_id` and the immutable `action_hash`.
 ```bash
+# Get a key at https://www.ethersflow.com/api-keys.html
 # First Call (Fresh Verification ~126ms Fast-Path or ~1.7–2.0s Consensus)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
   -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
 # Response: {"request_id": "req_a1b2...", "replayed": false, "replay_index": 0, ...}
 
 # Second Call (Instant Replay ~12ms)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
-  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
   -d '{"agent_action": "Order $10 of pens from Staples under ticket FAC-911"}'
 # Response: {"request_id": "req_c3d4...", "original_request_id": "req_a1b2...", "replayed": true, "replay_index": 1, ...}
@@ -547,7 +554,8 @@ EthersFlow strictly distinguishes between raw unparsed action payloads and deriv
 import os
 from ethersflow import EthersFlowLangChainTool
 
-verifier_tool = EthersFlowLangChainTool(api_key=os.getenv("ETHERSFLOW_API_KEY", "your_api_key"))
+# Get a free sandbox or live key at https://www.ethersflow.com/api-keys.html
+verifier_tool = EthersFlowLangChainTool(api_key=os.getenv("ETHERSFLOW_API_KEY", "get_key_at_ethersflow.com/api-keys.html"))
 
 # Add to your LangChain agent tools
 tools = [verifier_tool]

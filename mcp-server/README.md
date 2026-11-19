@@ -52,23 +52,29 @@ KYA establishes who your agent is and what it's allowed to do. **KYAA (Know Your
 
 ## ⚡ Quick Start
 
-### Option A: Via NPX (Public Registry)
+### Option A: Zero-Signup Instant Demo (`--demo`)
 ```bash
-npx @ethersflow/mcp-server --api-key=YOUR_API_KEY
+npx -y @ethersflow/mcp-server --demo
+```
+Auto-mints a free 24-hour `ef_sandbox_...` key (`60 verdicts/hr`) and prints a ready-to-paste `mcpServers` config to `stderr`.
+
+### Option B: Via NPX with an explicit key ([`ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html))
+```bash
+npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
 ```
 
-### Option B: From source
+### Option C: From source
 ```bash
 git clone https://github.com/Ethersflow/EthersFlow.git
 cd EthersFlow/mcp-server
 npm install
-npm start
+ETHERSFLOW_TOKEN=get_key_at_ethersflow.com/api-keys.html npm start
 ```
 
-### Option C: Remote HTTP / SSE Gateway (Zero Local Node / NPX Dependencies)
-Connect your MCP client directly to EthersFlow's production endpoint:
+### Option D: Remote HTTP / SSE Gateway (Zero Local Node / NPX Dependencies)
+Connect your MCP client directly to EthersFlow's production endpoint (mint a free sandbox or live key at https://www.ethersflow.com/api-keys.html):
 - **Endpoint**: `https://www.ethersflow.com/api/mcp`
-- **Headers**: `Authorization: Bearer YOUR_API_KEY`
+- **Headers**: `Authorization: Bearer get_key_at_ethersflow.com/api-keys.html`
 
 ---
 
@@ -76,7 +82,7 @@ Connect your MCP client directly to EthersFlow's production endpoint:
 
 ### 1. Claude Desktop Setup
 
-Add EthersFlow to your `claude_desktop_config.json`:
+Add EthersFlow to your `claude_desktop_config.json` (obtain a free key at https://www.ethersflow.com/api-keys.html):
 
 - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
 - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
@@ -89,7 +95,7 @@ Add EthersFlow to your `claude_desktop_config.json`:
       "command": "npx",
       "args": ["-y", "@ethersflow/mcp-server"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
       }
     }
@@ -105,7 +111,7 @@ Add EthersFlow to your `claude_desktop_config.json`:
       "command": "node",
       "args": ["/path/to/EthersFlow/mcp-server/index.js"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
       }
     }
@@ -121,9 +127,9 @@ In Cursor Settings → **MCP Servers** → **Add New MCP Server**:
 
 - **Name**: `ethersflow`
 - **Type**: `command`
-- **Command**: `npx -y @ethersflow/mcp-server` (or `node /path/to/EthersFlow/mcp-server/index.js`)
-- **Environment Variables**:
-  - `ETHERSFLOW_TOKEN`: `YOUR_API_KEY`
+- **Command**: `npx -y @ethersflow/mcp-server --demo` (or `npx -y @ethersflow/mcp-server` with an explicit key)
+- **Environment Variables** (from https://www.ethersflow.com/api-keys.html):
+  - `ETHERSFLOW_TOKEN`: `get_key_at_ethersflow.com/api-keys.html`
   - `ETHERSFLOW_BASE_URL`: `https://www.ethersflow.com`
 
 ---
@@ -153,7 +159,7 @@ The server exposes a single typed tool:
 verify_agent_action({
   agent_action: string;          // Required: Proposed action directive
   reasoning_chain?: string;      // Optional: Reasoning or background context
-  agent_count?: number;          // Optional: Number of audit nodes (2 to 7, default 3)
+  agent_count?: number;          // Optional: Number of audit nodes (1 to 5, default 3)
   persona_preset?: string;       // Optional: "financial_compliance" | "clinical_safety" | "legal_citation" | "cybersecurity_auditor" | "general_adversarial"
 })
 ```
@@ -192,4 +198,4 @@ verify_agent_action({
 
 EthersFlow operates on a strict **receipt-only persistence** architecture by default. Submitted action payloads and prompt texts are discarded from storage immediately after cryptographic signing (not persisted to disk or used for training), while the cryptographic verification receipt (verdict, reason codes, action SHA-256 hash, and Ed25519 signature) is retained for auditability and verification. Full payload retention is available only via explicit per-call opt-in (`zero_retention: false`).
 
-For full API reference and Ed25519 attestation details, visit [EthersFlow Documentation](https://www.ethersflow.com).
+For full API reference, self-serve API keys, and Ed25519 attestation details, visit [EthersFlow API Keys](https://www.ethersflow.com/api-keys.html) or [Developers Hub](https://www.ethersflow.com/developers.html).

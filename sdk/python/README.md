@@ -19,7 +19,8 @@ pip install git+https://github.com/Ethersflow/EthersFlow.git#subdirectory=sdk/py
 import os
 from ethersflow import EthersFlowClient
 
-client = EthersFlowClient(api_key=os.getenv("ETHERSFLOW_API_KEY", "your_api_key"))
+# Get a free sandbox or live key at https://www.ethersflow.com/api-keys.html
+client = EthersFlowClient(api_key=os.getenv("ETHERSFLOW_API_KEY", "get_key_at_ethersflow.com/api-keys.html"))
 
 result = client.verify_agent_action(
     agent_action="Transfer 5000 USDC to 0x71C... for auditing services",
@@ -36,6 +37,6 @@ print(f"Verdict: {result['verdict_summary']}")
 ```python
 from ethersflow import EthersFlowLangChainTool
 
-verifier_tool = EthersFlowLangChainTool(api_key=os.getenv("ETHERSFLOW_API_KEY", "your_api_key"))
+verifier_tool = EthersFlowLangChainTool(api_key=os.getenv("ETHERSFLOW_API_KEY", "get_key_at_ethersflow.com/api-keys.html"))
 tools = [verifier_tool]
 ```

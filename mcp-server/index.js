@@ -8,13 +8,15 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-// Parse CLI args (e.g. --api-key=xyz or --base-url=http://...)
+// Parse CLI args (e.g. --api-key=xyz, --base-url=http://..., or --demo)
 const args = process.argv.slice(2);
 let cliApiKey = "";
 let cliBaseUrl = "";
+let demoMode = false;
 for (let i = 0; i < args.length; i++) {
   const arg = args[i];
-  if (arg.startsWith("--api-key=")) cliApiKey = arg.split("=")[1];
+  if (arg === "--demo") demoMode = true;
+  else if (arg.startsWith("--api-key=")) cliApiKey = arg.split("=")[1];
   else if (arg === "--api-key" && args[i + 1]) cliApiKey = args[++i];
   else if (arg.startsWith("--token=")) cliApiKey = arg.split("=")[1];
   else if (arg === "--token" && args[i + 1]) cliApiKey = args[++i];
@@ -22,8 +24,35 @@ for (let i = 0; i < args.length; i++) {
   else if (arg === "--base-url" && args[i + 1]) cliBaseUrl = args[++i];
 }
 
-const ETHERSFLOW_API_URL = cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://www.ethersflow.com";
-const ETHERSFLOW_API_KEY = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY;
+const ETHERSFLOW_API_URL = (cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://www.ethersflow.com").replace(/\/$/, "");
+let activeApiKey = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "";
+
+function maskKey(k) {
+  if (!k || k.length < 18) return "ef_sandbox_...";
+  return `${k.slice(0, 15)}...${k.slice(-4)}`;
+}
+
+async function provisionSandboxKey() {
+  const sandboxUrl = `${ETHERSFLOW_API_URL}/api/v1/keys/sandbox`;
+  const res = await fetch(sandboxUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "User-Agent": "EthersFlow-MCP-Server/0.3.1",
+    },
+    body: "{}",
+  });
+  const text = await res.text();
+  let parsed = {};
+  try {
+    parsed = JSON.parse(text);
+  } catch {}
+  if (!res.ok || !parsed.key) {
+    const reason = parsed.message || parsed.error || `HTTP ${res.status}`;
+    throw new Error(`Sandbox provisioning failed (${reason}). Get a key manually at https://www.ethersflow.com/api-keys.html`);
+  }
+  return parsed;
+}
 
 const server = new Server(
   {
@@ -60,7 +89,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             agent_count: {
               type: "number",
-              description: "Number of adversarial audit nodes (2 to 7, default 3).",
+              description: "Number of adversarial audit nodes (1 to 5, default 3).",
             },
             persona_preset: {
               type: "string",
@@ -135,12 +164,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 
-  if (!ETHERSFLOW_API_KEY) {
+  if (!activeApiKey) {
     return {
       content: [
         {
           type: "text",
-          text: "Error: Missing EthersFlow API key. Please pass --api-key=<key> or set the ETHERSFLOW_TOKEN environment variable.",
+          text: "Error: Missing EthersFlow API key. Run with --demo or obtain a free key at https://www.ethersflow.com/api-keys.html",
         },
       ],
       isError: true,
@@ -148,12 +177,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   try {
-    const url = `${ETHERSFLOW_API_URL.replace(/\/$/, "")}/api/v1/verify`;
+    const url = `${ETHERSFLOW_API_URL}/api/v1/verify`;
     const response = await fetch(url, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${ETHERSFLOW_API_KEY}`,
+        Authorization: `Bearer ${activeApiKey}`,
         "User-Agent": "EthersFlow-MCP-Server/0.3.1",
       },
       body: JSON.stringify({
@@ -212,12 +241,40 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function main() {
+  if (!activeApiKey && !demoMode) {
+    console.error("EthersFlow MCP: No API key found. Try instant 24h demo without sign-up: npx -y @ethersflow/mcp-server --demo");
+    console.error("Or mint a sandbox/live key at https://www.ethersflow.com/api-keys.html and pass --api-key=<key> or ETHERSFLOW_TOKEN.");
+    console.error('Client snippet: {"mcpServers":{"ethersflow":{"command":"npx","args":["-y","@ethersflow/mcp-server"],"env":{"ETHERSFLOW_TOKEN":"get_key_at_ethersflow.com/api-keys.html","ETHERSFLOW_BASE_URL":"https://www.ethersflow.com"}}}}');
+    process.exit(1);
+  }
+
+  if (!activeApiKey && demoMode) {
+    const minted = await provisionSandboxKey();
+    activeApiKey = minted.key;
+    const limit = minted.rate_limit?.limit ?? 60;
+    const win = minted.rate_limit?.window ?? "hour";
+    console.error(`EthersFlow MCP Demo Mode active — key ${maskKey(activeApiKey)} (24h TTL, ${limit} verdicts/${win}, gateway ${ETHERSFLOW_API_URL})`);
+    console.error(`Manage permanent keys anytime: https://www.ethersflow.com/api-keys.html`);
+    console.error(JSON.stringify({
+      mcpServers: {
+        ethersflow: {
+          command: "npx",
+          args: ["-y", "@ethersflow/mcp-server"],
+          env: {
+            ETHERSFLOW_TOKEN: activeApiKey,
+            ETHERSFLOW_BASE_URL: ETHERSFLOW_API_URL,
+          },
+        },
+      },
+    }));
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("EthersFlow MCP Server running on stdio.");
 }
 
 main().catch((error) => {
-  console.error("Fatal error starting EthersFlow MCP Server:", error);
+  console.error("Fatal error starting EthersFlow MCP Server:", error.message || error);
   process.exit(1);
 });

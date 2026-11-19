@@ -6,7 +6,7 @@ startCommand:
       apiKey:
         type: string
         title: EthersFlow API Key
-        description: Your EthersFlow API key
+        description: Your EthersFlow API key — get a free sandbox or live key at https://www.ethersflow.com/api-keys.html (or test CLI locally with --demo)
     required:
       - apiKey
   commandFunction: |-

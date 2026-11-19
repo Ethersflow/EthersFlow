@@ -30,8 +30,8 @@
       "BearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "bearerFormat": "EthersFlow API Key (ef_live_...)",
-        "description": "Provide your EthersFlow API key in the Authorization header as 'Bearer <token>'."
+        "bearerFormat": "EthersFlow API Key (ef_sandbox_... or ef_live_...)",
+        "description": "Provide your EthersFlow API key in the Authorization header as 'Bearer <token>'. Obtain an instant zero-signup sandbox key (ef_sandbox_..., 24h TTL) or live key (ef_live_...) at https://www.ethersflow.com/api-keys.html."
       }
     },
     "schemas": {
@@ -509,6 +509,18 @@
           "200": { "description": "Sandbox verification verdict receipt with contractual request_id, trace_id, idempotency_key, and latency_ms." },
           "400": { "description": "Schema validation error." },
           "401": { "description": "Authentication failed." }
+        }
+      }
+    },
+    "/api/v1/keys/sandbox": {
+      "post": {
+        "summary": "Mint Instant Zero-Signup Sandbox API Key",
+        "description": "Provisions an ephemeral ef_sandbox_... Bearer key with zero sign-up (24h TTL, 60 verdicts/hr, IP rate-limited at 40 keys/hr). Accepted directly on POST /api/v1/verify and POST /api/mcp. Self-serve web UI available at https://www.ethersflow.com/api-keys.html.",
+        "operationId": "createSandboxApiKey",
+        "security": [],
+        "responses": {
+          "200": { "description": "Ephemeral sandbox API key issued (shown once)." },
+          "429": { "description": "Per-IP sandbox mint rate limit exceeded." }
         }
       }
     },

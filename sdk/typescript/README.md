@@ -13,6 +13,7 @@ npm install @ethersflow/sdk
 ```typescript
 import { EthersFlow } from '@ethersflow/sdk';
 
+// Get a free sandbox or live key at https://www.ethersflow.com/api-keys.html
 const ef = new EthersFlow(process.env.ETHERSFLOW_API_KEY!);
 
 const result = await ef.verify({

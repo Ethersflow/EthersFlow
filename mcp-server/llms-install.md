@@ -7,24 +7,28 @@ APPROVED / FLAGGED_HUMAN_REVIEW / REJECTED with an Ed25519-signed audit trail.
 
 ## Requirements
 - Node.js 18+ (for local/stdio installation)
-- An EthersFlow API key — free during early access at https://www.ethersflow.com
+- No sign-up required for trial mode (`--demo` auto-provisions an ephemeral 24h `ef_sandbox_...` key), or mint a key at https://www.ethersflow.com/api-keys.html
 
-## Option A — Local stdio server (recommended for Cline, Claude Desktop, Cursor)
+## Option A — Instant zero-signup demo (stdio)
 Run:
-    npx -y @ethersflow/mcp-server
+    npx -y @ethersflow/mcp-server --demo
+
+## Option B — Local stdio server with explicit API key (Cline, Claude Desktop, Cursor)
+Get a free sandbox (`ef_sandbox_...`) or live account key (`ef_live_...`) at:
+    https://www.ethersflow.com/api-keys.html
 
 Provide the API key via environment variables:
-    ETHERSFLOW_TOKEN=<your API key>
+    ETHERSFLOW_TOKEN=<key from https://www.ethersflow.com/api-keys.html>
     ETHERSFLOW_BASE_URL=https://www.ethersflow.com
 
 Alternative: pass the key as a flag instead of an env var:
-    npx @ethersflow/mcp-server --api-key=YOUR_API_KEY
+    npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
 
-## Option B — Remote gateway (no local install)
+## Option C — Remote gateway (no local install)
 Point your MCP client at:
     https://www.ethersflow.com/api/mcp
 Authentication header:
-    Authorization: Bearer <your API key>
+    Authorization: Bearer <key from https://www.ethersflow.com/api-keys.html>
 
 ## Client configuration example
 {
@@ -33,7 +37,7 @@ Authentication header:
       "command": "npx",
       "args": ["-y", "@ethersflow/mcp-server"],
       "env": {
-        "ETHERSFLOW_TOKEN": "YOUR_API_KEY",
+        "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
       },
       "disabled": false,
@@ -49,7 +53,7 @@ Authentication header:
    decision (APPROVED / FLAGGED_HUMAN_REVIEW / REJECTED) and a signature field.
 
 ## Troubleshooting
-- 401 INVALID_API_KEY: the token is missing, malformed, or not a real key.
-  Keys are issued at https://www.ethersflow.com (format: ef_live_...).
+- 401 INVALID_API_KEY: the token is missing, malformed, or expired.
+  Mint a fresh key anytime at https://www.ethersflow.com/api-keys.html (ef_sandbox_... or ef_live_...) or test immediately with --demo.
 - ETHERSFLOW_BASE_URL must be exactly https://www.ethersflow.com (no trailing slash).
 - If tools/list fails, confirm Node.js >= 18 is installed: node --version

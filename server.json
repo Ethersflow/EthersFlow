@@ -17,7 +17,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer token API key for EthersFlow",
+          "description": "Bearer token API key for EthersFlow (get one free at https://www.ethersflow.com/api-keys.html)",
           "isRequired": true,
           "isSecret": true
         }
@@ -35,7 +35,7 @@
       "environmentVariables": [
         {
           "name": "ETHERSFLOW_TOKEN",
-          "description": "EthersFlow API key for authenticating consensus requests",
+          "description": "EthersFlow API key (get one free at https://www.ethersflow.com/api-keys.html, or run with --demo)",
           "isRequired": true,
           "isSecret": true
         }
