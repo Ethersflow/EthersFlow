@@ -38,7 +38,7 @@ async function provisionSandboxKey() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "EthersFlow-MCP-Server/0.3.1",
+      "User-Agent": "EthersFlow-MCP-Server/0.3.2",
     },
     body: "{}",
   });
@@ -57,7 +57,7 @@ async function provisionSandboxKey() {
 const server = new Server(
   {
     name: "EthersFlow",
-    version: "0.3.1",
+    version: "0.3.2",
   },
   {
     capabilities: {
@@ -93,14 +93,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             persona_preset: {
               type: "string",
-              enum: [
-                "clinical_safety",
-                "financial_compliance",
-                "legal_citation",
-                "cybersecurity_auditor",
-                "general_adversarial",
-              ],
-              description: "Audit persona preset for specialized domain compliance.",
+              description: "Built-in audit preset (clinical_safety, financial_compliance, legal_citation, cybersecurity_auditor, general_adversarial) or a registered custom persona ID/slug.",
+            },
+            custom_personas: {
+              type: "array",
+              description: "Optional inline array of custom analyst roles or persona objects ({ role, instructions }) for flexible domain reviews.",
+            },
+            persona_instructions: {
+              type: "string",
+              description: "Optional inline custom instructions appended to all council auditor system prompts.",
             },
             scope_hint: {
               type: "string",
@@ -112,7 +113,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             policy_id: {
               type: "string",
-              description: "Optional policy pack identifier to evaluate against.",
+              description: "Optional system or custom policy ID to evaluate against.",
+            },
+            policy: {
+              type: "object",
+              description: "Optional inline custom policy rules object (max_amount_usd, blocked_verbs, blocked_keywords, allowed_domains, blocked_domains, require_ticket_anchor, custom_instructions).",
             },
             grounding_enabled: {
               type: "boolean",
@@ -183,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${activeApiKey}`,
-        "User-Agent": "EthersFlow-MCP-Server/0.3.1",
+        "User-Agent": "EthersFlow-MCP-Server/0.3.2",
       },
       body: JSON.stringify({
         agent_action: actionText,
@@ -192,8 +197,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         scope_grant: args.scope_grant,
         agent_count: args.agent_count !== undefined ? args.agent_count : 3,
         persona_preset: args.persona_preset,
+        custom_personas: args.custom_personas,
+        persona_instructions: args.persona_instructions,
         scope_hint: args.scope_hint || args.scope || args.hint,
-        policy_id: args.policy_id || "finops_default_v1",
+        policy_id: args.policy_id,
+        policy: args.policy,
         grounding_enabled: args.grounding_enabled !== undefined ? args.grounding_enabled : true,
         zero_retention: args.zero_retention !== undefined ? args.zero_retention : true,
       }),

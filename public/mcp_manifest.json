@@ -6,7 +6,7 @@
   "vendor": "EthersFlow Inc.",
   "homepage": "https://www.ethersflow.com",
   "repository": "https://github.com/Ethersflow/EthersFlow",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "license": "MIT",
   "transport": {
     "type": "http-sse",
@@ -30,17 +30,27 @@
             },
             "agent_count": {
               "type": "number",
-              "description": "Number of adversarial audit nodes (2 to 7, default 3)."
+              "description": "Number of adversarial audit nodes (1 to 5, default 3)."
             },
             "persona_preset": {
               "type": "string",
-              "enum": [
-                "clinical_safety",
-                "financial_compliance",
-                "legal_citation",
-                "cybersecurity_auditor",
-                "general_adversarial"
-              ]
+              "description": "Built-in audit preset (clinical_safety, financial_compliance, legal_citation, cybersecurity_auditor, general_adversarial) or a registered custom persona ID/slug."
+            },
+            "custom_personas": {
+              "type": "array",
+              "description": "Optional inline array of custom analyst roles or persona objects ({ role, instructions })."
+            },
+            "persona_instructions": {
+              "type": "string",
+              "description": "Optional custom instructions appended to auditor prompts."
+            },
+            "policy_id": {
+              "type": "string",
+              "description": "System or custom policy ID."
+            },
+            "policy": {
+              "type": "object",
+              "description": "Optional inline custom policy rules object."
             }
           },
           "required": ["agent_action"]

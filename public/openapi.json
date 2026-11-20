@@ -3,7 +3,7 @@
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
     "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
@@ -63,6 +63,55 @@
             }
           },
           "zero_data_retention": { "type": "boolean", "example": true }
+        }
+      },
+      "PolicyRules": {
+        "type": "object",
+        "properties": {
+          "max_amount_usd": { "type": "number", "nullable": true, "example": 5000 },
+          "require_human_review_above_usd": { "type": "number", "nullable": true, "example": 500 },
+          "blocked_verbs": { "type": "array", "items": { "type": "string" }, "example": ["drop", "truncate"] },
+          "blocked_keywords": { "type": "array", "items": { "type": "string" }, "example": ["unapproved_vendor"] },
+          "allowed_domains": { "type": "array", "items": { "type": "string" }, "example": ["corp.internal", "northstar.example"] },
+          "blocked_domains": { "type": "array", "items": { "type": "string" }, "example": ["pastebin.com"] },
+          "require_ticket_anchor": { "type": "boolean", "default": false },
+          "fast_path_allowed": { "type": "boolean", "default": true },
+          "default_verdict_on_violation": { "type": "string", "enum": ["REJECTED", "FLAGGED_HUMAN_REVIEW"], "default": "REJECTED" }
+        }
+      },
+      "PolicyObject": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "pol_finops_strict_01" },
+          "name": { "type": "string", "example": "Strict FinOps Treasury Limit" },
+          "version": { "type": "string", "example": "1.0.0" },
+          "source": { "type": "string", "enum": ["system", "custom", "inline"] },
+          "read_only": { "type": "boolean" },
+          "persona_preset": { "type": "string", "nullable": true },
+          "description": { "type": "string" },
+          "rules": { "$ref": "#/components/schemas/PolicyRules" },
+          "custom_instructions": { "type": "string" },
+          "policy_hash": { "type": "string", "description": "SHA-256 digest of the normalized policy definition bound into receipt_v2.policy_hash." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CustomPersonaObject": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "crypto_defi_risk" },
+          "slug": { "type": "string", "example": "crypto_defi_risk" },
+          "name": { "type": "string", "example": "DeFi Smart Contract & Bridge Risk Council" },
+          "description": { "type": "string" },
+          "roles": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["Smart Contract Auditor", "Bridge Liquidity Risk Analyst"]
+          },
+          "system_instructions": { "type": "string" },
+          "default_policy_id": { "type": "string", "nullable": true },
+          "source": { "type": "string", "enum": ["system", "custom"] },
+          "read_only": { "type": "boolean" }
         }
       }
     }
@@ -338,15 +387,29 @@
                   },
                   "persona_preset": {
                     "type": "string",
-                    "enum": [
-                      "clinical_safety",
-                      "financial_compliance",
-                      "legal_citation",
-                      "cybersecurity_auditor",
-                      "general_adversarial"
-                    ],
+                    "description": "Built-in audit preset (clinical_safety, financial_compliance, legal_citation, cybersecurity_auditor, general_adversarial), a registered custom persona ID/slug created via POST /api/v1/personas, or an arbitrary custom label when paired with inline custom_personas / persona_instructions.",
                     "default": "financial_compliance",
                     "example": "financial_compliance"
+                  },
+                  "custom_personas": {
+                    "type": "array",
+                    "description": "Optional inline array of custom analyst role strings or objects ({ role, instructions }) used for flexible domain councils without pre-registration.",
+                    "items": {
+                      "oneOf": [
+                        { "type": "string" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "role": { "type": "string" },
+                            "instructions": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  },
+                  "persona_instructions": {
+                    "type": "string",
+                    "description": "Optional inline domain audit instructions injected into all council reviewer prompts."
                   },
                   "grounding_enabled": {
                     "type": "boolean",
@@ -387,7 +450,11 @@
                   },
                   "policy_id": {
                     "type": "string",
-                    "description": "Policy pack identifier (e.g. 'finops_default_v1')."
+                    "description": "System policy ID (e.g. 'finops_default_v1') or caller-registered custom policy ID from POST /api/v1/policies."
+                  },
+                  "policy": {
+                    "type": "object",
+                    "description": "Optional inline custom policy override object (supports max_amount_usd, require_human_review_above_usd, blocked_verbs, blocked_keywords, allowed_domains, blocked_domains, require_ticket_anchor, fast_path_allowed, default_verdict_on_violation, custom_instructions)."
                   }
                 }
               }
@@ -458,6 +525,14 @@
                     "agent_action": { "type": "string" },
                     "agent_count": { "type": "integer" },
                     "persona_preset": { "type": "string" },
+                    "resolved_persona": { "type": "string" },
+                    "custom_personas_applied": { "type": "boolean" },
+                    "council_roles": { "type": "array", "items": { "type": "string" } },
+                    "policy_id": { "type": "string" },
+                    "policy_version": { "type": "string" },
+                    "policy_hash": { "type": "string" },
+                    "custom_policy_applied": { "type": "boolean" },
+                    "custom_policy_violations": { "type": "array", "items": { "type": "object" } },
                     "adversarial_debate": {
                       "type": "array",
                       "items": {
@@ -469,7 +544,22 @@
                         }
                       }
                     },
-                    "attestation": { "type": "object" },
+                    "attestation": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "example": "VERIFIED_ED25519_SIG" },
+                        "key_id": { "type": "string", "example": "ef_attest_v5" },
+                        "algorithm": { "type": "string", "example": "Ed25519-EdDSA" },
+                        "jwks_uri": { "type": "string", "example": "/.well-known/jwks.json" },
+                        "public_key_url": { "type": "string", "example": "/api/v1/receipts/public-key" },
+                        "verify_receipt_url": { "type": "string", "example": "/api/v1/verify-receipt" },
+                        "public_key_base64url": { "type": "string" },
+                        "public_key_hex": { "type": "string" },
+                        "canonical_payload": { "type": "string" },
+                        "payload_hash": { "type": "string" },
+                        "signature": { "type": "string" }
+                      }
+                    },
                     "receipt_v2": { "type": "object" },
                     "latency_ms": {
                       "type": "integer",
@@ -489,6 +579,9 @@
           },
           "403": {
             "description": "Key Scope Mismatch (e.g. MIS_SCOPED_API_KEY when sandbox demo token is sent to live /api/v1/verify)"
+          },
+          "404": {
+            "description": "Referenced Custom Policy Not Found (POLICY_NOT_FOUND)"
           },
           "409": {
             "description": "Idempotency Conflict (IDEMPOTENCY_KEY_CONFLICT when the same idempotency_key is reused for different request parameters)"
@@ -587,6 +680,295 @@
         "responses": {
           "200": {
             "description": "MCP Protocol Standard JSON-RPC Response"
+          }
+        }
+      }
+    },
+    "/api/v1/policies": {
+      "get": {
+        "summary": "List System & Caller-Scoped Custom Policies",
+        "description": "Returns read-only built-in system policies together with all custom verification policies created by the authenticated caller.",
+        "operationId": "listPolicies",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "System and custom policy catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "policies": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyObject" } },
+                    "system_policies": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyObject" } },
+                    "custom_policies": { "type": "array", "items": { "$ref": "#/components/schemas/PolicyObject" } },
+                    "total": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Authentication Failed" }
+        }
+      },
+      "post": {
+        "summary": "Create Caller-Scoped Custom Policy",
+        "description": "Creates a reusable governance policy evaluated at runtime inside POST /api/v1/verify and bound cryptographically via policy_hash in receipt_v2.",
+        "operationId": "createPolicy",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "id": { "type": "string", "description": "Optional slug identifier; auto-generated if omitted." },
+                  "name": { "type": "string", "example": "Treasury Guardrail v1" },
+                  "version": { "type": "string", "default": "1.0.0" },
+                  "persona_preset": { "type": "string" },
+                  "description": { "type": "string" },
+                  "rules": { "$ref": "#/components/schemas/PolicyRules" },
+                  "custom_instructions": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Created custom policy with computed policy_hash" },
+          "400": { "description": "Validation error (e.g. MISSING_POLICY_NAME)" },
+          "401": { "description": "Authentication Failed" },
+          "403": { "description": "System policy ID collision (SYSTEM_POLICY_READ_ONLY)" },
+          "409": { "description": "Policy ID already exists (POLICY_ALREADY_EXISTS)" }
+        }
+      }
+    },
+    "/api/v1/policies/{policy_id}": {
+      "parameters": [
+        { "name": "policy_id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "summary": "Get Policy by ID",
+        "operationId": "getPolicy",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Policy object" },
+          "401": { "description": "Authentication Failed" },
+          "404": { "description": "Policy not found (POLICY_NOT_FOUND)" }
+        }
+      },
+      "put": {
+        "summary": "Replace / Update Custom Policy",
+        "operationId": "replacePolicy",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Updated policy with refreshed policy_hash" },
+          "401": { "description": "Authentication Failed" },
+          "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
+          "404": { "description": "Custom policy not found" }
+        }
+      },
+      "patch": {
+        "summary": "Partially Update Custom Policy",
+        "operationId": "patchPolicy",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Updated policy with refreshed policy_hash" },
+          "401": { "description": "Authentication Failed" },
+          "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
+          "404": { "description": "Custom policy not found" }
+        }
+      },
+      "delete": {
+        "summary": "Delete Custom Policy",
+        "operationId": "deletePolicy",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Custom policy deleted" },
+          "401": { "description": "Authentication Failed" },
+          "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
+          "404": { "description": "Custom policy not found" }
+        }
+      }
+    },
+    "/api/v1/personas": {
+      "get": {
+        "summary": "List Built-In & Caller Custom Personas",
+        "description": "Returns built-in system auditor presets plus all caller-registered custom personas usable as persona_preset on POST /api/v1/verify.",
+        "operationId": "listPersonas",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Persona catalog",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "personas": { "type": "array", "items": { "$ref": "#/components/schemas/CustomPersonaObject" } },
+                    "system_personas": { "type": "array", "items": { "$ref": "#/components/schemas/CustomPersonaObject" } },
+                    "custom_personas": { "type": "array", "items": { "$ref": "#/components/schemas/CustomPersonaObject" } }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Authentication Failed" }
+        }
+      },
+      "post": {
+        "summary": "Register Caller-Scoped Custom Persona",
+        "description": "Registers a custom persona slug and council roles so callers can pass persona_preset: '<slug>' directly in POST /api/v1/verify or POST /api/mcp.",
+        "operationId": "createPersona",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "slug": { "type": "string", "example": "crypto_defi_risk" },
+                  "name": { "type": "string", "example": "DeFi Smart Contract Risk" },
+                  "description": { "type": "string" },
+                  "roles": { "type": "array", "items": { "type": "string" } },
+                  "system_instructions": { "type": "string" },
+                  "default_policy_id": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Registered custom persona" },
+          "400": { "description": "Missing persona name" },
+          "401": { "description": "Authentication Failed" },
+          "403": { "description": "Built-in persona slug collision" },
+          "409": { "description": "Persona slug already exists" }
+        }
+      }
+    },
+    "/api/v1/personas/{persona_id}": {
+      "parameters": [
+        { "name": "persona_id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "summary": "Get Persona by ID or Slug",
+        "operationId": "getPersona",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Persona object" }, "404": { "description": "Not found" } }
+      },
+      "put": {
+        "summary": "Update Custom Persona",
+        "operationId": "replacePersona",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Updated persona" }, "403": { "description": "System persona read-only" }, "404": { "description": "Not found" } }
+      },
+      "patch": {
+        "summary": "Partially Update Custom Persona",
+        "operationId": "patchPersona",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Updated persona" }, "403": { "description": "System persona read-only" }, "404": { "description": "Not found" } }
+      },
+      "delete": {
+        "summary": "Delete Custom Persona",
+        "operationId": "deletePersona",
+        "security": [{ "BearerAuth": [] }],
+        "responses": { "200": { "description": "Deleted" }, "403": { "description": "System persona read-only" }, "404": { "description": "Not found" } }
+      }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "summary": "Public Ed25519 JWKS Discovery (RFC 8037 OKP Profile)",
+        "description": "Public unauthenticated JWKS endpoint publishing EthersFlow's active Ed25519 receipt-signing public key (kty: OKP, crv: Ed25519). Aliased at /.well-known/ethersflow-jwks.json and /.well-known/attestation.json.",
+        "operationId": "getPublicJwks",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "RFC 8037 JWK Set",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kty": { "type": "string", "example": "OKP" },
+                          "crv": { "type": "string", "example": "Ed25519" },
+                          "alg": { "type": "string", "example": "Ed25519" },
+                          "use": { "type": "string", "example": "sig" },
+                          "kid": { "type": "string", "example": "ef_attest_v5" },
+                          "x": { "type": "string", "description": "Base64url-encoded 32-byte raw Ed25519 public key" },
+                          "public_key_hex": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/receipts/public-key": {
+      "get": {
+        "summary": "Retrieve Signing Public Key (JWK, PEM, SPKI DER, Hex)",
+        "description": "Public endpoint returning EthersFlow's active Ed25519 signing public key in JWK, raw hex, SPKI DER hex, and PEM formats alongside canonical_serialization_spec.",
+        "operationId": "getReceiptPublicKey",
+        "security": [],
+        "responses": {
+          "200": { "description": "Public key descriptor and canonical serialization specification" }
+        }
+      }
+    },
+    "/api/v1/verify-receipt": {
+      "post": {
+        "summary": "Verify Signed Verdict Attestation Payload",
+        "description": "Statelessly verifies an EthersFlow Ed25519 attestation object ({ attestation } or { canonical_payload, signature }) against the gateway's active signing key.",
+        "operationId": "verifyReceiptAttestation",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "attestation": {
+                    "type": "object",
+                    "properties": {
+                      "canonical_payload": { "type": "string" },
+                      "signature": { "type": "string" }
+                    }
+                  },
+                  "canonical_payload": { "type": "string" },
+                  "signature": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cryptographic verification result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "verified": { "type": "boolean" },
+                    "key_id": { "type": "string" },
+                    "algorithm": { "type": "string", "example": "Ed25519-EdDSA" },
+                    "payload_hash": { "type": "string" }
+                  }
+                }
+              }
+            }
           }
         }
       }
