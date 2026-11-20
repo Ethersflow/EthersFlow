@@ -3,7 +3,7 @@
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
     "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
-    "version": "0.3.2",
+    "version": "0.3.3",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
@@ -67,6 +67,8 @@
       },
       "PolicyRules": {
         "type": "object",
+        "additionalProperties": true,
+        "description": "Structured policy rules evaluated by the deterministic policy kernel and auto-match compiler. Safe unmapped custom rule keys (e.g. geo_fence_regions) are preserved and trigger fail-closed review (UNMAPPED_POLICY_RULE_DETECTED). Any fail-open, bypass, or ALLOW_* error-branch directive is rejected with HTTP 400 POLICY_VALIDATION_FAILED.",
         "properties": {
           "max_amount_usd": { "type": "number", "nullable": true, "example": 5000 },
           "require_human_review_above_usd": { "type": "number", "nullable": true, "example": 500 },
@@ -88,12 +90,115 @@
           "source": { "type": "string", "enum": ["system", "custom", "inline"] },
           "read_only": { "type": "boolean" },
           "persona_preset": { "type": "string", "nullable": true },
+          "on_gate_error": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED", "description": "Non-overridable safety directive governing upstream/gateway errors. Normalized to top-level on storage." },
+          "on_timeout": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED", "description": "Non-overridable safety directive governing council timeout paths. Normalized to top-level on storage." },
+          "on_unmapped_rule": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED", "description": "Non-overridable safety directive governing unmapped custom rule keys. Normalized to top-level on storage." },
           "description": { "type": "string" },
           "rules": { "$ref": "#/components/schemas/PolicyRules" },
           "custom_instructions": { "type": "string" },
-          "policy_hash": { "type": "string", "description": "SHA-256 digest of the normalized policy definition bound into receipt_v2.policy_hash." },
+          "policy_hash": {
+            "type": "string",
+            "description": "SHA-256 hex digest of the canonical ASCII key-sorted normalized policy object ({ id, version, persona_preset, on_gate_error, on_timeout, on_unmapped_rule, rules, custom_instructions }), always bound into receipt_v2.policy_hash. Pre-0.3.3 stored custom policies are migrated on load with default FAIL_CLOSED safety directives and re-stamped (prior hash retained in legacy_policy_hash). Intentionally excludes compiler_version so compiler upgrades never alter policy_hash or invalidate historical receipts."
+          },
+          "legacy_policy_hash": { "type": "string", "nullable": true, "description": "Present on pre-0.3.3 custom policies migrated on load to preserve historical hash reconstructability." },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "PolicyValidationError": {
+        "type": "object",
+        "required": ["error", "error_code", "status", "verdict", "action_eligible", "approval_blocked", "validation_errors", "request_id", "trace_id", "latency_ms", "timestamp"],
+        "properties": {
+          "error": { "type": "string", "example": "POLICY_VALIDATION_FAILED" },
+          "error_type": { "type": "string", "example": "POLICY_VALIDATION_ERROR" },
+          "error_code": { "type": "string", "example": "POLICY_VALIDATION_FAILED" },
+          "code": { "type": "string", "example": "POLICY_VALIDATION_FAILED" },
+          "status": { "type": "string", "enum": ["FAIL_CLOSED"] },
+          "verdict": { "type": "string", "enum": ["REJECTED"] },
+          "action_eligible": { "type": "boolean", "example": false },
+          "approval_blocked": { "type": "boolean", "example": true },
+          "message": { "type": "string" },
+          "hint": { "type": "string" },
+          "validation_errors": {
+            "type": "array",
+            "description": "Deduplicated list of policy safety violations sorted deterministically in ASCII alphabetical order by field path (tie-breaking on reason_code, then message).",
+            "items": {
+              "type": "object",
+              "properties": {
+                "field": { "type": "string", "example": "on_timeout" },
+                "reason_code": { "type": "string", "example": "FAIL_OPEN_DIRECTIVE_FORBIDDEN" },
+                "message": { "type": "string" },
+                "received": { "nullable": true }
+              }
+            }
+          },
+          "status_code": { "type": "integer", "example": 400 },
+          "request_id": { "type": "string" },
+          "verdict_id": { "type": "string" },
+          "trace_id": { "type": "string" },
+          "latency_ms": { "type": "integer" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      },
+      "DerivedPersonaEntry": {
+        "type": "object",
+        "properties": {
+          "persona_id": { "type": "string", "example": "financial_compliance" },
+          "role": { "type": "string", "example": "Financial Review & Treasury Controls Auditor" },
+          "template_id": { "type": "string", "example": "tpl_financial_compliance_v1" },
+          "source_rule_ids": { "type": "array", "items": { "type": "string" }, "example": ["max_amount_usd"] },
+          "fallback": { "type": "boolean", "example": false },
+          "unmapped": { "type": "boolean", "example": false }
+        }
+      },
+      "PersonasDerivedObject": {
+        "type": "object",
+        "description": "Deterministic auto-match compiler provenance stamped on every verification verdict.",
+        "properties": {
+          "compiler_version": { "type": "string", "example": "auto_match_v1.0.0" },
+          "policy_hash": { "type": "string" },
+          "auto_matched": { "type": "boolean", "description": "True when the compiler's derived council roles executed directly (custom/inline policy with no explicit persona override)." },
+          "override_applied": { "type": "boolean", "description": "True when the caller supplied explicit persona_preset, custom_personas, or persona_instructions overriding auto-match." },
+          "explicit_override": {
+            "type": "object",
+            "nullable": true,
+            "properties": {
+              "persona_preset": { "type": "string" },
+              "council_roles": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "entries": { "type": "array", "items": { "$ref": "#/components/schemas/DerivedPersonaEntry" } },
+          "unmapped_rules": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "GatewayUpstreamUnreachableError": {
+        "type": "object",
+        "description": "Non-overridable Layer 2 runtime fail-closed response returned whenever all upstream council providers fail or time out during CONSENSUS lane evaluation, regardless of attached policy content.",
+        "required": ["error", "error_code", "status", "verdict", "action_eligible", "approval_blocked", "status_code", "request_id", "trace_id", "latency_ms", "timestamp"],
+        "properties": {
+          "error": { "type": "string", "example": "GATEWAY_UPSTREAM_UNREACHABLE" },
+          "error_type": { "type": "string", "example": "UPSTREAM_ERROR" },
+          "error_code": { "type": "string", "example": "GATEWAY_UPSTREAM_UNREACHABLE" },
+          "code": { "type": "string", "example": "GATEWAY_UPSTREAM_UNREACHABLE" },
+          "status": { "type": "string", "enum": ["FAIL_CLOSED"] },
+          "verdict": { "type": "string", "enum": ["REJECTED"] },
+          "action_eligible": { "type": "boolean", "example": false },
+          "approval_blocked": { "type": "boolean", "example": true },
+          "lane": { "type": "string", "enum": ["CONSENSUS"] },
+          "policy_id": { "type": "string" },
+          "policy_version": { "type": "string" },
+          "policy_hash": { "type": "string" },
+          "compiler_version": { "type": "string", "example": "auto_match_v1.0.0" },
+          "on_gate_error": { "type": "string", "enum": ["FAIL_CLOSED"] },
+          "on_timeout": { "type": "string", "enum": ["FAIL_CLOSED"] },
+          "policy_fast_path": { "type": "boolean", "example": false },
+          "message": { "type": "string" },
+          "status_code": { "type": "integer", "example": 502 },
+          "request_id": { "type": "string" },
+          "verdict_id": { "type": "string" },
+          "trace_id": { "type": "string" },
+          "latency_ms": { "type": "integer" },
+          "timestamp": { "type": "string", "format": "date-time" }
         }
       },
       "CustomPersonaObject": {
@@ -527,6 +632,9 @@
                     "persona_preset": { "type": "string" },
                     "resolved_persona": { "type": "string" },
                     "custom_personas_applied": { "type": "boolean" },
+                    "compiler_version": { "type": "string", "example": "auto_match_v1.0.0", "description": "Version of the deterministic auto-match persona compiler; also recorded in receipt_v2.config_tuple.compiler_version." },
+                    "personas_derived": { "$ref": "#/components/schemas/PersonasDerivedObject" },
+                    "unmapped_rules": { "type": "array", "items": { "type": "string" }, "description": "Alphabetically sorted unmapped custom rule keys detected in the attached policy (never silently dropped; forces CONSENSUS review with UNMAPPED_POLICY_RULE_DETECTED)." },
                     "council_roles": { "type": "array", "items": { "type": "string" } },
                     "policy_id": { "type": "string" },
                     "policy_version": { "type": "string" },
@@ -560,7 +668,7 @@
                         "signature": { "type": "string" }
                       }
                     },
-                    "receipt_v2": { "type": "object" },
+                    "receipt_v2": { "type": "object", "description": "Signed receipt envelope containing policy_hash, signing_key_id, and config_tuple (policy_id, policy_version, compiler_version, revision, catalog_version, aggregation_rule_version)." },
                     "latency_ms": {
                       "type": "integer",
                       "description": "Server-side gateway evaluation duration in milliseconds."
@@ -572,7 +680,12 @@
             }
           },
           "400": {
-            "description": "Malformed Request or Schema Validation Error (caller key authenticated; e.g. INVALID_PERSONA_PRESET, INVALID_AGENT_COUNT, MISSING_AGENT_ACTION)"
+            "description": "Malformed Request, Schema Error, or Fail-Open Policy Rejection (caller key authenticated first; e.g. POLICY_VALIDATION_FAILED, INVALID_PERSONA_PRESET, INVALID_AGENT_COUNT, MISSING_AGENT_ACTION)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
           },
           "401": {
             "description": "Authentication Failed (MISSING_AUTHORIZATION, MALFORMED_AUTHORIZATION_HEADER, REVOKED_API_KEY, ROTATED_API_KEY, or INVALID_API_KEY)"
@@ -587,21 +700,41 @@
             "description": "Idempotency Conflict (IDEMPOTENCY_KEY_CONFLICT when the same idempotency_key is reused for different request parameters)"
           },
           "502": {
-            "description": "Upstream Council Providers Unreachable (fail-closed GATEWAY_UPSTREAM_UNREACHABLE)"
+            "description": "Upstream Council Providers Unreachable — Non-overridable runtime fail-closed invariant (GATEWAY_UPSTREAM_UNREACHABLE: status=FAIL_CLOSED, verdict=REJECTED, action_eligible=false, approval_blocked=true).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayUpstreamUnreachableError" }
+              }
+            }
           }
         }
       }
     },
     "/api/v1/sandbox/verify": {
       "post": {
-        "summary": "Sandbox Agent Action Verification (Demo Key Accepted)",
-        "description": "Identical verification contract to /api/v1/verify, accepting either live Bearer tokens or public sandbox token ef_sandbox_demo_show_hn.",
+        "summary": "Sandbox Agent Action Verification (Full Live Council Parity)",
+        "description": "Executes the exact same heterogeneous multi-model council, deterministic auto-match compiler, and fail-closed policy kernel as live /api/v1/verify. Differs only in sandbox_mode: true, req_sandbox_/trace_sandbox_ ID prefixes, acceptance of the static demo token ef_sandbox_demo_show_hn, and ephemeral sandbox key quotas (60 verdicts/hr, 24h TTL).",
         "operationId": "verifyAgentActionSandbox",
         "security": [{ "BearerAuth": [] }],
         "responses": {
-          "200": { "description": "Sandbox verification verdict receipt with contractual request_id, trace_id, idempotency_key, and latency_ms." },
-          "400": { "description": "Schema validation error." },
-          "401": { "description": "Authentication failed." }
+          "200": { "description": "Sandbox verification verdict receipt with contractual request_id, trace_id, idempotency_key, compiler_version, personas_derived, and latency_ms." },
+          "400": {
+            "description": "Schema validation error or fail-open inline policy rejection (POLICY_VALIDATION_FAILED).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
+          },
+          "401": { "description": "Authentication failed." },
+          "502": {
+            "description": "Upstream Council Providers Unreachable — Non-overridable runtime fail-closed invariant (GATEWAY_UPSTREAM_UNREACHABLE: status=FAIL_CLOSED, verdict=REJECTED, action_eligible=false, approval_blocked=true).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/GatewayUpstreamUnreachableError" }
+              }
+            }
+          }
         }
       }
     },
@@ -679,7 +812,43 @@
         },
         "responses": {
           "200": {
-            "description": "MCP Protocol Standard JSON-RPC Response"
+            "description": "MCP Protocol Standard JSON-RPC Response (verdict payload inside result.content[0].text)"
+          },
+          "400": {
+            "description": "MCP Invalid Params (-32602), including POLICY_VALIDATION_FAILED on inline fail-open policies, INVALID_PERSONA_PRESET, or INVALID_AGENT_COUNT (auth checked first).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication Failed (-32001, fail-closed auth-before-schema)."
+          },
+          "502": {
+            "description": "Upstream Council Providers Unreachable (-32002) — Non-overridable runtime fail-closed invariant (error.data carries GatewayUpstreamUnreachableError with status=FAIL_CLOSED, verdict=REJECTED, action_eligible=false, approval_blocked=true).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "jsonrpc": { "type": "string", "example": "2.0" },
+                    "id": { "type": "integer" },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": { "type": "integer", "example": -32002 },
+                        "message": { "type": "string" },
+                        "data": { "$ref": "#/components/schemas/GatewayUpstreamUnreachableError" }
+                      }
+                    },
+                    "error_code": { "type": "string", "example": "GATEWAY_UPSTREAM_UNREACHABLE" },
+                    "status": { "type": "string", "enum": ["FAIL_CLOSED"] },
+                    "status_code": { "type": "integer", "example": 502 }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -712,7 +881,7 @@
       },
       "post": {
         "summary": "Create Caller-Scoped Custom Policy",
-        "description": "Creates a reusable governance policy evaluated at runtime inside POST /api/v1/verify and bound cryptographically via policy_hash in receipt_v2.",
+        "description": "Creates a reusable governance policy evaluated at runtime inside POST /api/v1/verify and bound cryptographically via canonical normalized policy_hash in receipt_v2. Rejects any fail-open, bypass, or ALLOW_* error-branch directive with HTTP 400 POLICY_VALIDATION_FAILED.",
         "operationId": "createPolicy",
         "security": [{ "BearerAuth": [] }],
         "requestBody": {
@@ -726,6 +895,9 @@
                   "name": { "type": "string", "example": "Treasury Guardrail v1" },
                   "version": { "type": "string", "default": "1.0.0" },
                   "persona_preset": { "type": "string" },
+                  "on_gate_error": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED" },
+                  "on_timeout": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED" },
+                  "on_unmapped_rule": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED" },
                   "description": { "type": "string" },
                   "rules": { "$ref": "#/components/schemas/PolicyRules" },
                   "custom_instructions": { "type": "string" }
@@ -735,8 +907,15 @@
           }
         },
         "responses": {
-          "201": { "description": "Created custom policy with computed policy_hash" },
-          "400": { "description": "Validation error (e.g. MISSING_POLICY_NAME)" },
+          "201": { "description": "Created custom policy with normalized FAIL_CLOSED directives and canonical policy_hash" },
+          "400": {
+            "description": "Validation error (POLICY_VALIDATION_FAILED on fail-open directives or MISSING_POLICY_NAME)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
+          },
           "401": { "description": "Authentication Failed" },
           "403": { "description": "System policy ID collision (SYSTEM_POLICY_READ_ONLY)" },
           "409": { "description": "Policy ID already exists (POLICY_ALREADY_EXISTS)" }
@@ -762,7 +941,15 @@
         "operationId": "replacePolicy",
         "security": [{ "BearerAuth": [] }],
         "responses": {
-          "200": { "description": "Updated policy with refreshed policy_hash" },
+          "200": { "description": "Updated policy with refreshed canonical policy_hash" },
+          "400": {
+            "description": "Fail-open policy validation failure (POLICY_VALIDATION_FAILED)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
+          },
           "401": { "description": "Authentication Failed" },
           "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
           "404": { "description": "Custom policy not found" }
@@ -773,7 +960,15 @@
         "operationId": "patchPolicy",
         "security": [{ "BearerAuth": [] }],
         "responses": {
-          "200": { "description": "Updated policy with refreshed policy_hash" },
+          "200": { "description": "Updated policy with refreshed canonical policy_hash" },
+          "400": {
+            "description": "Fail-open policy validation failure (POLICY_VALIDATION_FAILED)",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
+              }
+            }
+          },
           "401": { "description": "Authentication Failed" },
           "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
           "404": { "description": "Custom policy not found" }
@@ -788,6 +983,55 @@
           "401": { "description": "Authentication Failed" },
           "403": { "description": "Built-in system policy is read-only (SYSTEM_POLICY_READ_ONLY)" },
           "404": { "description": "Custom policy not found" }
+        }
+      }
+    },
+    "/api/v1/policies/{policy_id}/derived-personas": {
+      "parameters": [
+        { "name": "policy_id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "summary": "Preview Deterministic Auto-Match Personas for Policy",
+        "description": "Pure deterministic compiler preview (zero LLM calls). Maps normalized policy JSON rule categories to the exact auditor persona set, council_roles, unmapped_rules, policy_hash, and compiler_version before running POST /api/v1/verify.",
+        "operationId": "getDerivedPersonasForPolicy",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": {
+            "description": "Deterministic derived persona preview",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["policy_id", "policy_version", "policy_hash", "compiler_version", "personas_derived", "council_roles", "unmapped_rules", "has_unmapped_rules", "request_id", "trace_id", "latency_ms", "timestamp"],
+                  "properties": {
+                    "policy_id": { "type": "string" },
+                    "policy_version": { "type": "string" },
+                    "policy_hash": { "type": "string" },
+                    "compiler_version": { "type": "string", "example": "auto_match_v1.0.0" },
+                    "personas_derived": { "type": "array", "items": { "$ref": "#/components/schemas/DerivedPersonaEntry" } },
+                    "council_roles": { "type": "array", "items": { "type": "string" } },
+                    "unmapped_rules": { "type": "array", "items": { "type": "string" } },
+                    "has_unmapped_rules": { "type": "boolean" },
+                    "safety_directives": {
+                      "type": "object",
+                      "properties": {
+                        "on_gate_error": { "type": "string", "enum": ["FAIL_CLOSED"] },
+                        "on_timeout": { "type": "string", "enum": ["FAIL_CLOSED"] },
+                        "on_unmapped_rule": { "type": "string", "enum": ["FAIL_CLOSED"] }
+                      }
+                    },
+                    "request_id": { "type": "string" },
+                    "verdict_id": { "type": "string" },
+                    "trace_id": { "type": "string" },
+                    "latency_ms": { "type": "integer" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "description": "Authentication Failed (checked before lookup)" },
+          "404": { "description": "Policy not found (POLICY_NOT_FOUND)" }
         }
       }
     },

@@ -38,7 +38,7 @@ async function provisionSandboxKey() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "EthersFlow-MCP-Server/0.3.2",
+      "User-Agent": "EthersFlow-MCP-Server/0.3.3",
     },
     body: "{}",
   });
@@ -57,7 +57,7 @@ async function provisionSandboxKey() {
 const server = new Server(
   {
     name: "EthersFlow",
-    version: "0.3.2",
+    version: "0.3.3",
   },
   {
     capabilities: {
@@ -188,7 +188,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${activeApiKey}`,
-        "User-Agent": "EthersFlow-MCP-Server/0.3.2",
+        "User-Agent": "EthersFlow-MCP-Server/0.3.3",
       },
       body: JSON.stringify({
         agent_action: actionText,
