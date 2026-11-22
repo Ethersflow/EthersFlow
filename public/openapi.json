@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "EthersFlow Autonomous Agent Trust & Consensus API",
-    "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine. Drop-in compatible with standard OpenAI and Anthropic SDKs.",
-    "version": "0.3.3",
+    "description": "Enterprise-grade multi-model federated adversarial consensus and agent action verification engine (v0.4.0 Provably Independent Council). Drop-in compatible with standard OpenAI and Anthropic SDKs.",
+    "version": "0.4.0",
     "contact": {
       "name": "EthersFlow Developer Support",
       "email": "ethersflow.dev@gmail.com",
@@ -31,7 +31,7 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "EthersFlow API Key (ef_sandbox_... or ef_live_...)",
-        "description": "Provide your EthersFlow API key in the Authorization header as 'Bearer <token>'. Obtain an instant zero-signup sandbox key (ef_sandbox_..., 24h TTL) or live key (ef_live_...) at https://www.ethersflow.com/api-keys.html."
+        "description": "Single-Key Access Model: Your EthersFlow API key (ef_live_... or ef_sandbox_...) is the ONLY credential required. It grants REST verification (/api/v1/verify), MCP access, account usage metering (/api/v1/usage), and the full hosted multi-model council with zero model-provider keys required. Optional per-seat BYOK headers (X-BYOK-Groq-Key, X-BYOK-OpenRouter-Key, X-BYOK-OpenAI-Key, X-BYOK-NVIDIA-Key) are supported but never required. Obtain a key at https://www.ethersflow.com/api-keys.html."
       }
     },
     "schemas": {
@@ -87,6 +87,10 @@
           "id": { "type": "string", "example": "pol_finops_strict_01" },
           "name": { "type": "string", "example": "Strict FinOps Treasury Limit" },
           "version": { "type": "string", "example": "1.0.0" },
+          "status": { "type": "string", "enum": ["active", "deprecated", "superseded"], "default": "active", "description": "Policy lifecycle state. Deprecated or superseded policies emit policy_current: false and STALE_POLICY_BINDING on verify." },
+          "deprecated": { "type": "boolean", "default": false },
+          "deprecated_at": { "type": "string", "format": "date-time", "nullable": true },
+          "superseded_by": { "type": "string", "nullable": true, "description": "Optional replacement policy_id surfaced on verify when this policy is superseded." },
           "source": { "type": "string", "enum": ["system", "custom", "inline"] },
           "read_only": { "type": "boolean" },
           "persona_preset": { "type": "string", "nullable": true },
@@ -217,6 +221,187 @@
           "default_policy_id": { "type": "string", "nullable": true },
           "source": { "type": "string", "enum": ["system", "custom"] },
           "read_only": { "type": "boolean" }
+        }
+      },
+      "ScopeGrantObject": {
+        "type": "object",
+        "description": "Server-minted, Ed25519-signed delegated capability grant registered via POST /api/v1/scope-grants. Self-attested or unregistered grants fail closed on /api/v1/verify with FORGED_OR_UNREGISTERED_SCOPE_GRANT.",
+        "properties": {
+          "grant_id": { "type": "string", "example": "grant_ef_a1b2c3d4e5f60708" },
+          "preset": { "type": "string", "enum": ["clinical_safety", "financial_compliance", "legal_citation", "cybersecurity_auditor", "general_adversarial"] },
+          "scope": { "type": "string", "example": "read:patient_labs" },
+          "subject_id": { "type": "string", "example": "PT-98412" },
+          "authorized_by": { "type": "string", "example": "Dr. Alex Rivera, MD (IRB-2026-44)" },
+          "data_class": { "type": "string", "nullable": true, "example": "HEALTH_CLINICAL_PHI" },
+          "status": { "type": "string", "enum": ["ACTIVE", "REVOKED"] },
+          "signing_key_id": { "type": "string", "example": "ef_attest_v5" },
+          "grant_signature": { "type": "string", "description": "Ed25519 signature binding grant_id, caller_scope, preset, subject_id, authorized_by, and expires_at." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "expires_at": { "type": "string", "format": "date-time", "nullable": true },
+          "revoked_at": { "type": "string", "format": "date-time", "nullable": true }
+        }
+      },
+      "CouncilProvenance": {
+        "type": "object",
+        "description": "Strict cross-family council diversity telemetry (diversity_policy=strict_cross_family_v1). Gemini 2.5 Flash is excluded from production council rotation.",
+        "properties": {
+          "requested_models": { "type": "array", "items": { "type": "string" } },
+          "resolved_models": { "type": "array", "items": { "type": "string" } },
+          "resolved_model_families": { "type": "array", "items": { "type": "string" }, "example": ["qwen", "llama", "gpt-oss"] },
+          "distinct_model_count": { "type": "integer", "example": 3 },
+          "distinct_family_count": { "type": "integer", "example": 3 },
+          "diversity_enforced": { "type": "boolean", "example": true },
+          "diversity_policy": { "type": "string", "example": "strict_cross_family_v1" },
+          "diversity_degraded": { "type": "boolean", "description": "True whenever the council could not seat distinct model families across active seats; always paired with reason_code DIVERSITY_DEGRADED." },
+          "degraded_to_single_model": { "type": "boolean" },
+          "degraded_to_single_family": { "type": "boolean" },
+          "gemini_excluded_from_rotation": { "type": "boolean", "example": true },
+          "fallback_used": { "type": "boolean" },
+          "fallback_events": { "type": "array", "items": { "type": "object" } },
+          "policy_fast_path": { "type": "boolean" },
+          "lane": { "type": "string", "enum": ["FAST_PATH", "CONSENSUS"] },
+          "vote_labels": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "SingleKeyAccessModel": {
+        "type": "object",
+        "description": "Explicit single-key access contract: one EthersFlow API key grants verify/MCP access and the hosted multi-model council. BYOK is strictly optional.",
+        "properties": {
+          "model_id": { "type": "string", "example": "single_key_hosted_council_v1" },
+          "mode": { "type": "string", "example": "single_key_hosted_council" },
+          "primary_credential": { "type": "string", "example": "Authorization: Bearer ef_live_..." },
+          "single_key_required": { "type": "boolean", "example": true },
+          "provider_keys_required": { "type": "boolean", "example": false },
+          "hosted_council_included": { "type": "boolean", "example": true },
+          "byok_supported": { "type": "boolean", "example": true },
+          "byok_optional": { "type": "boolean", "example": true },
+          "byok_required": { "type": "boolean", "example": false },
+          "byok_headers": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": ["X-BYOK-Groq-Key", "X-BYOK-OpenRouter-Key", "X-BYOK-OpenAI-Key", "X-BYOK-NVIDIA-Key"]
+          },
+          "summary": { "type": "string" }
+        }
+      },
+      "MeteringSummary": {
+        "type": "object",
+        "description": "Per-verdict cost, token, and access-model attribution echoed on every /api/v1/verify response.",
+        "properties": {
+          "account_id": { "type": "string", "example": "acct_8c91a4f2d10e" },
+          "key_id": { "type": "string", "example": "key_4a92f01c8b21" },
+          "access_model": { "type": "string", "enum": ["single_key_hosted_council", "single_key_with_optional_byok"] },
+          "byok_used": { "type": "boolean", "example": false },
+          "replayed": { "type": "boolean", "example": false },
+          "pricing_version": { "type": "string", "example": "pricing_2026_11_v1" },
+          "total_input_tokens": { "type": "integer", "example": 942 },
+          "total_output_tokens": { "type": "integer", "example": 318 },
+          "total_tokens": { "type": "integer", "example": 1260 },
+          "billable_cost_usd": { "type": "number", "example": 0.001712 },
+          "currency": { "type": "string", "example": "USD" },
+          "seat_attribution": { "type": "array", "items": { "type": "object" } },
+          "usage_endpoint": { "type": "string", "example": "/api/v1/usage" }
+        }
+      },
+      "AccountUsageReport": {
+        "type": "object",
+        "description": "Authenticated, tenant-isolated account or key usage metering report with lane split, per-model/family token & USD cost attribution, custom policy counts, and mathematical reconciliation checks.",
+        "properties": {
+          "request_id": { "type": "string" },
+          "account_id": { "type": "string", "example": "acct_8c91a4f2d10e" },
+          "organization": { "type": "string" },
+          "authenticated_key_id": { "type": "string" },
+          "scope": { "type": "string", "enum": ["account", "key"] },
+          "access_model": { "$ref": "#/components/schemas/SingleKeyAccessModel" },
+          "period": {
+            "type": "object",
+            "properties": {
+              "window": { "type": "string", "example": "30d" },
+              "from": { "type": "string", "format": "date-time" },
+              "to": { "type": "string", "format": "date-time" }
+            }
+          },
+          "totals": {
+            "type": "object",
+            "properties": {
+              "total_verdicts": { "type": "integer" },
+              "fast_path_verdicts": { "type": "integer" },
+              "consensus_verdicts": { "type": "integer" },
+              "replayed_verdicts": { "type": "integer" },
+              "approved_verdicts": { "type": "integer" },
+              "flagged_verdicts": { "type": "integer" },
+              "rejected_verdicts": { "type": "integer" },
+              "byok_verdicts": { "type": "integer" },
+              "hosted_verdicts": { "type": "integer" },
+              "total_model_calls": { "type": "integer" },
+              "total_input_tokens": { "type": "integer" },
+              "total_output_tokens": { "type": "integer" },
+              "total_tokens": { "type": "integer" },
+              "total_cost_usd": { "type": "number" },
+              "currency": { "type": "string", "example": "USD" },
+              "custom_policy_count": { "type": "integer" },
+              "active_custom_policy_count": { "type": "integer" },
+              "active_scope_grant_count": { "type": "integer" },
+              "account_key_count": { "type": "integer" }
+            }
+          },
+          "lane_split": { "type": "object" },
+          "by_model": { "type": "array", "items": { "type": "object" } },
+          "by_model_family": { "type": "array", "items": { "type": "object" } },
+          "by_key": { "type": "array", "items": { "type": "object" } },
+          "by_day": { "type": "array", "items": { "type": "object" } },
+          "reconciliation": {
+            "type": "object",
+            "properties": {
+              "pricing_version": { "type": "string" },
+              "pricing_url": { "type": "string", "example": "/api/v1/usage/pricing" },
+              "currency": { "type": "string", "example": "USD" },
+              "invoice_total_usd": { "type": "number" },
+              "sum_of_by_model_cost_usd": { "type": "number" },
+              "sum_of_by_key_cost_usd": { "type": "number" },
+              "sum_of_by_day_cost_usd": { "type": "number" },
+              "balanced": { "type": "boolean" },
+              "export_csv_url": { "type": "string" },
+              "export_json_url": { "type": "string" }
+            }
+          }
+        }
+      },
+      "UsageExportJson": {
+        "type": "object",
+        "description": "Ed25519-signed billing reconciliation export broken down per day x key x lane x model x provider x billing_mode.",
+        "properties": {
+          "export_version": { "type": "string", "example": "1.0" },
+          "generated_at": { "type": "string", "format": "date-time" },
+          "account_id": { "type": "string" },
+          "scope": { "type": "string", "enum": ["account", "key"] },
+          "period": { "type": "object" },
+          "totals": { "type": "object" },
+          "row_count": { "type": "integer" },
+          "rows": { "type": "array", "items": { "type": "object" } },
+          "reconciliation": {
+            "type": "object",
+            "properties": {
+              "pricing_version": { "type": "string" },
+              "sum_of_rows_cost_usd": { "type": "number" },
+              "invoice_total_usd": { "type": "number" },
+              "balanced": { "type": "boolean" },
+              "reconciliation_sha256": { "type": "string" },
+              "attestation_key_id": { "type": "string" },
+              "attestation_signature": { "type": "string" }
+            }
+          }
+        }
+      },
+      "ModelPricingSchedule": {
+        "type": "object",
+        "description": "Public per-model cost schedule reflecting free-tier Nemotron seats, Groq LPU seats, GPT-4o Mini, Fast Path kernel, and optional BYOK passthrough.",
+        "properties": {
+          "pricing_version": { "type": "string", "example": "pricing_2026_11_v1" },
+          "currency": { "type": "string", "example": "USD" },
+          "access_model": { "$ref": "#/components/schemas/SingleKeyAccessModel" },
+          "models": { "type": "array", "items": { "type": "object" } },
+          "notes": { "type": "array", "items": { "type": "string" } }
         }
       }
     }
@@ -453,6 +638,34 @@
             "required": false,
             "description": "Optional caller correlation reference (or pass client_reference_id / correlation_id in JSON body) echoed back as client_reference_id for human-in-the-loop audit linkage.",
             "schema": { "type": "string" }
+          },
+          {
+            "name": "X-BYOK-Groq-Key",
+            "in": "header",
+            "required": false,
+            "description": "OPTIONAL add-on (never required). Supply your own Groq API key for Groq-hosted council seats; EthersFlow bills $0.00 token cost for BYOK seats (gate attestation fee only).",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-BYOK-OpenRouter-Key",
+            "in": "header",
+            "required": false,
+            "description": "OPTIONAL add-on (never required). Supply your own OpenRouter API key for OpenRouter-routed council seats.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-BYOK-OpenAI-Key",
+            "in": "header",
+            "required": false,
+            "description": "OPTIONAL add-on (never required). Supply your own OpenAI API key for OpenAI-hosted council seats.",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "X-BYOK-NVIDIA-Key",
+            "in": "header",
+            "required": false,
+            "description": "OPTIONAL add-on (never required). Supply your own NVIDIA NIM API key for Nemotron council seats.",
+            "schema": { "type": "string" }
           }
         ],
         "requestBody": {
@@ -530,24 +743,18 @@
                   },
                   "scope_grant": {
                     "type": "object",
-                    "description": "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { grant_id, subject_id, subject_reference, grant_scope, data_class, access_level, issuing_authority, authorized_by, expires_at, consent_verified, status }).",
+                    "description": "Platform-registered cryptographic capability grant provisioned via POST /api/v1/scope-grants (pass { grant_id, grant_signature }). Self-attested, unregistered, expired, cross-caller, or revoked grants fail closed with FORGED_OR_UNREGISTERED_SCOPE_GRANT (CRITICAL_BLOCK).",
                     "properties": {
                       "grant_id": { "type": "string", "example": "grant_ef_clinical_verified_001" },
-                      "subject_id": { "type": "string", "example": "000000" },
-                      "subject_reference": { "type": "string", "example": "example subject record #000000" },
-                      "grant_scope": { "type": "string", "example": "read:health_clinical_phi" },
-                      "data_class": { "type": "string", "example": "HEALTH_CLINICAL_PHI" },
-                      "access_level": { "type": "string", "example": "read_only" },
-                      "issuing_authority": { "type": "string", "example": "attending_physician_or_dpo" },
+                      "grant_signature": { "type": "string" },
+                      "subject_id": { "type": "string", "example": "PT-VERIFIED-001" },
                       "authorized_by": { "type": "string", "example": "Dr. Alex Rivera, MD" },
-                      "expires_at": { "type": "string", "format": "date-time" },
-                      "consent_verified": { "type": "boolean", "default": true },
-                      "status": { "type": "string", "enum": ["VERIFIED", "APPROVED", "AUTHORIZED", "GRANTED", "ACTIVE"] }
+                      "expires_at": { "type": "string", "format": "date-time" }
                     }
                   },
                   "subject_scope_grant": {
                     "type": "object",
-                    "description": "Direct subject scope authorization object."
+                    "description": "Direct subject scope authorization object (alias of scope_grant)."
                   },
                   "scope_hint": {
                     "type": "string",
@@ -555,11 +762,16 @@
                   },
                   "policy_id": {
                     "type": "string",
-                    "description": "System policy ID (e.g. 'finops_default_v1') or caller-registered custom policy ID from POST /api/v1/policies."
+                    "description": "System policy ID (e.g. 'finops_default_v1') or caller-registered custom policy ID from POST /api/v1/policies. Deleted custom policy IDs fail closed with HTTP 410 POLICY_DELETED; deprecated/superseded policies emit policy_current: false and STALE_POLICY_BINDING."
                   },
                   "policy": {
                     "type": "object",
                     "description": "Optional inline custom policy override object (supports max_amount_usd, require_human_review_above_usd, blocked_verbs, blocked_keywords, allowed_domains, blocked_domains, require_ticket_anchor, fast_path_allowed, default_verdict_on_violation, custom_instructions)."
+                  },
+                  "prefer_fast_path": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Advisory hint; never bypasses council safety gates. Whenever lane evaluates as CONSENSUS, fast_path_ineligibility_reasons[] reports every deterministic condition that required live council review."
                   }
                 }
               }
@@ -621,8 +833,18 @@
                     },
                     "verified": { "type": "boolean" },
                     "action_eligible": { "type": "boolean" },
-                    "lane": { "type": "string", "enum": ["FAST_PATH", "CONSENSUS"] },
+                    "lane": { "type": "string", "enum": ["FAST_PATH", "CONSENSUS"], "description": "FAST_PATH triggers ONLY when: (1) policy rules.fast_path_allowed !== false, zero custom rule violations, zero unmapped_rules, and zero custom_instructions/custom_personas; AND (2) either Read-Only Observability Fast-Path (preset in cybersecurity_auditor|general_adversarial|legal_citation, whitelisted read-only verb, zero external destination/egress/mutation, amount=0) OR FinOps Micro Fast-Path (preset=financial_compliance, clean safety screen, zero external destination/mutation, and micro-purchase <=$25 or reconciled PO/ticket/counterparty anchored <=$100)." },
                     "policy_fast_path": { "type": "boolean" },
+                    "fast_path_ineligibility_reasons": {
+                      "type": "array",
+                      "items": { "type": "string" },
+                      "description": "Empty array on FAST_PATH verdicts; lists exact deterministic gating reasons whenever lane=CONSENSUS."
+                    },
+                    "warnings": {
+                      "type": "array",
+                      "items": { "type": "object" },
+                      "description": "Structured non-fatal operational warnings (e.g. STALE_POLICY_BINDING, DIVERSITY_DEGRADED)."
+                    },
                     "consensus_score": { "type": "number", "example": 94.5 },
                     "risk_index": { "type": "number", "example": 5.5 },
                     "reviewer_agreement": { "type": "number", "example": 0.995 },
@@ -639,8 +861,13 @@
                     "policy_id": { "type": "string" },
                     "policy_version": { "type": "string" },
                     "policy_hash": { "type": "string" },
+                    "policy_current": { "type": "boolean", "description": "True when the bound policy is active; false when deprecated or superseded (always paired with STALE_POLICY_BINDING)." },
+                    "policy_status": { "type": "string", "enum": ["active", "deprecated", "superseded"] },
+                    "superseded_by": { "type": "string", "nullable": true },
+                    "policy_deprecation_warning": { "type": "string", "nullable": true },
                     "custom_policy_applied": { "type": "boolean" },
                     "custom_policy_violations": { "type": "array", "items": { "type": "object" } },
+                    "provenance": { "$ref": "#/components/schemas/CouncilProvenance" },
                     "adversarial_debate": {
                       "type": "array",
                       "items": {
@@ -648,7 +875,10 @@
                         "properties": {
                           "role": { "type": "string" },
                           "perspective": { "type": "string" },
-                          "node_status": { "type": "string" }
+                          "node_status": { "type": "string" },
+                          "model_id": { "type": "string" },
+                          "model_family": { "type": "string" },
+                          "provider": { "type": "string" }
                         }
                       }
                     },
@@ -668,7 +898,7 @@
                         "signature": { "type": "string" }
                       }
                     },
-                    "receipt_v2": { "type": "object", "description": "Signed receipt envelope containing policy_hash, signing_key_id, and config_tuple (policy_id, policy_version, compiler_version, revision, catalog_version, aggregation_rule_version)." },
+                    "receipt_v2": { "type": "object", "description": "Signed receipt envelope containing policy_hash, signing_key_id, actual_models, models_digest, diversity_degraded, and config_tuple (policy_id, policy_version, compiler_version, diversity_policy, revision, catalog_version, aggregation_rule_version)." },
                     "latency_ms": {
                       "type": "integer",
                       "description": "Server-side gateway evaluation duration in milliseconds."
@@ -698,6 +928,9 @@
           },
           "409": {
             "description": "Idempotency Conflict (IDEMPOTENCY_KEY_CONFLICT when the same idempotency_key is reused for different request parameters)"
+          },
+          "410": {
+            "description": "Referenced Custom Policy Was Deleted (POLICY_DELETED — policy_current: false, status: FAIL_CLOSED, verdict: REJECTED, action_eligible: false, approval_blocked: true)"
           },
           "502": {
             "description": "Upstream Council Providers Unreachable — Non-overridable runtime fail-closed invariant (GATEWAY_UPSTREAM_UNREACHABLE: status=FAIL_CLOSED, verdict=REJECTED, action_eligible=false, approval_blocked=true).",
@@ -900,16 +1133,17 @@
                   "on_unmapped_rule": { "type": "string", "enum": ["FAIL_CLOSED"], "default": "FAIL_CLOSED" },
                   "description": { "type": "string" },
                   "rules": { "$ref": "#/components/schemas/PolicyRules" },
-                  "custom_instructions": { "type": "string" }
+                  "custom_instructions": { "type": "string" },
+                  "strict_rules": { "type": "boolean", "default": false, "description": "When true, rejects policies that have all rule fields and custom_instructions empty with HTTP 400 EMPTY_POLICY_RULES." }
                 }
               }
             }
           }
         },
         "responses": {
-          "201": { "description": "Created custom policy with normalized FAIL_CLOSED directives and canonical policy_hash" },
+          "201": { "description": "Created custom policy with normalized FAIL_CLOSED directives, canonical policy_hash, effective_rules echo, has_active_rules boolean, and warnings[] (including EMPTY_POLICY_RULES_SILENT_DEFAULTS if all rule dimensions are empty/default)." },
           "400": {
-            "description": "Validation error (POLICY_VALIDATION_FAILED on fail-open directives or MISSING_POLICY_NAME)",
+            "description": "Validation error (POLICY_VALIDATION_FAILED on fail-open directives, EMPTY_POLICY_RULES when strict_rules=true, or MISSING_POLICY_NAME)",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/PolicyValidationError" }
@@ -1122,6 +1356,99 @@
         "responses": { "200": { "description": "Deleted" }, "403": { "description": "System persona read-only" }, "404": { "description": "Not found" } }
       }
     },
+    "/api/v1/council/models": {
+      "get": {
+        "summary": "Inspect 10-Model Provably Independent Council Catalog",
+        "description": "Public read-only catalog listing all 10 council models, model families, runtime eligibility, strict_cross_family_v1 diversity enforcement policy, and confirmation that Gemini 2.5 Flash is excluded from production council rotation.",
+        "operationId": "getCouncilModels",
+        "security": [],
+        "responses": {
+          "200": { "description": "10-model council catalog and diversity metadata" }
+        }
+      }
+    },
+    "/api/v1/scope-grants": {
+      "get": {
+        "summary": "List Caller-Scoped Registered Scope Grants",
+        "description": "Returns all cryptographic capability grants provisioned by the authenticated caller.",
+        "operationId": "listScopeGrants",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Caller scope grants list" },
+          "401": { "description": "Authentication Failed (checked before request handling)" }
+        }
+      },
+      "post": {
+        "summary": "Register Cryptographically Signed Scope Grant (D5 Anti-Forgery Path)",
+        "description": "Provisions a caller-scoped, Ed25519-signed capability grant (grant_id + grant_signature) usable on POST /api/v1/verify. Self-attested or unregistered grants fail closed with FORGED_OR_UNREGISTERED_SCOPE_GRANT.",
+        "operationId": "createScopeGrant",
+        "security": [{ "BearerAuth": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["subject_id", "authorized_by"],
+                "properties": {
+                  "preset": { "type": "string", "enum": ["clinical_safety", "financial_compliance", "legal_citation", "cybersecurity_auditor", "general_adversarial"], "default": "clinical_safety" },
+                  "scope": { "type": "string", "example": "read:patient_labs" },
+                  "subject_id": { "type": "string", "example": "PT-98412" },
+                  "authorized_by": { "type": "string", "example": "Dr. Alex Rivera, MD (IRB-2026-44)" },
+                  "data_class": { "type": "string", "example": "HEALTH_CLINICAL_PHI" },
+                  "expires_at": { "type": "string", "format": "date-time" },
+                  "expires_in_seconds": { "type": "integer", "minimum": 60, "maximum": 2592000, "default": 86400 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Registered Ed25519-signed scope grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scope_grant": { "$ref": "#/components/schemas/ScopeGrantObject" },
+                    "usage_hint": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid scope grant fields or non-future expiry" },
+          "401": { "description": "Authentication Failed (auth-before-schema)" }
+        }
+      }
+    },
+    "/api/v1/scope-grants/{grant_id}": {
+      "parameters": [
+        { "name": "grant_id", "in": "path", "required": true, "schema": { "type": "string" } }
+      ],
+      "get": {
+        "summary": "Get Caller Scope Grant by ID",
+        "operationId": "getScopeGrant",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Scope grant object" },
+          "401": { "description": "Authentication Failed" },
+          "404": { "description": "Scope grant not found for this caller" }
+        }
+      },
+      "delete": {
+        "summary": "Revoke Registered Scope Grant",
+        "description": "Immediately revokes a registered scope grant. Subsequent /api/v1/verify calls presenting a revoked grant fail closed with FORGED_OR_UNREGISTERED_SCOPE_GRANT.",
+        "operationId": "revokeScopeGrant",
+        "security": [{ "BearerAuth": [] }],
+        "responses": {
+          "200": { "description": "Scope grant revoked" },
+          "401": { "description": "Authentication Failed" },
+          "404": { "description": "Scope grant not found for this caller" }
+        }
+      }
+    },
     "/.well-known/jwks.json": {
       "get": {
         "summary": "Public Ed25519 JWKS Discovery (RFC 8037 OKP Profile)",
@@ -1155,6 +1482,76 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/usage": {
+      "get": {
+        "summary": "Get Account or Key Usage Metering Report (Authenticated)",
+        "description": "Returns tenant-isolated, time-windowed usage metering broken down by lane (FAST_PATH vs CONSENSUS), model, model family, API key, and day, including token consumption, per-model USD cost attribution, custom policy counts, and mathematical reconciliation checks. Enforces auth-before-schema (HTTP 401 on missing/invalid key, HTTP 403 FORBIDDEN_KEY_SCOPE on cross-account key_id) with Cache-Control: no-store, private.",
+        "operationId": "getAccountUsage",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "scope", "in": "query", "required": false, "schema": { "type": "string", "enum": ["account", "key"], "default": "account" }, "description": "Roll up across all keys in the authenticated account (default) or restrict strictly to the calling key." },
+          { "name": "window", "in": "query", "required": false, "schema": { "type": "string", "enum": ["24h", "7d", "30d", "90d", "all"], "default": "30d" }, "description": "Predefined lookback window (ignored when from/to are supplied)." },
+          { "name": "from", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional ISO-8601 start date or timestamp (e.g. 2026-11-01)." },
+          { "name": "to", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional ISO-8601 end date or timestamp." },
+          { "name": "key_id", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Filter to a specific key_id belonging to your authenticated account (returns 403 FORBIDDEN_KEY_SCOPE for foreign keys)." },
+          { "name": "model", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional model ID filter (e.g. qwen/qwen3.8-27b)." },
+          { "name": "family", "in": "query", "required": false, "schema": { "type": "string" }, "description": "Optional model family filter (e.g. qwen, gpt-oss, nemotron, ethersflow_kernel)." }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account or key usage metering report with reconciled period totals",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/AccountUsageReport" } } }
+          },
+          "400": { "description": "Invalid scope, time window, or date range" },
+          "401": { "description": "Missing or invalid EthersFlow API key (auth-before-schema)" },
+          "403": { "description": "Requested key_id does not belong to the authenticated account (FORBIDDEN_KEY_SCOPE)" }
+        }
+      }
+    },
+    "/api/v1/usage/export": {
+      "get": {
+        "summary": "Export Billing Reconciliation Usage Report (CSV or Ed25519-Signed JSON)",
+        "description": "Authenticated period export broken down per day x key x lane x model x provider x billing_mode for finance reconciliation. Default format=csv returns RFC-4180 formula-injection-safe CSV with X-EthersFlow-Reconciliation-* headers; format=json returns an Ed25519-signed reconciliation ledger.",
+        "operationId": "exportAccountUsage",
+        "security": [{ "BearerAuth": [] }],
+        "parameters": [
+          { "name": "format", "in": "query", "required": false, "schema": { "type": "string", "enum": ["csv", "json"], "default": "csv" } },
+          { "name": "scope", "in": "query", "required": false, "schema": { "type": "string", "enum": ["account", "key"], "default": "account" } },
+          { "name": "window", "in": "query", "required": false, "schema": { "type": "string", "enum": ["24h", "7d", "30d", "90d", "all"], "default": "30d" } },
+          { "name": "from", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "to", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "key_id", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "model", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "family", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSV attachment (text/csv) or Ed25519-signed JSON export",
+            "content": {
+              "text/csv": { "schema": { "type": "string" } },
+              "application/json": { "schema": { "$ref": "#/components/schemas/UsageExportJson" } }
+            }
+          },
+          "400": { "description": "Invalid format, scope, or time range" },
+          "401": { "description": "Missing or invalid EthersFlow API key (auth-before-schema)" },
+          "403": { "description": "Requested key_id does not belong to the authenticated account (FORBIDDEN_KEY_SCOPE)" }
+        }
+      }
+    },
+    "/api/v1/usage/pricing": {
+      "get": {
+        "summary": "Retrieve Public Per-Model Cost Schedule & Single-Key Access Model",
+        "description": "Public rate card listing per-1M input/output token rates and cryptographic attestation seat fees for all 10 council models plus the ethersflow_kernel Fast Path, alongside the explicit single-key access model.",
+        "operationId": "getUsagePricing",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Transparent per-model pricing schedule",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ModelPricingSchedule" } } }
           }
         }
       }

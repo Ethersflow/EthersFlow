@@ -38,7 +38,7 @@ async function provisionSandboxKey() {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "User-Agent": "EthersFlow-MCP-Server/0.3.3",
+      "User-Agent": "EthersFlow-MCP-Server/0.4.0",
     },
     body: "{}",
   });
@@ -57,7 +57,7 @@ async function provisionSandboxKey() {
 const server = new Server(
   {
     name: "EthersFlow",
-    version: "0.3.3",
+    version: "0.4.0",
   },
   {
     capabilities: {
@@ -109,7 +109,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             scope_grant: {
               type: "object",
-              description: "Explicit kernel-resolvable subject authorization or scope grant evidence (e.g. { subject_id, granted_by, consent_verified, status: 'VERIFIED' }).",
+              description: "Platform-registered cryptographic scope grant ({ grant_id, grant_signature }) provisioned via POST /api/v1/scope-grants. Self-attested or unregistered grants fail closed (FORGED_OR_UNREGISTERED_SCOPE_GRANT).",
             },
             policy_id: {
               type: "string",
@@ -131,17 +131,104 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["agent_action"],
         },
       },
+      {
+        name: "get_account_usage",
+        description: "Inspect account-level or key-level EthersFlow usage metering, lane split (FAST_PATH vs CONSENSUS), per-model/family token & USD cost attribution, and invoice reconciliation totals using your single EthersFlow API key (zero provider keys required).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            scope: {
+              type: "string",
+              enum: ["account", "key"],
+              description: "Roll up across all keys in the account (default: account) or restrict to the calling key (key).",
+            },
+            window: {
+              type: "string",
+              enum: ["24h", "7d", "30d", "90d", "all"],
+              description: "Predefined lookback window (default: 30d).",
+            },
+            from: {
+              type: "string",
+              description: "Optional ISO-8601 start date or timestamp (e.g. 2026-11-01).",
+            },
+            to: {
+              type: "string",
+              description: "Optional ISO-8601 end date or timestamp.",
+            },
+            key_id: {
+              type: "string",
+              description: "Optional specific key_id belonging to your account.",
+            },
+            model: {
+              type: "string",
+              description: "Optional model ID filter (e.g. qwen/qwen3.8-27b).",
+            },
+            family: {
+              type: "string",
+              description: "Optional model family filter (e.g. qwen, gpt-oss, nemotron).",
+            },
+          },
+        },
+      },
     ],
   };
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const toolName = request.params.name;
+  const args = request.params.arguments || {};
+
+  if (toolName === "get_account_usage") {
+    if (!activeApiKey) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "Error: Missing EthersFlow API key. Run with --demo or obtain a free key at https://www.ethersflow.com/api-keys.html",
+          },
+        ],
+        isError: true,
+      };
+    }
+    try {
+      const sp = new URLSearchParams();
+      if (args.scope) sp.set("scope", String(args.scope));
+      if (args.window) sp.set("window", String(args.window));
+      if (args.from) sp.set("from", String(args.from));
+      if (args.to) sp.set("to", String(args.to));
+      if (args.key_id) sp.set("key_id", String(args.key_id));
+      if (args.model) sp.set("model", String(args.model));
+      if (args.family) sp.set("family", String(args.family));
+      const qs = sp.toString();
+      const url = `${ETHERSFLOW_API_URL}/api/v1/usage${qs ? `?${qs}` : ""}`;
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${activeApiKey}`,
+          "User-Agent": "EthersFlow-MCP-Server/0.4.0",
+        },
+      });
+      const text = await response.text();
+      let outputText = text;
+      try {
+        outputText = JSON.stringify(JSON.parse(text), null, 2);
+      } catch {}
+      return {
+        content: [{ type: "text", text: outputText }],
+        isError: !response.ok,
+      };
+    } catch (err) {
+      return {
+        content: [{ type: "text", text: `EthersFlow Usage Query Failed: ${err.message}` }],
+        isError: true,
+      };
+    }
+  }
+
   if (!["verify_agent_action", "ethersflow_verify_agent_action", "ethersflow_consensus_evaluate", "ethersflow_red_team_audit"].includes(toolName)) {
     throw new Error(`Tool not found: ${toolName}`);
   }
 
-  const args = request.params.arguments || {};
   const actionText = args.agent_action || args.action || args.query || args.prompt || "";
   if (!actionText) {
     return {
@@ -188,7 +275,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${activeApiKey}`,
-        "User-Agent": "EthersFlow-MCP-Server/0.3.3",
+        "User-Agent": "EthersFlow-MCP-Server/0.4.0",
       },
       body: JSON.stringify({
         agent_action: actionText,

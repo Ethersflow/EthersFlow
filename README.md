@@ -2,7 +2,7 @@
 
 EthersFlow MCP is the action-verification layer for AI Agents (KYAA — Know Your Agent's Action). An adversarial council of independent models examines what your agent is about to do — and returns a signed, independently checkable verdict before execution.
 
-[![API Status](https://img.shields.io/badge/API-0.3.1-brightgreen.svg)](https://www.ethersflow.com)
+[![API Status](https://img.shields.io/badge/API-0.4.0-brightgreen.svg)](https://www.ethersflow.com)
 [![MCP Server](https://img.shields.io/badge/MCP_Server-GitHub%20Direct-blue.svg)](mcp-server/README.md)
 [![MCP Registry](https://img.shields.io/badge/MCP_Registry-Listed-blue)](https://registry.modelcontextprotocol.io)
 [![smithery badge](https://smithery.ai/badge/ethersflow-dev/ethersflow)](https://smithery.ai/servers/ethersflow-dev/ethersflow)
@@ -75,15 +75,16 @@ Identity answers *who*. Authorization answers *is it allowed*. EthersFlow answer
 
 EthersFlow operates a dual-lane execution engine balancing rapid determinism with multi-model adversarial deliberation:
 
-| Execution Lane | p50 Latency | p95 Latency | Mechanism | Guarantee & Finality |
-| :--- | :--- | :--- | :--- | :--- |
-| **Policy Fast Path** | **126 ms** | **210 ms** | Deterministic safety kernel & catalog matcher (<$100, allowlisted vendor, operational ticket, pre-fast-path intent screen). Kernel nodes evaluate in ~4 ms. | `POLICY_FAST_PATH_APPROVAL` |
-| **Idempotent Replay** | **3.2 ms** | **4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
-| **Adversarial Consensus** | **1.7 s** | **2.0 s** | Live multi-model debate across heterogeneous frontier models (Gemini 3.7 Flash + GPT-OSS-120B) with cryptographic node attestations (R74 measured, provider-timestamped). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+| Execution Lane | Measured Latency (v0.4.0) | Mechanism | Guarantee & Finality |
+| :--- | :--- | :--- | :--- |
+| **Policy Fast Path (`FAST_PATH`)** | **4 – 11 ms** (kernel) / **~126 ms** (edge p50) | Deterministic safety kernel & catalog matcher (clean read-only observability or reconciled micro-expense <= $100 with approved vendor & operational ticket anchor). Returns `fast_path_ineligibility_reasons: []`. | `POLICY_FAST_PATH_APPROVAL` |
+| **Idempotent Replay** | **3.2 – 4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
+| **Adversarial Consensus (`CONSENSUS`) — 2-Agent Council** | **0.9 – 1.2 s** (v0.4.0 measured, 0 fallbacks) | Parallel cross-family deliberation across **Qwen 3.8 27B** + **GPT-OSS 120B** (`strict_cross_family_v1`) with Ed25519 node & root attestations (`models_digest` bound). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+| **Adversarial Consensus (`CONSENSUS`) — 3-Agent Council** | **~8.0 s** (v0.4.0 measured, 0 fallbacks) | Parallel 3-family deliberation across **Qwen 3.8 27B** (`groq`) + **GPT-OSS 120B** (`groq`) + **Nemotron-3 Super 120B** (`openrouter`). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 
-> **Structuring Defense & Automatic Escalation**: To prevent autonomous agents from splitting large operations into multiple micro-transactions to bypass policy controls, requests that exceed safety thresholds or exhibit anomalous frequency automatically escalate from the deterministic Fast Path to the multi-model Consensus lane for thorough deliberation.
+> **Structuring Defense & Automatic Escalation**: To prevent autonomous agents from splitting large operations into multiple micro-transactions to bypass policy controls, requests that exceed safety thresholds or exhibit anomalous frequency automatically escalate from the deterministic `FAST_PATH` to the multi-model `CONSENSUS` lane.
 >
-> **Policy-Driven Thresholds**: Fast-path ceilings (e.g. low-risk micro-expenses <$100), approved vendors, and ticket anchor requirements (e.g. Jira, ServiceNow, Ops tickets) are enforced via policy profiles (such as `finops_default_v1`), ensuring deterministic speed for routine actions and multi-model defense for high-stakes edge cases.
+> **Exact `FAST_PATH` Eligibility & Diagnostics (v0.4.0)**: Every `CONSENSUS` verdict includes `fast_path_ineligibility_reasons[]` explaining precisely why deterministic fast-path was bypassed (e.g. `MUTATION_OR_EXEC_VERB_DETECTED`, `AMOUNT_EXCEEDS_FAST_PATH_CEILING_100_USD`, `NO_RECONCILED_MICRO_AMOUNT_DETECTED`, `POLICY_DISALLOWS_FAST_PATH`, `UNMAPPED_POLICY_RULE_DETECTED`, `CUSTOM_INSTRUCTIONS_REQUIRE_COUNCIL`, `SCOPE_GRANT_REQUIRES_COUNCIL`). Fast-path activates only when `rules.fast_path_allowed !== false`, zero unmapped rules or `custom_instructions` are present, no mutation/egress hazards or scope-grant assertions exist, and the action is either a reconciled micro-purchase (`<= $100` with ticket anchor under `financial_compliance`) or a read-only allowlisted observability probe.
 
 ---
 
@@ -109,16 +110,62 @@ EthersFlow unifies audit compliance with strict data privacy through a **receipt
   Authorized audit teams can retrieve or delete receipts using `GET /api/v1/receipts/{verdict_id}` and `DELETE /api/v1/receipts/{verdict_id}`.
 ---
 
-## Canonical Policy IDs
+## Canonical Policies, Custom Policy CRUD & Provably Independent Council (v0.4.0)
 
-Every EthersFlow decision receipt binds a canonical `policy_id` across both top-level metadata (`receipt.policy_id`) and the signed configuration tuple (`receipt.receipt_v2.config_tuple.policy_id`):
+Every EthersFlow decision receipt binds a canonical or caller-defined `policy_id` and SHA-256 `policy_hash` across both top-level metadata (`receipt.policy_id`, `receipt.policy_current`) and the signed configuration tuple (`receipt.receipt_v2.config_tuple.policy_id`).
 
+### Built-in Canonical Policies
 | Policy ID | Description | Default Rules & Thresholds |
 |---|---|---|
-| `finops_default_v1` | **Default Enterprise FinOps Safety Policy** | Dual-lane evaluation: Micro-expense fast-path (<$100, approved catalog vendor, ticket anchor, 5 approvals/24hr window) and multi-model consensus fallback. |
+| `finops_default_v1` | **Default Enterprise FinOps Safety Policy** | Dual-lane evaluation: Micro-expense fast-path (`<=$100`, approved catalog vendor, ticket anchor, 5 approvals/24hr window) and multi-model consensus fallback. |
 | `tripwire_circuit_breaker_v1` | **High-Assurance Circuit Breaker Policy** | Immediate fail-closed tripping on anomalous wire transfers, credential exfiltration, prompt injection patterns, or authority bypasses. |
 
-These presets are EthersFlow's internal policy layer. Verification against customer-supplied or arbitrary external policies is not part of the current service (roadmap item) and is not covered by published verification results.
+### Custom Policy CRUD, Auto-Match Compiler & Lifecycle Signals
+- **Policy API (`POST / GET / PATCH / PUT / DELETE /api/v1/policies`)**: Caller-scoped custom policies with auth-before-schema `401` enforcement, deterministic SHA-256 `policy_hash`, and fail-closed validation rejecting any hostile fail-open toggle (`400 POLICY_VALIDATION_FAILED`).
+- **Deterministic Auto-Match Compiler (`auto_match_v1.0.0`)**: Automatically compiles policy JSON rules into the appropriate adversarial reviewer council with zero LLM non-determinism; unmapped rules explicitly trigger fail-closed `UNMAPPED_POLICY_RULE_DETECTED`.
+- **Silent-Defaults Guard**: `POST /api/v1/policies` echoes `effective_rules`, `has_active_rules`, and `warnings[]` (emitting `EMPTY_POLICY_RULES_SILENT_DEFAULTS` when all thresholds/filters are empty; pass `strict_rules: true` to reject empty policies with `400 EMPTY_POLICY_RULES`).
+- **Stale Policy Binding Signals**: Deprecating or superseding a policy (`PATCH /api/v1/policies/:id` with `{ deprecated: true, superseded_by }`) marks subsequent verdicts with `policy_current: false`, `policy_deprecation_warning`, `superseded_by`, and cryptographically signed `STALE_POLICY_BINDING`. Deleting a policy (`DELETE /api/v1/policies/:id`) fails closed on subsequent verifications with HTTP `410 POLICY_DELETED`.
+
+### Registered Scope Grants (`/api/v1/scope-grants`)
+- Self-attested or unregistered `scope_grant` claims always fail closed (`REJECTED` / `FORGED_OR_UNREGISTERED_SCOPE_GRANT` / `CRITICAL_BLOCK`).
+- Provision verifiable delegated grants via `POST /api/v1/scope-grants` (caller-scoped, Ed25519-signed `grant_signature`, TTL-bounded), inspect via `GET /api/v1/scope-grants/:id`, and immediately revoke via `DELETE /api/v1/scope-grants/:id`.
+
+### Provably Independent 10-Model Council (`strict_cross_family_v1`)
+Inspect the active council catalog anytime via `GET /api/v1/council/models`. Gemini 2.5 Flash is excluded from production council rotation (`gemini_in_council_rotation: false`).
+
+| # | Model ID | Family | Provider / Route | Profile |
+|---|---|---|---|---|
+| 1 | `qwen/qwen3.8-27b` | `qwen` | Qwen / Groq LPUs | Dense Analytical & Multilingual |
+| 2 | `openai/gpt-oss-120b` | `gpt-oss` | Groq LPUs | Deep Reasoning |
+| 3 | `nvidia/nemotron-3-super-120b` | `nemotron` | NVIDIA / OpenRouter Free | Game-Theoretic Debate |
+| 4 | `meta-llama/llama-3.3-70b-instruct` | `llama` | Meta / Groq / OpenRouter | High-Performance Dialectical Reasoning |
+| 5 | `groq/compound-mini` | `compound` | Groq LPUs | Compound Reasoning |
+| 6 | `openai/gpt-4o-mini` | `openai-gpt4o` | OpenAI / OpenRouter | High Fidelity & Compact |
+| 7 | `nvidia/nemotron-3-ultra-550b` | `nemotron` | NVIDIA / OpenRouter Free | Deep Consensus & Nuance |
+| 8 | `nvidia/nemotron-3.5-lightning` | `nemotron` | NVIDIA / OpenRouter Free | Free Low-Latency Audit |
+| 9 | `qwen/qwen3.6-27b` | `qwen` | Groq LPUs | Ultra-Fast |
+| 10 | `openai/gpt-oss-20b` | `gpt-oss` | Groq LPUs | Low-Latency |
+
+**Hard Diversity Kernel Rule**: Primary seats and fallback passes strictly prioritize unused model families first, then unused models. If upstream outages force the council onto a single live model, the verdict explicitly surfaces `provenance.diversity_degraded: true`, `provenance.degraded_to_single_model: true`, and cryptographically signs `DIVERSITY_DEGRADED` into `reason_codes` and `attestation.bound_fields.models_digest`.
+
+### Single-Key Access Model & Account-Level Usage Metering (`/api/v1/usage`)
+- **Single-Key Principle**: One EthersFlow API key (`ef_live_...`) is the **only credential a customer needs** — it grants REST `/api/v1/verify`, MCP tools (`verify_agent_action` + `get_account_usage`), policy/scope-grant management, and the full hosted multi-model council with **zero model-provider keys required**. Optional per-seat BYOK headers (`X-BYOK-Groq-Key`, `X-BYOK-OpenRouter-Key`, `X-BYOK-OpenAI-Key`, `X-BYOK-NVIDIA-Key`) are supported as an opt-in add-on (billed at `$0.00` token cost + gate attestation fee only) and are never required.
+- **Usage Metering (`GET /api/v1/usage`)**: Authenticated, tenant-isolated, time-windowed (`window=24h|7d|30d|90d|all` or `from`/`to`, `scope=account|key`, optional `key_id`/`model`/`family`) report returning verdict counts, `FAST_PATH` vs `CONSENSUS` lane split, per-model & per-family token/USD attribution, per-key rollups, custom policy counts, and mathematically balanced `reconciliation` totals.
+- **Finance Export (`GET /api/v1/usage/export`)**: Authenticated period export per day × key × lane × model × billing mode as formula-safe RFC-4180 CSV (`?format=csv`, default) or Ed25519-signed JSON (`?format=json`) for invoice reconciliation.
+- **Transparent Rate Card (`GET /api/v1/usage/pricing`)**: Public per-model pricing schedule reflecting free-tier Nemotron seats, Groq LPU seats, GPT-4o Mini, `ethersflow_kernel` Fast Path, optional BYOK passthrough, and `$0.00` idempotent replays.
+
+```bash
+# Account-wide usage report across all your keys (one EF key, zero provider keys)
+curl -s "https://www.ethersflow.com/api/v1/usage?scope=account&window=30d" \
+  -H "Authorization: Bearer $ETHERSFLOW_API_KEY"
+
+# Finance reconciliation CSV export (or ?format=json for Ed25519-signed JSON)
+curl -s "https://www.ethersflow.com/api/v1/usage/export?format=csv&window=30d" \
+  -H "Authorization: Bearer $ETHERSFLOW_API_KEY" -o ethersflow-usage.csv
+
+# Public per-model rate card
+curl -s "https://www.ethersflow.com/api/v1/usage/pricing"
+```
 
 ---
 
@@ -346,15 +393,15 @@ EthersFlow derives three orthogonal dimensions of action integrity rather than a
 
 ### 2. Transparent Provider Request IDs (Auditable on Inference Dashboards)
 
-Every adversarial debate perspective includes raw upstream provider request IDs (`provider_request_id`):
-- `gen-...` for Google Gemini 3.7 Flash
-- `chatcmpl-...` for OpenAI/Groq GPT-OSS-120B
+Every adversarial debate perspective includes raw upstream provider request IDs (`provider_request_id`), resolved model family (`model_family`), and cryptographically bound `models_digest`:
+- `chatcmpl-...` for Groq LPUs (`qwen/qwen3.8-27b`, `qwen/qwen3.6-27b`, `openai/gpt-oss-120b`, `openai/gpt-oss-20b`, `groq/compound-mini`) and OpenAI (`gpt-4o-mini`)
+- `gen-...` for OpenRouter (`nvidia/nemotron-3.5-super-vl:free`, `nvidia/nemotron-3-ultra-550b-a55b:free`, `nvidia/nemotron-3.5-lightning:free`, `meta-llama/llama-3.3-70b-instruct`)
 
-Security and audit teams can take any `provider_request_id` directly to Google Cloud Console or Groq/OpenRouter logs to verify the raw prompt, timestamp, and inference origin without trusting EthersFlow's intermediate gateway.
+Security and audit teams can take any `provider_request_id` directly to Groq, OpenRouter, NVIDIA, or OpenAI provider logs to verify the raw prompt, timestamp, and inference origin without trusting EthersFlow's intermediate gateway.
 
 ### 3. Dual Ed25519 Cryptographic Attestations (Canonical v4 Format)
 
-Every receipt contains a root attestation and per-node signatures generated under the active key (`ef_attest_v5`). The signed payload binds all critical decision fields into an immutable, colon-delimited string:
+Every receipt contains a root attestation and per-node signatures generated under the active key (`ef_attest_v5`). The signed payload binds all critical decision fields into an immutable, colon-delimited string (and `attestation.bound_fields` records `models_digest` and `actual_models`):
 
 ```text
 v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus_score>:<reviewer_agreement>:<risk_index>:<evidence_status>:<grounding_status>:<reason_codes>:<approval_blocked>:<timestamp>:<version>
@@ -366,10 +413,10 @@ v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus
 
 | Property | FAST_PATH Lane | CONSENSUS Lane |
 | :--- | :--- | :--- |
-| **Target Latency** | ~126 ms total (nodes ~4 ms) | 1.7 s – 2.0 s (R74 measured) |
-| **Inference Source** | Deterministic Safety Kernel (`policy-kernel-fast-path-v4` @ `ethersflow_kernel`) | Heterogeneous Frontier Council (Gemini 3.7 Flash + GPT-OSS-120B) |
-| **Model Invocations** | Zero live LLM calls. Deterministic catalog & rule matching. | Live multi-model parallel debate & adversarial cross-examination. |
-| **Receipt Structure** | Dual kernel-attested signatures under `ef_attest_v5`. | Independent per-model Ed25519 signatures with live provider request IDs. |
+| **Measured Latency (v0.4.0)** | 4 – 11 ms kernel (~126 ms edge p50) | 0.9 – 1.2 s (2-agent Groq LPUs) / ~8.0 s (3-agent cross-provider) |
+| **Inference Source** | Deterministic Safety Kernel (`policy-kernel-fast-path-v4` @ `ethersflow_kernel`) | Provably Independent 10-Model Council (`strict_cross_family_v1`: Qwen 3.8 27B + GPT-OSS 120B + Nemotron-3 Super/Ultra/Lightning + Llama/Compound/GPT-4o Mini) |
+| **Model Invocations** | Zero live LLM calls. Deterministic catalog & rule matching. | Live multi-family parallel debate & adversarial cross-examination. |
+| **Receipt Structure** | Dual kernel-attested signatures under `ef_attest_v5`; `fast_path_ineligibility_reasons: []`. | Independent per-model Ed25519 signatures with live provider request IDs, `models_digest`, `diversity_degraded`, and `fast_path_ineligibility_reasons[]`. |
 
 ### 5. Control Surface Reference
 
@@ -428,25 +475,39 @@ v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus
   "adversarial_debate": [
     {
       "role": "Zero-Trust Security Architect",
-      "model_id": "google/gemini-3.7-flash",
-      "provider": "google",
-      "provider_request_id": "gen-a99182bf9012c",
+      "model_id": "qwen/qwen3.8-27b",
+      "model_family": "qwen",
+      "provider": "groq",
+      "provider_request_id": "chatcmpl-8a19c2ef4102b",
       "node_status": "REJECTED",
       "perspective": "REJECTED: Action attempts to read and transmit master IAM secrets to external endpoint. Unconditional block.",
-      "latency_ms": 1780,
+      "latency_ms": 842,
       "attestation_status": "VERIFIED_ED25519_SIG"
     },
     {
       "role": "IAM & Privilege Escalation Auditor",
       "model_id": "openai/gpt-oss-120b",
+      "model_family": "gpt-oss",
       "provider": "groq",
       "provider_request_id": "chatcmpl-9201fba41",
       "node_status": "REJECTED",
       "perspective": "REJECTED: Violation of least-privilege boundary. Exfiltration pattern detected in proposed action arguments.",
-      "latency_ms": 1820,
+      "latency_ms": 914,
       "attestation_status": "VERIFIED_ED25519_SIG"
     }
   ],
+  "provenance": {
+    "diversity_enforced": true,
+    "diversity_policy": "strict_cross_family_v1",
+    "diversity_degraded": false,
+    "degraded_to_single_model": false,
+    "resolved_models": ["qwen/qwen3.8-27b", "openai/gpt-oss-120b"],
+    "resolved_model_families": ["qwen", "gpt-oss"],
+    "distinct_model_count": 2,
+    "distinct_family_count": 2,
+    "gemini_excluded_from_rotation": true,
+    "fallback_events": []
+  },
   "attestation": {
     "status": "VERIFIED_ED25519_SIG",
     "key_id": "ef_attest_v5",
@@ -526,7 +587,7 @@ EthersFlow strictly distinguishes between raw unparsed action payloads and deriv
 
 - **Ed25519-Signed Audit Trail**: Every audit node output and overall verdict is signed using Ed25519-EdDSA (`ef_attest_v5`). Signatures can be verified independently offline against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
 - **Probabilistic, Not Deterministic**: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` <-> `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
-- **Live Model Engine**: Powered by heterogeneous inference nodes across independent providers: **Gemini 3.7 Flash** (Google) and **GPT-OSS-120B** (Groq/OpenRouter), confirmed via live provider request IDs (`gen-...` and `chatcmpl-...`). Additional architectures (Llama 3.3 70B, Qwen 3.6/3.8 27B) are on the Bring-Your-Own-Key (BYOK) roadmap.
+- **Live Model Engine (v0.4.0 Provably Independent Council)**: Powered by a 10-model heterogeneous catalog across 6 model families (**Qwen 3.8/3.6 27B**, **GPT-OSS 120B/20B**, **NVIDIA Nemotron-3 Super/Ultra/3.5 Lightning**, **Llama 3.3 70B**, **Compound Mini**, and **GPT-4o Mini**) governed by `strict_cross_family_v1`. Every seat records live `provider_request_id`, `model_family`, and `models_digest` in the Ed25519 attestation; Gemini 2.5 Flash is excluded from production council rotation.
 - **Gateway Architecture & Repository Evolution**: The core Federated Adversarial Consensus backend operates as a secure API service with default receipt-only persistence and payload discard (verdicts, reason codes, action hashes, and Ed25519 signatures retained; raw action payloads discarded immediately after signing). Currently, this repository hosts the gateway service alongside developer toolkits and SDKs; backend engine code will be segregated into a dedicated repository in Phase C.
 
 ---
@@ -643,7 +704,7 @@ Results below are from the published external verification battery (R79) and its
 
 > **Comparability caveat:** published baseline figures describe *undefended* models; the deltas above are directional until the methodology-reconciliation pass (scheduled) aligns test conditions exactly.
 
-> **Honest disclosures:** benign-action handling is fail-closed by design, and the dedicated benign control set is small — a larger innocent-case battery is an open work item (F7), disclosed in the white paper. Verification runs against EthersFlow's internal policy layer (e.g. `finops_default_v1`); customer-supplied policy packs are on the roadmap and are **not** covered by the results above.
+> **Honest disclosures:** benign-action handling is fail-closed by design, and the dedicated benign control set is small — a larger innocent-case battery is an open work item (F7), disclosed in the white paper. The historical R79/R86 benchmark numbers above were measured against EthersFlow's built-in internal policy layer (e.g. `finops_default_v1`); caller-defined custom policies (`/api/v1/policies`, now live in v0.4.0) are **not** covered by those earlier R79/R86 figures.
 
 ---
 
