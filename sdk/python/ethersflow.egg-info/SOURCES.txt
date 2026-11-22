@@ -1,9 +1,0 @@
-README.md
-pyproject.toml
-ethersflow/__init__.py
-ethersflow/client.py
-ethersflow.egg-info/PKG-INFO
-ethersflow.egg-info/SOURCES.txt
-ethersflow.egg-info/dependency_links.txt
-ethersflow.egg-info/requires.txt
-ethersflow.egg-info/top_level.txt

@@ -60,3 +60,7 @@ dist/
 build/
 *.log
 .DS_Store
+EthersFlow/
+*.egg-info/
+dist/
+build/
