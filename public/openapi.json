@@ -31,7 +31,13 @@
         "type": "http",
         "scheme": "bearer",
         "bearerFormat": "EthersFlow API Key (ef_sandbox_... or ef_live_...)",
-        "description": "Single-Key Access Model: Your EthersFlow API key (ef_live_... or ef_sandbox_...) is the ONLY credential required. It grants REST verification (/api/v1/verify), MCP access, account usage metering (/api/v1/usage), and the full hosted multi-model council with zero model-provider keys required. Optional per-seat BYOK headers (X-BYOK-Groq-Key, X-BYOK-OpenRouter-Key, X-BYOK-OpenAI-Key, X-BYOK-NVIDIA-Key) are supported but never required. Obtain a key at https://www.ethersflow.com/api-keys.html."
+        "description": "Single-Key Access Model: Your account-bound EthersFlow API key (ef_live_... or ef_sandbox_...) is the ONLY credential required for verification, MCP, and usage metering. Create a free account at https://www.ethersflow.com/api-keys.html to mint a key. Optional per-seat BYOK headers (X-BYOK-Groq-Key, X-BYOK-OpenRouter-Key, X-BYOK-OpenAI-Key, X-BYOK-NVIDIA-Key) are supported but never required."
+      },
+      "AccountSessionAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "EthersFlow Account Session Token (efs_v1...)",
+        "description": "Signed account session token returned by POST /api/v1/auth/signup or POST /api/v1/auth/login. Required for all /api/v1/keys/* key provisioning, listing, rotation, revocation, and audit log endpoints."
       }
     },
     "schemas": {
@@ -971,26 +977,102 @@
         }
       }
     },
-    "/api/v1/keys/sandbox": {
+    "/api/v1/auth/signup": {
       "post": {
-        "summary": "Mint Instant Zero-Signup Sandbox API Key",
-        "description": "Provisions an ephemeral ef_sandbox_... Bearer key with zero sign-up (24h TTL, 60 verdicts/hr, IP rate-limited at 40 keys/hr). Accepted directly on POST /api/v1/verify and POST /api/mcp. Self-serve web UI available at https://www.ethersflow.com/api-keys.html.",
-        "operationId": "createSandboxApiKey",
+        "summary": "Create EthersFlow Account",
+        "description": "Creates a new EthersFlow account (email + password >= 8 chars, hashed server-side with scrypt) and returns a signed account session token required to mint API keys.",
+        "operationId": "signupAccount",
         "security": [],
         "responses": {
-          "200": { "description": "Ephemeral sandbox API key issued (shown once)." },
-          "429": { "description": "Per-IP sandbox mint rate limit exceeded." }
+          "201": { "description": "Account created and signed session token issued." },
+          "400": { "description": "Invalid email or password shorter than 8 characters." },
+          "409": { "description": "An account with this email already exists." },
+          "429": { "description": "Auth rate limit exceeded." }
+        }
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Sign In to EthersFlow Account",
+        "description": "Authenticates an existing EthersFlow account and returns a signed account session token for /api/v1/keys/* operations.",
+        "operationId": "loginAccount",
+        "security": [],
+        "responses": {
+          "200": { "description": "Authenticated and signed session token issued." },
+          "401": { "description": "Invalid email or password." },
+          "429": { "description": "Auth rate limit exceeded." }
+        }
+      }
+    },
+    "/api/v1/auth/me": {
+      "get": {
+        "summary": "Get Current Authenticated Account",
+        "description": "Returns the authenticated account profile for the active session token.",
+        "operationId": "getCurrentAccount",
+        "security": [{ "AccountSessionAuth": [] }],
+        "responses": {
+          "200": { "description": "Authenticated account profile." },
+          "401": { "description": "Account authentication required." }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Revoke Active Account Session",
+        "description": "Immediately revokes the caller's signed account session token.",
+        "operationId": "logoutAccount",
+        "security": [{ "AccountSessionAuth": [] }],
+        "responses": {
+          "200": { "description": "Session revoked." }
+        }
+      }
+    },
+    "/api/v1/keys/list": {
+      "get": {
+        "summary": "List Account API Keys (Account-Gated)",
+        "description": "Returns masked metadata for API keys belonging to the authenticated EthersFlow account. Raw key secrets are never returned after initial creation.",
+        "operationId": "listApiKeys",
+        "security": [{ "AccountSessionAuth": [] }],
+        "responses": {
+          "200": { "description": "Account API key metadata list." },
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." }
+        }
+      }
+    },
+    "/api/v1/keys/logs": {
+      "get": {
+        "summary": "List Account API Audit Logs (Account-Gated)",
+        "description": "Returns verification audit log entries scoped strictly to the authenticated EthersFlow account.",
+        "operationId": "listApiKeyLogs",
+        "security": [{ "AccountSessionAuth": [] }],
+        "responses": {
+          "200": { "description": "Account-scoped audit logs." },
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." }
+        }
+      }
+    },
+    "/api/v1/keys/sandbox": {
+      "post": {
+        "summary": "Mint Account-Bound Sandbox API Key (Account-Gated)",
+        "description": "Provisions an ephemeral ef_sandbox_... Bearer key bound to the authenticated EthersFlow account (24h TTL, 60 verdicts/hr). Requires a valid account session token; unauthenticated requests fail closed with 401 ACCOUNT_AUTHENTICATION_REQUIRED.",
+        "operationId": "createSandboxApiKey",
+        "security": [{ "AccountSessionAuth": [] }],
+        "responses": {
+          "200": { "description": "Account-bound ephemeral sandbox API key issued (shown once)." },
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." },
+          "429": { "description": "Sandbox mint rate limit exceeded." }
         }
       }
     },
     "/api/v1/keys/create": {
       "post": {
         "summary": "Issue Live API Key (Account-Gated)",
-        "description": "Provisions a new active ef_live_... Bearer key bound to an authenticated EthersFlow account.",
+        "description": "Provisions a new active ef_live_... Bearer key bound to an authenticated EthersFlow account. Raw key secret is returned once and stored as a SHA-256 hash only.",
         "operationId": "createApiKey",
+        "security": [{ "AccountSessionAuth": [] }],
         "responses": {
-          "200": { "description": "Issued API key object." },
-          "401": { "description": "Account authentication required." }
+          "200": { "description": "Issued API key object (raw key shown once)." },
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." }
         }
       }
     },
@@ -999,9 +1081,10 @@
         "summary": "Rotate Live API Key (Account-Gated)",
         "description": "Issues a successor ef_live_... key and marks the previous key rotated (or retains overlap when revoke_previous: false for zero-downtime cutover).",
         "operationId": "rotateApiKey",
+        "security": [{ "AccountSessionAuth": [] }],
         "responses": {
-          "200": { "description": "Successor key issued." },
-          "401": { "description": "Account authentication required." },
+          "200": { "description": "Successor key issued (raw key shown once)." },
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." },
           "404": { "description": "Target key not found." }
         }
       }
@@ -1011,9 +1094,10 @@
         "summary": "Revoke Live API Key (Account-Gated)",
         "description": "Immediately revokes an active key; subsequent verify calls with that token fail closed with 401 REVOKED_API_KEY.",
         "operationId": "revokeApiKey",
+        "security": [{ "AccountSessionAuth": [] }],
         "responses": {
           "200": { "description": "Key revoked." },
-          "401": { "description": "Account authentication required." }
+          "401": { "description": "Account authentication required (ACCOUNT_AUTHENTICATION_REQUIRED)." }
         }
       }
     },

@@ -229,15 +229,10 @@ python efverify.py verify "Transfer 5000 USDC to wallet 0x9f for smart contract 
 
 ### 3. Model Context Protocol (MCP) Server
 
-#### Instant Zero-Signup Demo (`--demo`)
+#### Option A: Via NPX (With Account-Bound Key from [`ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html))
+Create a free EthersFlow account at [`https://www.ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html) to mint your `ef_live_...` or 24h `ef_sandbox_...` API key, then run:
 ```bash
-# Auto-mints an ephemeral 24h ef_sandbox_ key and connects via stdio:
-npx -y @ethersflow/mcp-server --demo
-```
-
-#### Option A: Via NPX (With Sandbox or Live Key from [`ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html))
-```bash
-npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
+npx -y @ethersflow/mcp-server --api-key=YOUR_EF_API_KEY
 ```
 
 #### Option B: Remote HTTP / SSE Gateway (Zero Local Dependencies)

@@ -8,7 +8,7 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
-// Parse CLI args (e.g. --api-key=xyz, --base-url=http://..., or --demo)
+// Parse CLI args (e.g. --api-key=xyz, --base-url=http://...)
 const args = process.argv.slice(2);
 let cliApiKey = "";
 let cliBaseUrl = "";
@@ -26,33 +26,6 @@ for (let i = 0; i < args.length; i++) {
 
 const ETHERSFLOW_API_URL = (cliBaseUrl || process.env.ETHERSFLOW_BASE_URL || process.env.ETHERSFLOW_API_URL || "https://www.ethersflow.com").replace(/\/$/, "");
 let activeApiKey = cliApiKey || process.env.ETHERSFLOW_TOKEN || process.env.ETHERSFLOW_API_KEY || "";
-
-function maskKey(k) {
-  if (!k || k.length < 18) return "ef_sandbox_...";
-  return `${k.slice(0, 15)}...${k.slice(-4)}`;
-}
-
-async function provisionSandboxKey() {
-  const sandboxUrl = `${ETHERSFLOW_API_URL}/api/v1/keys/sandbox`;
-  const res = await fetch(sandboxUrl, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "User-Agent": "EthersFlow-MCP-Server/0.4.0",
-    },
-    body: "{}",
-  });
-  const text = await res.text();
-  let parsed = {};
-  try {
-    parsed = JSON.parse(text);
-  } catch {}
-  if (!res.ok || !parsed.key) {
-    const reason = parsed.message || parsed.error || `HTTP ${res.status}`;
-    throw new Error(`Sandbox provisioning failed (${reason}). Get a key manually at https://www.ethersflow.com/api-keys.html`);
-  }
-  return parsed;
-}
 
 const server = new Server(
   {
@@ -184,7 +157,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         content: [
           {
             type: "text",
-            text: "Error: Missing EthersFlow API key. Run with --demo or obtain a free key at https://www.ethersflow.com/api-keys.html",
+            text: "Error: Missing EthersFlow API key. Create a free account at https://www.ethersflow.com/api-keys.html to mint an API key.",
           },
         ],
         isError: true,
@@ -261,7 +234,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       content: [
         {
           type: "text",
-          text: "Error: Missing EthersFlow API key. Run with --demo or obtain a free key at https://www.ethersflow.com/api-keys.html",
+          text: "Error: Missing EthersFlow API key. Create a free account at https://www.ethersflow.com/api-keys.html to mint an API key.",
         },
       ],
       isError: true,
@@ -336,32 +309,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 });
 
 async function main() {
-  if (!activeApiKey && !demoMode) {
-    console.error("EthersFlow MCP: No API key found. Try instant 24h demo without sign-up: npx -y @ethersflow/mcp-server --demo");
-    console.error("Or mint a sandbox/live key at https://www.ethersflow.com/api-keys.html and pass --api-key=<key> or ETHERSFLOW_TOKEN.");
-    console.error('Client snippet: {"mcpServers":{"ethersflow":{"command":"npx","args":["-y","@ethersflow/mcp-server"],"env":{"ETHERSFLOW_TOKEN":"get_key_at_ethersflow.com/api-keys.html","ETHERSFLOW_BASE_URL":"https://www.ethersflow.com"}}}}');
+  if (!activeApiKey) {
+    if (demoMode) {
+      console.error("EthersFlow MCP: Unauthenticated --demo key minting is disabled. An EthersFlow account is required to obtain an API key.");
+    } else {
+      console.error("EthersFlow MCP: No API key found. An EthersFlow account is required to obtain an API key.");
+    }
+    console.error("Create a free account and mint a key at https://www.ethersflow.com/api-keys.html, then pass --api-key=<key> or set ETHERSFLOW_TOKEN.");
+    console.error('Client snippet: {"mcpServers":{"ethersflow":{"command":"npx","args":["-y","@ethersflow/mcp-server"],"env":{"ETHERSFLOW_TOKEN":"YOUR_EF_API_KEY","ETHERSFLOW_BASE_URL":"https://www.ethersflow.com"}}}}');
     process.exit(1);
-  }
-
-  if (!activeApiKey && demoMode) {
-    const minted = await provisionSandboxKey();
-    activeApiKey = minted.key;
-    const limit = minted.rate_limit?.limit ?? 60;
-    const win = minted.rate_limit?.window ?? "hour";
-    console.error(`EthersFlow MCP Demo Mode active — key ${maskKey(activeApiKey)} (24h TTL, ${limit} verdicts/${win}, gateway ${ETHERSFLOW_API_URL})`);
-    console.error(`Manage permanent keys anytime: https://www.ethersflow.com/api-keys.html`);
-    console.error(JSON.stringify({
-      mcpServers: {
-        ethersflow: {
-          command: "npx",
-          args: ["-y", "@ethersflow/mcp-server"],
-          env: {
-            ETHERSFLOW_TOKEN: activeApiKey,
-            ETHERSFLOW_BASE_URL: ETHERSFLOW_API_URL,
-          },
-        },
-      },
-    }));
   }
 
   const transport = new StdioServerTransport();
