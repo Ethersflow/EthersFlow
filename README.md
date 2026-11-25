@@ -17,7 +17,7 @@ KYA establishes who your agent is and what it's allowed to do. KYAA (Know Your A
 
 EthersFlow is an action gate: it decides whether an agent's next action should execute — and notarizes its own decision with signed, independently verifiable evidence. Calls from unverified identities are refused by default; read-only probes get a rate-capped look, and every decision — including every refusal — is a signed receipt. Enforcement without proof is a black box; proof without enforcement is just an audit log after the damage is done. EthersFlow is the checkpoint that does both.
 
-The threat model is already mapped. Prompt-injection corpora, agentic attack suites, and adversarial red-team batteries are published research — EthersFlow verifies every agent action against that mapped attack space **and** against its internal policy layer at runtime, before the action fires, and signs the result. How much gets through when it does: 2.52% of 4,203 mapped attack scenarios on the current build — full methodology, per-suite results, and disclosures in the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/).
+The threat model is already mapped. Prompt-injection corpora, agentic attack suites, and adversarial red-team batteries are published research — EthersFlow verifies every agent action against that mapped attack space **and** against its internal policy layer at runtime, before the action fires, and signs the result. How much gets through when it does: 2.52% of 4,203 mapped attack scenarios on the current build (97.48% defended — rejected or escalated to human review; the action did not execute) — full methodology, per-suite results, and disclosures in the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/).
 
 ### The Agent Governance Stack
 
@@ -49,10 +49,10 @@ Identity answers *who*. Authorization answers *is it allowed*. EthersFlow answer
 +-------------------------------------------------------------------------------+
 |                 EthersFlow Action-Verification Gateway (KYAA)                 |
 |                                                                               |
-|   +-----------------------+               +-------------------------------+   |
-|   |  Deterministic Kernel | (fast-path)   |  Adversarial Frontier Council |   |
-|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)    |   |
-|   +-----------+-----------+               +---------------+---------------+   |
+|   +-----------------------+               +---------------------------------+ |
+|   |  Deterministic Kernel | (fast-path)   | Adversarial Multi-Model Council | |
+|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)      | |
+|   +-----------+-----------+               +----------------+----------------+ |
 |               |                                           |                   |
 |               +---------------------+---------------------+                   |
 |                                     |                                         |
@@ -78,9 +78,11 @@ EthersFlow operates a dual-lane execution engine balancing rapid determinism wit
 | Execution Lane | Measured Latency (v0.4.0) | Mechanism | Guarantee & Finality |
 | :--- | :--- | :--- | :--- |
 | **Policy Fast Path (`FAST_PATH`)** | **4 – 11 ms** (kernel) / **~126 ms** (edge p50) | Deterministic safety kernel & catalog matcher (clean read-only observability or reconciled micro-expense <= $100 with approved vendor & operational ticket anchor). Returns `fast_path_ineligibility_reasons: []`. | `POLICY_FAST_PATH_APPROVAL` |
-| **Idempotent Replay** | **3.2 – 4.5 ms** | Sub-millisecond deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
+| **Idempotent Replay** | **3.2 – 4.5 ms** | Milliseconds-class deduplication on repeated `idempotency_key` and action hash. | `replayed: true` |
 | **Adversarial Consensus (`CONSENSUS`) — 2-Agent Council** | **0.9 – 1.2 s** (v0.4.0 measured, 0 fallbacks) | Parallel cross-family deliberation across **Qwen 3.8 27B** + **GPT-OSS 120B** (`strict_cross_family_v1`) with Ed25519 node & root attestations (`models_digest` bound). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
 | **Adversarial Consensus (`CONSENSUS`) — 3-Agent Council** | **~8.0 s** (v0.4.0 measured, 0 fallbacks) | Parallel 3-family deliberation across **Qwen 3.8 27B** (`groq`) + **GPT-OSS 120B** (`groq`) + **Nemotron-3 Super 120B** (`openrouter`). | `POLICY_SUPERMAJORITY_APPROVAL` / `POLICY_FINAL_BLOCK` |
+
+Measured on the R90 published campaign (4,203 gated actions; median 1.1 s per gated action); per-case latencies are in the [raw bundle](https://ethersflow.juno.page/qa-explorer/). Full methodology: [white paper](https://ethersflow.juno.page/ethersflow-report/).
 
 > **Structuring Defense & Automatic Escalation**: To prevent autonomous agents from splitting large operations into multiple micro-transactions to bypass policy controls, requests that exceed safety thresholds or exhibit anomalous frequency automatically escalate from the deterministic `FAST_PATH` to the multi-model `CONSENSUS` lane.
 >
@@ -104,6 +106,8 @@ EthersFlow unifies audit compliance with strict data privacy through a **receipt
   }
   ```
   This persists the cryptographic receipt to the durable audit vault (`durability: "durable_audit_log"`, `storage_engine: "firestore_durable"`, `retention_receipt_url: "/api/v1/receipts/{request_id}"`).
+
+  What the durable vault stores: signed receipts and verdict metadata only — never action payloads, prompts, or reasoning chains. Default mode remains strict ephemeral zero-retention; durable mode exists for enterprise audit evidence. Council calls are processed by third-party model providers (Groq, OpenRouter); upstream retention is governed by each provider's terms and is disclosed here so buyers can complete their own sub-processor review.
 
 - **Cryptographic Action Hash Binding (Zero Payload Leakage)**:
   **Strict Privacy Invariant**: In both ephemeral and durable modes, EthersFlow binds ONLY the SHA-256 action hash (`action_hash: sha256(agent_action)`). Raw prompt and action text are **never persisted to the database vault**. An auditor can verify the Ed25519 signature on the decision without exposing sensitive business prompts to storage breaches.
@@ -130,8 +134,10 @@ Every EthersFlow decision receipt binds a canonical or caller-defined `policy_id
 - Self-attested or unregistered `scope_grant` claims always fail closed (`REJECTED` / `FORGED_OR_UNREGISTERED_SCOPE_GRANT` / `CRITICAL_BLOCK`).
 - Provision verifiable delegated grants via `POST /api/v1/scope-grants` (caller-scoped, Ed25519-signed `grant_signature`, TTL-bounded), inspect via `GET /api/v1/scope-grants/:id`, and immediately revoke via `DELETE /api/v1/scope-grants/:id`.
 
-### Provably Independent 10-Model Council (`strict_cross_family_v1`)
-Inspect the active council catalog anytime via `GET /api/v1/council/models`. Gemini 2.5 Flash is excluded from production council rotation (`gemini_in_council_rotation: false`).
+### Provably Independent Multi-Model Council (`strict_cross_family_v1`)
+The council is multi-model by construction. A default campaign council runs two primary reviewer seats — `qwen/qwen3.8-27b` and `openai/gpt-oss-120b`, both served via Groq — with NVIDIA Nemotron models (via OpenRouter) on escalation lanes. The full rotation catalog (additional families held for fallback and degraded-mode diversity) is inspectable anytime via `GET /api/v1/council/models` (Gemini 2.5 Flash is excluded from production council rotation: `gemini_in_council_rotation: false`). This composition is not a claim: every seat, provider, and token count is published per case in the R90 raw bundle (linked from the [QA Explorer](https://ethersflow.juno.page/qa-explorer/)).
+
+**Rotation catalog (fallback + degraded-mode seats — not the default campaign council):**
 
 | # | Model ID | Family | Provider / Route | Profile |
 |---|---|---|---|---|
@@ -145,6 +151,8 @@ Inspect the active council catalog anytime via `GET /api/v1/council/models`. Gem
 | 8 | `nvidia/nemotron-3.5-lightning` | `nemotron` | NVIDIA / OpenRouter Free | Free Low-Latency Audit |
 | 9 | `qwen/qwen3.6-27b` | `qwen` | Groq LPUs | Ultra-Fast |
 | 10 | `openai/gpt-oss-20b` | `gpt-oss` | Groq LPUs | Low-Latency |
+
+Models in this catalog appear in published campaigns only when seat attribution in the raw bundle shows them firing. In R90, the bundle proves Qwen 3.8 27B + GPT-OSS 120B (primary) and Nemotron-3 Super/Ultra (escalation lanes).
 
 **Hard Diversity Kernel Rule**: Primary seats and fallback passes strictly prioritize unused model families first, then unused models. If upstream outages force the council onto a single live model, the verdict explicitly surfaces `provenance.diversity_degraded: true`, `provenance.degraded_to_single_model: true`, and cryptographically signs `DIVERSITY_DEGRADED` into `reason_codes` and `attestation.bound_fields.models_digest`.
 
@@ -211,9 +219,11 @@ curl -X POST "https://www.ethersflow.com/api/v1/verify" \
   -d '{
     "agent_action": "Transfer 5000 USDC to wallet 0x9f for smart contract audit",
     "persona_preset": "financial_compliance",
-    "agent_count": 3
+    "agent_count": 2
   }'
 ```
+
+> `agent_count: 2` = the default campaign council (Qwen 3.8 27B + GPT-OSS 120B). Higher counts draw escalation lanes and cost more.
 
 ### 2. Python SDK & Zero-Dependency Verifier
 
@@ -274,7 +284,7 @@ When you launch the server from a terminal you'll see the EthersFlow boot splash
 
 EthersFlow evaluates requests across two primary execution lanes:
 1. **`FAST_PATH` (<200ms, ~126ms gateway, ~4ms kernel nodes)**: Deterministic, synchronous policy verification for low-risk micro-expenses (under $100) or read-only internal telemetry anchored by verified operational artifacts.
-2. **`CONSENSUS` (~1.7–2.0s)**: Multi-model adversarial cross-examination across independent live frontier models.
+2. **`CONSENSUS` (median 1.1 s in R90)**: Multi-model adversarial cross-examination across independent live models (median 1.1 s per gated action in the R90 published campaign; see the [white paper](https://ethersflow.juno.page/ethersflow-report/)).
 
 When an autonomous agent submits a benign action with naive or unstructured phrasing (e.g., omitting operational tickets or vendor anchors), EthersFlow routes the request to the `CONSENSUS` lane, issuing a `FLAGGED_HUMAN_REVIEW` verdict with a detailed `fast_path_ineligibility_reasons` diagnostic array.
 
@@ -359,7 +369,7 @@ EthersFlow derives three orthogonal dimensions of action integrity rather than a
    where $s_i$ is the individual score assigned by each node (0 to 100) and $w_i$ is the normalized node weight. In `FAST_PATH` mode, deterministic safety rule bands set this directly (e.g., 96.8 for verified read-only observability).
 
 2. **`reviewer_agreement` (0.000 to 1.000)**:
-   Inter-rater concordance across heterogeneous models. An agreement of `1.000` indicates unanimous consensus across all participating frontier models and deterministic rule screens. Values below `0.700` indicate divergence triggering human-in-the-loop review.
+   Inter-rater concordance across heterogeneous models. An agreement of `1.000` indicates unanimous consensus across all participating council models and deterministic rule screens. Values below `0.700` indicate divergence triggering human-in-the-loop review.
 
 3. **`risk_index` (0.0 to 10.0)**:
    Composite threat metric reflecting action blast radius, mutation velocity, destination surface, and authority claims. Actions with `risk_index >= 7.0` trip high-assurance circuit breakers (`approval_blocked: true`).
@@ -409,7 +419,7 @@ v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus
 | Property | FAST_PATH Lane | CONSENSUS Lane |
 | :--- | :--- | :--- |
 | **Measured Latency (v0.4.0)** | 4 – 11 ms kernel (~126 ms edge p50) | 0.9 – 1.2 s (2-agent Groq LPUs) / ~8.0 s (3-agent cross-provider) |
-| **Inference Source** | Deterministic Safety Kernel (`policy-kernel-fast-path-v4` @ `ethersflow_kernel`) | Provably Independent 10-Model Council (`strict_cross_family_v1`: Qwen 3.8 27B + GPT-OSS 120B + Nemotron-3 Super/Ultra/Lightning + Llama/Compound/GPT-4o Mini) |
+| **Inference Source** | Deterministic Safety Kernel (`policy-kernel-fast-path-v4` @ `ethersflow_kernel`) | Provably Independent Multi-Model Council (`strict_cross_family_v1`: Qwen 3.8 27B + GPT-OSS 120B primary seats; Nemotron escalation lanes) |
 | **Model Invocations** | Zero live LLM calls. Deterministic catalog & rule matching. | Live multi-family parallel debate & adversarial cross-examination. |
 | **Receipt Structure** | Dual kernel-attested signatures under `ef_attest_v5`; `fast_path_ineligibility_reasons: []`. | Independent per-model Ed25519 signatures with live provider request IDs, `models_digest`, `diversity_degraded`, and `fast_path_ineligibility_reasons[]`. |
 
@@ -421,7 +431,7 @@ v4:<request_id>:<action_hash>:<policy_id>:<verdict>:<action_eligible>:<consensus
 | `action_eligible` | boolean | `true`, `false` | Execution flag. Agent runners **must halt** immediately if `false`. |
 | `approval_blocked` | boolean | `true`, `false` | Tripwire circuit-breaker flag. `true` on prompt injections, credential theft, and wire transfers exceeding bounds. |
 | `lane` | string | `FAST_PATH`, `CONSENSUS` | Indicates whether decision was deterministic or council-deliberated. |
-| `idempotency_key` | string / null | User UUID | Deduplication key reference. Sub-millisecond replay on repeat calls. |
+| `idempotency_key` | string / null | User UUID | Deduplication key reference. Milliseconds-class replay on repeat calls. |
 
 ### 6. Annotated Real Rejection Receipt (Credential Exfiltration Trap)
 
@@ -546,7 +556,7 @@ To prevent duplicate financial disbursements, API calls, or ticket mutations acr
 - **Chained Replay Index**: Each replayed call increments `replay_index` (`1, 2, ...`), creates a distinct audit transaction ID, while preserving the reference to `original_request_id` and the immutable `action_hash`.
 ```bash
 # Get a key at https://www.ethersflow.com/api-keys.html
-# First Call (Fresh Verification ~126ms Fast-Path or ~1.7–2.0s Consensus)
+# First Call (Fresh Verification ~126ms Fast-Path or median 1.1 s Consensus in R90)
 curl -X POST https://www.ethersflow.com/api/v1/verify \
   -H "Authorization: Bearer $ETHERSFLOW_API_KEY" \
   -H "Idempotency-Key: agent-step-uuid-101" \
@@ -582,14 +592,14 @@ EthersFlow strictly distinguishes between raw unparsed action payloads and deriv
 
 - **Ed25519-Signed Audit Trail**: Every audit node output and overall verdict is signed using Ed25519-EdDSA (`ef_attest_v5`). Signatures can be verified independently offline against `/.well-known/jwks.json` with zero trust required in EthersFlow's servers.
 - **Probabilistic, Not Deterministic**: Borderline or ambiguous actions (e.g., high-value wire transfers or missing compliance records) evaluate near decision thresholds (`APPROVED` <-> `FLAGGED_HUMAN_REVIEW`). We strongly recommend routing any `FLAGGED_HUMAN_REVIEW` verdict directly to human operators for sign-off.
-- **Live Model Engine (v0.4.0 Provably Independent Council)**: Powered by a 10-model heterogeneous catalog across 6 model families (**Qwen 3.8/3.6 27B**, **GPT-OSS 120B/20B**, **NVIDIA Nemotron-3 Super/Ultra/3.5 Lightning**, **Llama 3.3 70B**, **Compound Mini**, and **GPT-4o Mini**) governed by `strict_cross_family_v1`. Every seat records live `provider_request_id`, `model_family`, and `models_digest` in the Ed25519 attestation; Gemini 2.5 Flash is excluded from production council rotation.
+- **Live Model Engine (v0.4.0 Provably Independent Multi-Model Council)**: Powered by a multi-model council governed by `strict_cross_family_v1`: two primary reviewer seats (Qwen 3.8 27B + GPT-OSS 120B via Groq) with NVIDIA Nemotron escalation lanes (OpenRouter), drawn from a wider rotation catalog across 6 model families. Every seat records live `provider_request_id`, `model_family`, and `models_digest` in the Ed25519 attestation; Gemini 2.5 Flash is excluded from production council rotation.
 - **Gateway Architecture & Repository Evolution**: The core Federated Adversarial Consensus backend operates as a secure API service with default receipt-only persistence and payload discard (verdicts, reason codes, action hashes, and Ed25519 signatures retained; raw action payloads discarded immediately after signing). Currently, this repository hosts the gateway service alongside developer toolkits and SDKs; backend engine code will be segregated into a dedicated repository in Phase C.
 
 ---
 
 ## Key Features
 
-- **Multi-Model Consensus**: Reduces single-model bias by forcing heterogeneous frontier models into adversarial cross-examination.
+- **Multi-Model Consensus**: Reduces single-model bias by forcing heterogeneous council models into adversarial cross-examination.
 - **Ed25519 Attestation**: Every debate node output and decision receipt is signed with an Ed25519 cryptographic key (`ef_attest_v5`). Public key set available at `/.well-known/jwks.json`.
 - **Retention Architecture & Payload Discard**: By default, EthersFlow operates in strict ephemeral mode, discarding raw action payloads immediately after signing while persisting only the cryptographic receipt artifact (verdict, normalized hashes, Ed25519 signature, reason codes, request ID). Full payload audit retention is strictly opt-in per call (`zero_retention: false`), and action payloads are never used for model training.
 - **OpenAI & Anthropic Drop-In Proxies**: Use `/v1/chat/completions` or `/v1/messages` as a drop-in replacement for existing agent pipelines.
@@ -671,15 +681,15 @@ To ensure empirical rigor and prevent circular evaluation (testing against sampl
 
 - **Author**: Independent Red Team & AI Safety Consortium.
 - **Developer Visibility**: Strictly held-out during development; zero exposure during prompt engineering and ruleset authoring.
-- **Independent Acceptance QA**: Completed and published — see the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/) for the full battery, results, and disclosures. A methodology-reconciliation pass against published baselines is scheduled.
+- **Acceptance QA**: Completed and published — see the [External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/) and [QA Explorer](https://ethersflow.juno.page/qa-explorer/) for the full battery, results, and disclosures. A methodology-reconciliation pass against published baselines is scheduled.
 
 ---
 
 ## Empirical Evidence — External Verification Report
 
-Results below are from the published external verification battery (R79) and its independent re-run (R86) against production. Full methodology, acceptance history, and disclosure of every limitation: **[EthersFlow External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/)**.
+Results below are from the published external verification battery (R79), re-verified on later builds by the same vendor, published in full (R86/R90) against production. Full methodology, acceptance history, and disclosure of every limitation: **[EthersFlow External Verification White Paper](https://ethersflow.juno.page/ethersflow-report/)** | **[QA Explorer (R90 Raw Bundle)](https://ethersflow.juno.page/qa-explorer/)**.
 
-**Headline:** 4,203 mapped attack scenarios · **97.48% defended** · 2.52% got through (95% confidence interval on the miss rate: 2.07%–3.04%). An independent re-run on a later build (R86: 102 of 4,103 = 2.49%) reproduces the result within that interval.
+**Headline:** 4,203 mapped attack scenarios · **97.48% defended** (rejected or escalated to human review; the action did not execute) · 2.52% got through (95% confidence interval on the miss rate: 2.07%–3.04%). Re-verified on later builds by the same vendor, published in full (R86: 102 of 4,103 = 2.49%; R90: median 1.1 s per gated action across 4,203 gated actions), reproducing the result within that interval.
 
 **Per-suite results (share of attacks that got through):**
 
@@ -693,13 +703,13 @@ Results below are from the published external verification battery (R79) and its
 | PurpleLlama | 251 | 8.76% |
 | Agent Security Bench | 400 | 17.25% |
 
-**Decision ledger (3,512 production trials):** 89 approved · 2,706 rejected · 717 flagged for human review · median verdict time 1.4s.
+**Decision ledger (3,512 R79 production trials):** 89 approved · 2,706 rejected · 717 flagged for human review · median verdict time 1.4 s in R79 (R90 published campaign: median 1.1 s across 4,203 gated actions).
 
-**Trajectory:** early builds defended 75.8% of InjecAgent and 10.7% of Agent Security Bench attacks; the defense rate climbed round over round to today's ceiling. The full round-by-round history is in the white paper.
+**Trajectory:** early builds defended 75.8% of InjecAgent and 10.7% of Agent Security Bench attacks (rejected or escalated to human review; the action did not execute); the defense rate climbed round over round to today's ceiling. The full round-by-round history is in the white paper.
 
 > **Comparability caveat:** published baseline figures describe *undefended* models; the deltas above are directional until the methodology-reconciliation pass (scheduled) aligns test conditions exactly.
 
-> **Honest disclosures:** benign-action handling is fail-closed by design, and the dedicated benign control set is small — a larger innocent-case battery is an open work item (F7), disclosed in the white paper. The historical R79/R86 benchmark numbers above were measured against EthersFlow's built-in internal policy layer (e.g. `finops_default_v1`); caller-defined custom policies (`/api/v1/policies`, now live in v0.4.0) are **not** covered by those earlier R79/R86 figures.
+> **Honest disclosures:** pre-registered benign cases approve at 58.8% (57 of 97); the rest are escalated to human review (34) or rejected (6) — fail-closed by design, and the dedicated benign control set is small (a larger innocent-case battery is an open work item, F7, disclosed in the white paper). The historical R79/R86 benchmark numbers above were measured against EthersFlow's built-in internal policy layer (e.g. `finops_default_v1`); caller-defined custom policies (`/api/v1/policies`, now live in v0.4.0) are **not** covered by those earlier R79/R86 figures.
 
 ---
 
