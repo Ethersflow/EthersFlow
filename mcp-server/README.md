@@ -28,10 +28,10 @@ KYA establishes who your agent is and what it's allowed to do. **KYAA (Know Your
 +-------------------------------------------------------------------------------+
 |                 EthersFlow Action-Verification Gateway (KYAA)                 |
 |                                                                               |
-|   +-----------------------+               +-------------------------------+   |
-|   |  Deterministic Kernel | (fast-path)   |  Adversarial Frontier Council |   |
-|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)    |   |
-|   +-----------+-----------+               +---------------+---------------+   |
+|   +-----------------------+               +---------------------------------+ |
+|   |  Deterministic Kernel | (fast-path)   | Adversarial Multi-Model Council | |
+|   |  & Catalog Matcher    | ------------> |  (Heterogeneous LLM Panel)      | |
+|   +-----------+-----------+               +----------------+----------------+ |
 |               |                                           |                   |
 |               +---------------------+---------------------+                   |
 |                                     |                                         |
@@ -54,13 +54,13 @@ KYA establishes who your agent is and what it's allowed to do. **KYAA (Know Your
 
 ### Option A: Zero-Signup Instant Demo (`--demo`)
 ```bash
-npx -y @ethersflow/mcp-server --demo
+npx -y @ethersflow/mcp-server@^0.4.0 --demo
 ```
 Auto-mints a free 24-hour `ef_sandbox_...` key (`60 verdicts/hr`) and prints a ready-to-paste `mcpServers` config to `stderr`.
 
 ### Option B: Via NPX with an explicit key ([`ethersflow.com/api-keys.html`](https://www.ethersflow.com/api-keys.html))
 ```bash
-npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
+npx -y @ethersflow/mcp-server@^0.4.0 --api-key=get_key_at_ethersflow.com/api-keys.html
 ```
 
 ### Option C: From source
@@ -93,7 +93,7 @@ Add EthersFlow to your `claude_desktop_config.json` (obtain a free key at https:
   "mcpServers": {
     "ethersflow": {
       "command": "npx",
-      "args": ["-y", "@ethersflow/mcp-server"],
+      "args": ["-y", "@ethersflow/mcp-server@^0.4.0"],
       "env": {
         "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"
@@ -127,7 +127,7 @@ In Cursor Settings → **MCP Servers** → **Add New MCP Server**:
 
 - **Name**: `ethersflow`
 - **Type**: `command`
-- **Command**: `npx -y @ethersflow/mcp-server --demo` (or `npx -y @ethersflow/mcp-server` with an explicit key)
+- **Command**: `npx -y @ethersflow/mcp-server@^0.4.0 --demo` (or `npx -y @ethersflow/mcp-server@^0.4.0` with an explicit key)
 - **Environment Variables** (from https://www.ethersflow.com/api-keys.html):
   - `ETHERSFLOW_TOKEN`: `get_key_at_ethersflow.com/api-keys.html`
   - `ETHERSFLOW_BASE_URL`: `https://www.ethersflow.com`
@@ -159,7 +159,7 @@ The server exposes a single typed tool:
 verify_agent_action({
   agent_action: string;          // Required: Proposed action directive
   reasoning_chain?: string;      // Optional: Reasoning or background context
-  agent_count?: number;          // Optional: Number of audit nodes (1 to 5, default 3)
+  agent_count?: number;          // Optional: Number of audit nodes (1 to 5, default 2)
   persona_preset?: string;       // Optional: "financial_compliance" | "clinical_safety" | "legal_citation" | "cybersecurity_auditor" | "general_adversarial"
 })
 ```

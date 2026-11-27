@@ -25,7 +25,7 @@ client = EthersFlowClient(api_key=os.getenv("ETHERSFLOW_API_KEY", "get_key_at_et
 result = client.verify_agent_action(
     agent_action="Transfer 5000 USDC to 0x71C... for auditing services",
     persona_preset="financial_compliance",
-    agent_count=3
+    agent_count=2
 )
 
 print(f"Verified: {result['verified']}")

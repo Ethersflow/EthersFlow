@@ -11,7 +11,7 @@ APPROVED / FLAGGED_HUMAN_REVIEW / REJECTED with an Ed25519-signed audit trail.
 
 ## Option A — Instant zero-signup demo (stdio)
 Run:
-    npx -y @ethersflow/mcp-server --demo
+    npx -y @ethersflow/mcp-server@^0.4.0 --demo
 
 ## Option B — Local stdio server with explicit API key (Cline, Claude Desktop, Cursor)
 Get a free sandbox (`ef_sandbox_...`) or live account key (`ef_live_...`) at:
@@ -22,7 +22,7 @@ Provide the API key via environment variables:
     ETHERSFLOW_BASE_URL=https://www.ethersflow.com
 
 Alternative: pass the key as a flag instead of an env var:
-    npx -y @ethersflow/mcp-server --api-key=get_key_at_ethersflow.com/api-keys.html
+    npx -y @ethersflow/mcp-server@^0.4.0 --api-key=get_key_at_ethersflow.com/api-keys.html
 
 ## Option C — Remote gateway (no local install)
 Point your MCP client at:
@@ -35,7 +35,7 @@ Authentication header:
   "mcpServers": {
     "ethersflow": {
       "command": "npx",
-      "args": ["-y", "@ethersflow/mcp-server"],
+      "args": ["-y", "@ethersflow/mcp-server@^0.4.0"],
       "env": {
         "ETHERSFLOW_TOKEN": "get_key_at_ethersflow.com/api-keys.html",
         "ETHERSFLOW_BASE_URL": "https://www.ethersflow.com"

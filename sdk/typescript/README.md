@@ -19,7 +19,7 @@ const ef = new EthersFlow(process.env.ETHERSFLOW_API_KEY!);
 const result = await ef.verify({
   agentAction: 'Transfer 5000 USDC to 0x71C... for auditing services',
   personaPreset: 'financial_compliance',
-  agentCount: 3
+  agentCount: 2
 });
 
 console.log('Verified:', result.verified);

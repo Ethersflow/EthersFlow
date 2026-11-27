@@ -6,7 +6,7 @@
     "version": "0.4.0",
     "contact": {
       "name": "EthersFlow Developer Support",
-      "email": "ethersflow.dev@gmail.com",
+      "email": "security@ethersflow.com",
       "url": "https://www.ethersflow.com"
     }
   },
@@ -1442,12 +1442,12 @@
     },
     "/api/v1/council/models": {
       "get": {
-        "summary": "Inspect 10-Model Provably Independent Council Catalog",
-        "description": "Public read-only catalog listing all 10 council models, model families, runtime eligibility, strict_cross_family_v1 diversity enforcement policy, and confirmation that Gemini 2.5 Flash is excluded from production council rotation.",
+        "summary": "Inspect Multi-Model Council Rotation Catalog",
+        "description": "Public read-only rotation catalog listing fallback and degraded-mode model seats across 6 model families (default campaign council runs qwen/qwen3.8-27b + openai/gpt-oss-120b via Groq with NVIDIA Nemotron escalation lanes via OpenRouter), runtime eligibility, strict_cross_family_v1 diversity enforcement policy, and confirmation that Gemini 2.5 Flash is excluded from production council rotation.",
         "operationId": "getCouncilModels",
         "security": [],
         "responses": {
-          "200": { "description": "10-model council catalog and diversity metadata" }
+          "200": { "description": "Multi-model council rotation catalog and diversity metadata" }
         }
       }
     },
